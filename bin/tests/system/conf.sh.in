@@ -16,6 +16,8 @@
 
 # Find the top of the BIND9 tree.
 TOP=@abs_top_builddir@
+SRCTOP=@abs_top_srcdir@
+SYSTEMTESTTOP=@abs_srcdir@
 
 # Default algorithm for testing
 DEFAULT_ALGORITHM=ECDSAP256SHA256
@@ -145,6 +147,8 @@ HAVEXMLSTATS=@XMLSTATS@
 HAVEJSONSTATS=@JSONSTATS@
 ZLIB=@ZLIB@
 NZD=@NZD_TOOLS@
+
+. $SRCTOP/version
 
 # copy_setports - Copy Configuration File and Replace Ports
 # Unfortunately it has to be different on Windows.
