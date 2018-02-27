@@ -19,6 +19,10 @@ TOP=@abs_top_builddir@
 SRCTOP=@abs_top_srcdir@
 SYSTEMTESTTOP=@abs_srcdir@
 
+export TOP
+export SRCTOP
+export SYSTEMTESTTOP
+
 # Default algorithm for testing
 DEFAULT_ALGORITHM=ECDSAP256SHA256
 DEFAULT_ALGORITHM_NUMBER=13
@@ -74,6 +78,9 @@ KEYDELETE=$TOP/bin/tests/system/tkey/keydelete
 MAKEJOURNAL=$TOP/bin/tests/makejournal
 PIPEQUERIES=$TOP/bin/tests/system/pipelined/pipequeries
 SAMPLEUPDATE=$TOP/lib/samples/sample-update
+
+# extension for shared objects
+SOEXT=@SO@
 
 # we don't want a KRB5_CONFIG setting breaking the tests
 KRB5_CONFIG=/dev/null
@@ -158,6 +165,9 @@ NZD=@NZD_TOOLS@
 # environment variables. (These values are set by "run.sh", which calls the
 # scripts invoking this function.)
 #
+# For use in tests that need to locate files in other parts of the
+# tree, we also replace @TOP@, @SRCTOP@, and @SYSTEMTESTTOP@.
+#
 # Usage:
 #   copy_setports infile outfile
 
@@ -172,6 +182,10 @@ copy_setports() {
         -e "s/@EXTRAPORT7@/${EXTRAPORT7}/g" \
         -e "s/@EXTRAPORT8@/${EXTRAPORT8}/g" \
         -e "s/@CONTROLPORT@/${CONTROLPORT}/g" \
+        -e "s#@TOP@#${TOP}#g" \
+        -e "s#@SRCTOP@#${SRCTOP}#g" \
+        -e "s#@SYSTEMTESTTOP@#${SYSTEMTESTTOP}#g" \
+        -e "s#@SOEXT@#${SOEXT}#g" \
 	-e "s/@DEFAULT_ALGORITHM@/${DEFAULT_ALGORITHM}/g" \
 	-e "s/@DEFAULT_ALGORITHM_NUMBER@/${DEFAULT_ALGORITHM_NUMBER}/g" \
 	-e "s/@DEFAULT_BITS@/${DEFAULT_BITS}/g" \

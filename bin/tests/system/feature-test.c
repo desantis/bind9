@@ -47,6 +47,7 @@ usage() {
 	fprintf(stderr, "	--ipv6only=no\n");
 	fprintf(stderr, "	--with-idn\n");
 	fprintf(stderr, "	--with-lmdb\n");
+	fprintf(stderr, "	--with-dlz-filesystem\n");
 }
 
 int
@@ -170,6 +171,15 @@ main(int argc, char **argv) {
 		return (1);
 #endif
 	}
+
+	if (strcmp(argv[1], "--with-dlz-filesystem") == 0) {
+#ifdef HAVE_DLZ_FILESYSTEM
+		return (0);
+#else
+		return (1);
+#endif
+	}
+
 
 	fprintf(stderr, "unknown arg: %s\n", argv[1]);
 	usage();
