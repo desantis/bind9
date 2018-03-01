@@ -5375,6 +5375,7 @@ query_lookup(query_ctx_t *qctx) {
 		    dns_rdataset_count(qctx->rdataset) > 0 &&
 		    STALE(qctx->rdataset)) {
 			qctx->rdataset->ttl = qctx->view->staleanswerttl;
+			inc_stats(qctx->client, ns_statscounter_usedstale);
 			success = true;
 		} else {
 			success = false;
