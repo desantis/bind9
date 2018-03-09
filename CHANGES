@@ -1,3 +1,6 @@
+5170.	[test]		Enable "make test" to run from an out-of-tree build
+			directory. [GL #114]
+
 5169.	[bug]		The presence of certain types in an otherwise
 			empty node could cause a crash while processing a
 			type ANY query. [GL #901]
