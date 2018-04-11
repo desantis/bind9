@@ -5,6 +5,8 @@ variables:
   CI_REGISTRY_IMAGE: registry.gitlab.isc.org/isc-projects/images/bind9
   CCACHE_DIR: "/ccache"
   SOFTHSM2_CONF: "/var/tmp/softhsm2/softhsm2.conf"
+  MAKE: make
+  SUDO: ""
 
 stages:
   - precheck
@@ -117,7 +119,7 @@ stages:
 #    - ./autogen.sh
   script:
     - ./configure --enable-developer --with-libtool --disable-static --with-cmocka --prefix=$HOME/.local --without-make-clean $EXTRA_CONFIGURE || cat config.log
-    - make -j${PARALLEL_JOBS_BUILD:-1} -k all V=1
+    - ${MAKE} -j${PARALLEL_JOBS_BUILD:-1} -k all V=1
   artifacts:
     paths:
     - doc/
@@ -135,10 +137,10 @@ stages:
   stage: test
   before_script:
     - rm -rf .ccache
-    - bash -x bin/tests/system/ifconfig.sh up
+    - ${SUDO} bash -x bin/tests/system/ifconfig.sh up
     - bash -x util/prepare-softhsm2.sh
   script:
-    - ( cd bin/tests && make -j${TEST_PARALLEL_JOBS:-1} -k test V=1 )
+    - ( cd bin/tests && ${MAKE} -j${TEST_PARALLEL_JOBS:-1} -k test V=1 )
     - test -s bin/tests/system/systests.output
   artifacts:
     untracked: true
@@ -151,7 +153,7 @@ stages:
     - export KYUA_RESULT="$CI_PROJECT_DIR/kyua.results"
     - bash -x util/prepare-softhsm2.sh
   script:
-    - make unit
+    - ${MAKE} unit
   after_script:
     - kyua report-html --force --results-file kyua.results --results-filter "" --output kyua_html
   artifacts:
@@ -439,3 +441,29 @@ noassert:system:sid:amd64:
   <<: *system_test_job
   dependencies:
     - noassert:sid:amd64:build
+
+# FreeBSD 11
+
+.freebsd11-amd64: &freebsd11_amd64_image
+  variables:
+    MAKE: gmake
+    SUDO: sudo
+  tags:
+    - freebsd11
+    - amd64
+
+freebsd11:amd64:build:
+  <<: *freebsd11_amd64_image
+  <<: *build_job
+
+unit:freebsd11:amd64:
+  <<: *freebsd11_amd64_image
+  <<: *unit_test_job
+  dependencies:
+    - freebsd11:amd64:build
+
+system:freebsd11:amd64:
+  <<: *freebsd11_amd64_image
+  <<: *system_test_job
+  dependencies:
+    - freebsd11:amd64:build
