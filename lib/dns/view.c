@@ -255,6 +255,7 @@ dns_view_create(isc_mem_t *mctx, dns_rdataclass_t rdclass,
 	view->v6bias = 0;
 	view->dtenv = NULL;
 	view->dttypes = 0;
+	view->srv_full_additional = false;
 
 	view->plugins = NULL;
 	view->plugins_free = NULL;
