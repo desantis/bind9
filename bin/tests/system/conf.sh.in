@@ -17,7 +17,7 @@
 # Find the top of the BIND9 tree.
 TOP=@abs_top_builddir@
 SRCTOP=@abs_top_srcdir@
-SYSTEMTESTTOP=@abs_srcdir@
+SYSTEMTESTTOP=@abs_top_builddir@/bin/tests/system
 
 export TOP
 export SRCTOP
@@ -44,7 +44,7 @@ DELV=$TOP/bin/delv/delv
 DIG=$TOP/bin/dig/dig
 DNSTAPREAD=$TOP/bin/tools/dnstap-read
 DSFROMKEY=$TOP/bin/dnssec/dnssec-dsfromkey
-FEATURETEST=$TOP/bin/tests/system/feature-test
+FEATURETEST=$SYSTEMTESTTOP/feature-test
 FSTRM_CAPTURE=@FSTRM_CAPTURE@
 IMPORTKEY=$TOP/bin/dnssec/dnssec-importkey
 JOURNALPRINT=$TOP/bin/tools/named-journalprint
@@ -71,12 +71,12 @@ TSIGKEYGEN=$TOP/bin/confgen/tsig-keygen
 VERIFY=$TOP/bin/dnssec/dnssec-verify
 WIRETEST=$TOP/bin/tests/wire_test
 
-BIGKEY=$TOP/bin/tests/system/rsabigexponent/bigkey
-GENCHECK=$TOP/bin/tests/system/rndc/gencheck
-KEYCREATE=$TOP/bin/tests/system/tkey/keycreate
-KEYDELETE=$TOP/bin/tests/system/tkey/keydelete
+BIGKEY=$SYSTEMTESTTOP/rsabigexponent/bigkey
+GENCHECK=$SYSTEMTESTTOP/rndc/gencheck
+KEYCREATE=$SYSTEMTESTTOP/tkey/keycreate
+KEYDELETE=$SYSTEMTESTTOP/tkey/keydelete
 MAKEJOURNAL=$TOP/bin/tests/makejournal
-PIPEQUERIES=$TOP/bin/tests/system/pipelined/pipequeries
+PIPEQUERIES=$SYSTEMTESTTOP/pipelined/pipequeries
 SAMPLEUPDATE=$TOP/lib/samples/sample-update
 
 # extension for shared objects
@@ -154,8 +154,6 @@ HAVEXMLSTATS=@XMLSTATS@
 HAVEJSONSTATS=@JSONSTATS@
 ZLIB=@ZLIB@
 NZD=@NZD_TOOLS@
-
-. $SRCTOP/version
 
 # copy_setports - Copy Configuration File and Replace Ports
 # Unfortunately it has to be different on Windows.

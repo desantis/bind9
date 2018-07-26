@@ -165,7 +165,6 @@ HAVEJSONSTATS=@JSONSTATS@
 ZLIB=@ZLIB@
 NZD=@NZD_TOOLS@
 
-. ${TOP}/version
 # copy_setports - Copy Configuration File and Replace Ports
 # Unfortunately it has to be different on Windows.
 #

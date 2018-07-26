@@ -23,7 +23,7 @@ fi
 
 TESTSOCK6="$TESTSOCK6"
 
-. ${TOP}/version
+. ${SRCTOP}/version
 
 #
 # Set up color-coded test output
