@@ -35,7 +35,7 @@
 #include <dns/rdatatype.h>
 #include <dns/byaddr.h>
 
-#include <dig/dig.h>
+#include "dighost.h"
 
 #if defined(HAVE_READLINE)
 #if defined(HAVE_EDIT_READLINE_READLINE_H)
@@ -633,7 +633,7 @@ set_ndots(const char *value) {
 
 static void
 version(void) {
-	fputs("nslookup " VERSION "\n", stderr);
+	fprintf(stderr, "nslookup %s\n", PACKAGE_VERSION);
 }
 
 static void

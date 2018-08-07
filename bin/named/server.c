@@ -3671,7 +3671,7 @@ configure_dnstap(const cfg_obj_t **maps, dns_view_t *view) {
 	result = named_config_get(maps, "dnstap-version", &obj);
 	if (result != ISC_R_SUCCESS) {
 		/* not specified; use the product and version */
-		dns_dt_setversion(named_g_server->dtenv, PRODUCT " " VERSION);
+		dns_dt_setversion(named_g_server->dtenv, PACKAGE_STRING);
 	} else if (result == ISC_R_SUCCESS && !cfg_obj_isvoid(obj)) {
 		/* Quoted string */
 		dns_dt_setversion(named_g_server->dtenv, cfg_obj_asstring(obj));
@@ -11475,10 +11475,9 @@ named_server_status(named_server_t *server, isc_buffer_t **text) {
 	isc_time_formathttptimestamp(&named_g_configtime, configtime,
 				     sizeof(configtime));
 
-	snprintf(line, sizeof(line), "version: %s %s%s%s <id:%s>%s%s%s\n",
-		 named_g_product, named_g_version,
-		 (*named_g_description != '\0') ? " " : "",
-		 named_g_description, named_g_srcid, ob, alt, cb);
+	snprintf(line, sizeof(line), "version: %s%s <id:%s>%s%s%s\n",
+		 PACKAGE_STRING, PACKAGE_DESCRIPTION,
+		 PACKAGE_SRCID, ob, alt, cb);
 	CHECK(putstr(text, line));
 
 	result = named_os_gethostname(hostname, sizeof(hostname));

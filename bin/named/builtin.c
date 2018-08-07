@@ -323,7 +323,7 @@ do_version_lookup(dns_sdblookup_t *lookup) {
 		else
 			return (put_txt(lookup, named_g_server->version));
 	} else {
-		return (put_txt(lookup, named_g_version));
+		return (put_txt(lookup, PACKAGE_VERSION));
 	}
 }
 

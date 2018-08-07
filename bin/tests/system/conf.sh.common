@@ -13,7 +13,7 @@ if test -n "$PERL"
 then
 	if $PERL -e "use IO::Socket::INET6;" 2> /dev/null
 	then
-		TESTSOCK6="$PERL $TOP/bin/tests/system/testsock6.pl"
+		TESTSOCK6="$PERL $TOP/tests/system/testsock6.pl"
 	else
 		TESTSOCK6=false
 	fi
@@ -23,7 +23,6 @@ fi
 
 TESTSOCK6="$TESTSOCK6"
 
-. ${TOP}/version
 
 #
 # Set up color-coded test output
@@ -269,7 +268,7 @@ rndc_reload() {
     # we need to wait for reload to finish
     if [ -z "$3" ]; then
 	for __try in 0 1 2 3 4 5 6 7 8 9; do
-	    $RNDC -c ../common/rndc.conf -s $2 -p ${CONTROLPORT} status | grep "reload/reconfig in progress" > /dev/null || break; 
+	    $RNDC -c ../common/rndc.conf -s $2 -p ${CONTROLPORT} status | grep "reload/reconfig in progress" > /dev/null || break;
 	    sleep 1
 	done
     fi
@@ -278,7 +277,7 @@ rndc_reload() {
 rndc_reconfig() {
     echo_i "`$RNDC -c ../common/rndc.conf -s $2 -p ${CONTROLPORT} reconfig 2>&1 | sed 's/^/'$1' /'`"
     for __try in 0 1 2 3 4 5 6 7 8 9; do
-        $RNDC -c ../common/rndc.conf -s $2 -p ${CONTROLPORT} status | grep "reload/reconfig in progress" > /dev/null || break; 
+        $RNDC -c ../common/rndc.conf -s $2 -p ${CONTROLPORT} status | grep "reload/reconfig in progress" > /dev/null || break;
 	sleep 1
     done
 }

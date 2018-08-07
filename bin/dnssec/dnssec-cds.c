@@ -1107,7 +1107,7 @@ usage(void) {
 	fprintf(stderr,
 		"    %s options [options] -f <file> -d <path> <domain>\n",
 		program);
-	fprintf(stderr, "Version: %s\n", VERSION);
+	fprintf(stderr, "Version: %s\n", PACKAGE_VERSION);
 	fprintf(stderr, "Options:\n"
 "    -a <algorithm>     digest algorithm (SHA-1 / SHA-256 / SHA-384)\n"
 "    -c <class>         of domain (default IN)\n"

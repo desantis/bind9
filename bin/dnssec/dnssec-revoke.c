@@ -48,7 +48,7 @@ static void
 usage(void) {
 	fprintf(stderr, "Usage:\n");
 	fprintf(stderr,	"    %s [options] keyfile\n\n", program);
-	fprintf(stderr, "Version: %s\n", VERSION);
+	fprintf(stderr, "Version: %s\n", PACKAGE_VERSION);
 #if USE_PKCS11
 	fprintf(stderr, "    -E engine:    specify PKCS#11 provider "
 					"(default: %s)\n", PK11_LIB_LOCATION);

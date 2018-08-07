@@ -152,4 +152,3 @@ main(int argc, char **argv) {
 
 	return(result != ISC_R_SUCCESS ? 1 : 0);
 }
-

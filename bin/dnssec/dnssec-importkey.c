@@ -265,7 +265,7 @@ usage(void) {
 	fprintf(stderr, "Usage:\n");
 	fprintf(stderr,	"    %s options [-K dir] keyfile\n\n", program);
 	fprintf(stderr, "    %s options -f file [keyname]\n\n", program);
-	fprintf(stderr, "Version: %s\n", VERSION);
+	fprintf(stderr, "Version: %s\n", PACKAGE_VERSION);
 	fprintf(stderr, "Options:\n");
 	fprintf(stderr, "    -f file: read key from zone file\n");
 	fprintf(stderr, "    -K <directory>: directory in which to store "

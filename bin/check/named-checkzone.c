@@ -353,7 +353,7 @@ main(int argc, char **argv) {
 			break;
 
 		case 'v':
-			printf(VERSION "\n");
+			printf("%s\n", PACKAGE_VERSION);
 			exit(0);
 
 		case 'w':

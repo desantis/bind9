@@ -41,7 +41,7 @@
 #include <dns/result.h>
 #include <dns/tsig.h>
 
-#include <dig/dig.h>
+#include "dighost.h"
 
 #define ADD_STRING(b, s) { 				\
 	if (strlen(s) >= isc_buffer_availablelength(b)) \
@@ -133,7 +133,7 @@ usage(void) {
 /*% version */
 static void
 version(void) {
-	fputs("DiG " VERSION "\n", stderr);
+	fprintf(stderr, "DiG %s\n", PACKAGE_VERSION);
 }
 
 /*% help */
@@ -698,8 +698,8 @@ printgreeting(int argc, char **argv, dig_lookup_t *lookup) {
 
 	if (printcmd) {
 		snprintf(lookup->cmdline, sizeof(lookup->cmdline),
-			 "%s; <<>> DiG " VERSION " <<>>",
-			 first?"\n":"");
+			 "%s; <<>> DiG %s <<>>",
+			 first?"\n":"", PACKAGE_VERSION);
 		i = 1;
 		while (i < argc) {
 			snprintf(append, sizeof(append), " %s", argv[i++]);

@@ -57,7 +57,7 @@ bool verbose;
 
 static const char *admin_conffile;
 static const char *admin_keyfile;
-static const char *version = VERSION;
+static const char *version = PACKAGE_VERSION;
 static const char *servername = NULL;
 static isc_sockaddr_t serveraddrs[SERVERADDRS];
 static isc_sockaddr_t local4, local6;

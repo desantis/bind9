@@ -38,7 +38,7 @@
 #include <dns/rdatatype.h>
 #include <dns/rdatastruct.h>
 
-#include <dig/dig.h>
+#include "dighost.h"
 
 static bool short_form = true, listed_server = false;
 static bool default_lookups = true;
@@ -589,7 +589,7 @@ static const char * optstring = "46aAc:dilnm:rst:vVwCDN:R:TUW:";
 /*% version */
 static void
 version(void) {
-	fputs("host " VERSION "\n", stderr);
+	fprintf(stderr, "host %s\n", PACKAGE_VERSION);
 }
 
 static void

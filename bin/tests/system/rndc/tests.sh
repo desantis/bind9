@@ -637,7 +637,7 @@ if [ -x "$PYTHON" ]; then
     ret=0
     $PYTHON > python.out.1.test$n << EOF
 import sys
-sys.path.insert(0, '../../../../bin/python')
+sys.path.insert(0, '$TOP/bin/python')
 from isc import *
 r = rndc(('10.53.0.5', ${CONTROLPORT}), 'hmac-sha256', '1234abcd8765')
 result = r.call('status')

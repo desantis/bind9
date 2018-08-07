@@ -72,7 +72,7 @@ static void
 usage(void) {
 	fprintf(stderr, "Usage:\n");
 	fprintf(stderr, "    %s [options] name\n\n", program);
-	fprintf(stderr, "Version: %s\n", VERSION);
+	fprintf(stderr, "Version: %s\n", PACKAGE_VERSION);
 	fprintf(stderr, "    name: owner of the key\n");
 	fprintf(stderr, "Options:\n");
 	fprintf(stderr, "    -K <directory>: write keys into directory\n");

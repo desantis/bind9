@@ -480,10 +480,9 @@ static void
 printversion(bool verbose) {
 	char rndcconf[PATH_MAX], *dot = NULL;
 
-	printf("%s %s%s%s <id:%s>\n",
-	       named_g_product, named_g_version,
-	       (*named_g_description != '\0') ? " " : "",
-	       named_g_description, named_g_srcid);
+	printf("%s%s <id:%s>\n",
+	       PACKAGE_STRING, PACKAGE_DESCRIPTION,
+	       PACKAGE_SRCID);
 
 	if (!verbose) {
 		return;
@@ -491,7 +490,7 @@ printversion(bool verbose) {
 
 	printf("running on %s\n", named_os_uname());
 	printf("built by %s with %s\n",
-	       named_g_builder, named_g_configargs);
+	       PACKAGE_BUILDER, PACKAGE_CONFIGARGS);
 #ifdef __clang__
 	printf("compiled by CLANG %s\n", __VERSION__);
 #else
@@ -1023,10 +1022,9 @@ setup(void) {
 
 	isc_log_write(named_g_lctx, NAMED_LOGCATEGORY_GENERAL,
 		      NAMED_LOGMODULE_MAIN, ISC_LOG_NOTICE,
-		      "starting %s %s%s%s <id:%s>",
-		      named_g_product, named_g_version,
-		      *named_g_description ? " " : "", named_g_description,
-		      named_g_srcid);
+		      "starting %s%s <id:%s>",
+		      PACKAGE_STRING, PACKAGE_DESCRIPTION,
+		      PACKAGE_SRCID);
 
 	isc_log_write(named_g_lctx, NAMED_LOGCATEGORY_GENERAL,
 		      NAMED_LOGMODULE_MAIN, ISC_LOG_NOTICE,
@@ -1034,7 +1032,7 @@ setup(void) {
 
 	isc_log_write(named_g_lctx, NAMED_LOGCATEGORY_GENERAL,
 		      NAMED_LOGMODULE_MAIN, ISC_LOG_NOTICE,
-		      "built with %s", named_g_configargs);
+		      "built with %s", PACKAGE_CONFIGARGS);
 
 	isc_log_write(named_g_lctx, NAMED_LOGCATEGORY_GENERAL,
 		      NAMED_LOGMODULE_MAIN, ISC_LOG_NOTICE,
@@ -1397,9 +1395,9 @@ main(int argc, char *argv[]) {
 	 */
 	strlcat(version,
 #if defined(NO_VERSION_DATE) || !defined(__DATE__)
-		"named version: BIND " VERSION " <" SRCID ">",
+		"named version: BIND " PACKAGE_VERSION " <" PACKAGE_SRCID ">",
 #else
-		"named version: BIND " VERSION " <" SRCID "> (" __DATE__ ")",
+		"named version: BIND " PACKAGE_VERSION " <" PACKAGE_SRCID "> (" __DATE__ ")",
 #endif
 		sizeof(version));
 	result = isc_file_progname(*argv, program_name, sizeof(program_name));

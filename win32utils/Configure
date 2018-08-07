@@ -193,7 +193,7 @@ my @projectlist = ("..\\bin\\check\\win32\\checkconf.vcxproj",
 my %configdefh;
 
 my @substdefh = ("AES_CC",
-                 "CONFIGARGS",
+                 "PACKAGE_CONFIGARGS",
                  "DNS_RDATASET_FIXED",
                  "HAVE_GEOIP",
                  "HAVE_GEOIP_CITY_V6",
@@ -634,19 +634,19 @@ sub appargs {
     my $arg = $_[0];
     # escape backslashes, spaces and double quotes
     $arg =~ s/([\\ "])/\\$1/g;
-    if (defined($configdefh{"CONFIGARGS"})) {
-        $configdefh{"CONFIGARGS"} .= " " . $arg;
+    if (defined($configdefh{"PACKAGE_CONFIGARGS"})) {
+        $configdefh{"PACKAGE_CONFIGARGS"} .= " " . $arg;
     } else {
-        $configdefh{"CONFIGARGS"} = $arg;
+        $configdefh{"PACKAGE_CONFIGARGS"} = $arg;
     }
 }
 
-if (!$configdefh{"CONFIGARGS"}) {
+if (!$configdefh{"PACKAGE_CONFIGARGS"}) {
     # CONFIGARGS default is "default"
-    $configdefh{"CONFIGARGS"} = "\"default\"";
+    $configdefh{"PACKAGE_CONFIGARGS"} = "\"default\"";
 } else {
-    my $val = $configdefh{"CONFIGARGS"};
-    $configdefh{"CONFIGARGS"} = "\"'$val'\"";
+    my $val = $configdefh{"PACKAGE_CONFIGARGS"};
+    $configdefh{"PACKAGE_CONFIGARGS"} = "\"'$val'\"";
 }
 
 # parse enable/disable

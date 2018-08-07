@@ -258,7 +258,7 @@ typedef __int64 off_t;
 /*
  * Configure sensible arguments
  */
-@CONFIGARGS@
+@PACKAGE_CONFIGARGS@
 
 /*
  * Define if libxml2 is present

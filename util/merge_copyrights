@@ -13,6 +13,7 @@ use strict;
 
 my %file_types = ();
 my %file_years = ();
+my %file_found = ();
 
 open(COPYRIGHTS, "<util/copyrights") || die "can't open ./util/copyrights: $!";
 while (<COPYRIGHTS>) {
@@ -33,9 +34,11 @@ while (<CHANGES>) {
 
     next if (m%/\.\# |		# CVS old conflict file
 	       /CVS/ |		# CVS directory
+	       /(AUTHORS|NEWS|INSTALL|COPYING) | # administrative files
 	       /\.git/ |		# git directory
 	       /\.gitignore |   # .gitignore files
-	       Makefile.in  |   # build system doesn't need to have copyright
+	       /ChangeLog |
+	       Makefile.(in|am) |   # build system doesn't need to have copyright
 	       /m4/ |           # build system doesn't need to have copyright
 	       /configure   |   # build system doesn't need to have copyright
 	       /fuzz/.*\.in/ |  # ignore fuzz corpus
@@ -60,6 +63,8 @@ while (<CHANGES>) {
 	       doc/(draft|expired|rfc)/		# imported
 	     %x);
 
+    $file_found{$_} = $_;
+    
     if (!$file_types{$_}) {
 	# Strip any .in extension to find out the file's real type.
 	# .in files are processed by configure to produce the target file.
@@ -172,7 +177,7 @@ close(CHANGES);
 
 open(NEWCOPYRIGHTS, ">util/newcopyrights") ||
     die "can't open newcopyrights: $!";
-foreach my $file (sort(keys(%file_types))) {
+foreach my $file (sort(keys(%file_found))) {
     print NEWCOPYRIGHTS "$file";
     my $len = length($file);
     my $tabs = 0;

@@ -56,7 +56,7 @@ usage(void) {
 	fprintf(stderr, "Usage:\n");
 	fprintf(stderr, "    %s -l label [options] name\n\n",
 		program);
-	fprintf(stderr, "Version: %s\n", VERSION);
+	fprintf(stderr, "Version: %s\n", PACKAGE_VERSION);
 	fprintf(stderr, "Required options:\n");
 	fprintf(stderr, "    -l label: label of the key pair\n");
 	fprintf(stderr, "    name: owner of the key\n");

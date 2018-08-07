@@ -1639,7 +1639,7 @@ generatexml(named_server_t *server, uint32_t flags,
 	TRY0(xmlTextWriterWriteString(writer, ISC_XMLCHAR nowstr));
 	TRY0(xmlTextWriterEndElement(writer));  /* current-time */
 	TRY0(xmlTextWriterStartElement(writer, ISC_XMLCHAR "version"));
-	TRY0(xmlTextWriterWriteString(writer, ISC_XMLCHAR named_g_version));
+	TRY0(xmlTextWriterWriteString(writer, ISC_XMLCHAR PACKAGE_VERSION));
 	TRY0(xmlTextWriterEndElement(writer));  /* version */
 
 	if ((flags & STATS_XML_SERVER) != 0) {
@@ -2439,7 +2439,7 @@ generatejson(named_server_t *server, size_t *msglen,
 	obj = json_object_new_string(nowstr);
 	CHECKMEM(obj);
 	json_object_object_add(bindstats, "current-time", obj);
-	obj = json_object_new_string(named_g_version);
+	obj = json_object_new_string(PACKAGE_VERSION);
 	CHECKMEM(obj);
 	json_object_object_add(bindstats, "version", obj);
 

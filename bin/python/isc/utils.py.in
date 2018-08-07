@@ -64,7 +64,7 @@ def shellquote(s):
     return "'" + s.replace("'", "'\\''") + "'"
 
 
-version = '@BIND9_VERSION@'
+version = 'PACKAGE_VERSION'
 if os.name != 'nt':
     sysconfdir = '@expanded_sysconfdir@'
 else:

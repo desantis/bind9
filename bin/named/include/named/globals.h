@@ -64,12 +64,6 @@ EXTERN isc_timermgr_t *		named_g_timermgr	INIT(NULL);
 EXTERN isc_socketmgr_t *	named_g_socketmgr	INIT(NULL);
 EXTERN cfg_parser_t *		named_g_parser		INIT(NULL);
 EXTERN cfg_parser_t *		named_g_addparser	INIT(NULL);
-EXTERN const char *		named_g_version		INIT(VERSION);
-EXTERN const char *		named_g_product		INIT(PRODUCT);
-EXTERN const char *		named_g_description	INIT(DESCRIPTION);
-EXTERN const char *		named_g_srcid		INIT(SRCID);
-EXTERN const char *		named_g_configargs	INIT(CONFIGARGS);
-EXTERN const char *		named_g_builder		INIT(BUILDER);
 EXTERN in_port_t		named_g_port		INIT(0);
 EXTERN isc_dscp_t		named_g_dscp		INIT(-1);
 

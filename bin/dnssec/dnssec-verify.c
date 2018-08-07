@@ -137,7 +137,7 @@ usage(void) {
 
 	fprintf(stderr, "\n");
 
-	fprintf(stderr, "Version: %s\n", VERSION);
+	fprintf(stderr, "Version: %s\n", PACKAGE_VERSION);
 
 	fprintf(stderr, "Options: (default value in parenthesis) \n");
 	fprintf(stderr, "\t-v debuglevel (0)\n");

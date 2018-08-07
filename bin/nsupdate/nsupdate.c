@@ -74,7 +74,7 @@
 
 #include <irs/resconf.h>
 
-#ifdef GSSAPI
+#ifdef USE_GSSAPI
 #include <dst/gssapi.h>
 #ifdef WIN32
 #include <krb5/krb5.h>
@@ -199,7 +199,7 @@ debug(const char *format, ...) ISC_FORMAT_PRINTF(1, 2);
 static void
 ddebug(const char *format, ...) ISC_FORMAT_PRINTF(1, 2);
 
-#ifdef GSSAPI
+#ifdef USE_GSSAPI
 static dns_fixedname_t fkname;
 static isc_sockaddr_t *kserver = NULL;
 static char *realm = NULL;
@@ -220,7 +220,7 @@ send_gssrequest(isc_sockaddr_t *destaddr, dns_message_t *msg,
 		dns_request_t **request, gss_ctx_id_t context);
 static void
 recvgss(isc_task_t *task, isc_event_t *event);
-#endif /* GSSAPI */
+#endif /* USE_GSSAPI */
 
 static void
 error(const char *format, ...) ISC_FORMAT_PRINTF(1, 2);
@@ -988,7 +988,7 @@ get_addresses(char *host, in_port_t port,
 
 static void
 version(void) {
-	fputs("nsupdate " VERSION "\n", stderr);
+	fprintf(stderr, "nsupdate %s\n", PACKAGE_VERSION);
 }
 
 #define PARSE_ARGS_FMT "46dDML:y:ghilovk:p:Pr:R::t:Tu:V"
@@ -1195,7 +1195,7 @@ parse_args(int argc, char **argv) {
 		exit(1);
 	}
 
-#ifdef GSSAPI
+#ifdef USE_GSSAPI
 	if (usegsstsig && (keyfile != NULL || keystr != NULL)) {
 		fprintf(stderr, "%s: cannot specify -g with -k or -y\n",
 			argv[0]);
@@ -1663,7 +1663,7 @@ evaluate_zone(char *cmdline) {
 
 static uint16_t
 evaluate_realm(char *cmdline) {
-#ifdef GSSAPI
+#ifdef USE_GSSAPI
 	char *word;
 	char buf[1024];
 	int n;
@@ -2140,7 +2140,7 @@ do_next_command(char *cmdline) {
 	    strcasecmp(word, "checknames") == 0)
 		return (evaluate_checknames(cmdline));
 	if (strcasecmp(word, "gsstsig") == 0) {
-#ifdef GSSAPI
+#ifdef USE_GSSAPI
 		usegsstsig = true;
 		use_win2k_gsstsig = false;
 #else
@@ -2149,7 +2149,7 @@ do_next_command(char *cmdline) {
 		return (STATUS_MORE);
 	}
 	if (strcasecmp(word, "oldgsstsig") == 0) {
-#ifdef GSSAPI
+#ifdef USE_GSSAPI
 		usegsstsig = true;
 		use_win2k_gsstsig = true;
 #else
@@ -2159,7 +2159,7 @@ do_next_command(char *cmdline) {
 	}
 	if (strcasecmp(word, "help") == 0) {
 		fprintf(stdout,
-"nsupdate " VERSION ":\n"
+"nsupdate " PACKAGE_VERSION ":\n"
 "local address [port]      (set local resolver)\n"
 "server address [port]     (set master server for zone)\n"
 "send                      (send the update request)\n"
@@ -2182,7 +2182,7 @@ do_next_command(char *cmdline) {
 		return (STATUS_MORE);
 	}
 	if (strcasecmp(word, "version") == 0) {
-		fprintf(stdout, "nsupdate " VERSION "\n");
+		fprintf(stdout, "nsupdate " PACKAGE_VERSION "\n");
 		return (STATUS_MORE);
 	}
 	fprintf(stderr, "incorrect section name: %s\n", word);
@@ -2673,7 +2673,7 @@ recvsoa(isc_task_t *task, isc_event_t *event) {
 		master_from_servers();
 	dns_rdata_freestruct(&soa);
 
-#ifdef GSSAPI
+#ifdef USE_GSSAPI
 	if (usegsstsig) {
 		dns_name_init(&tmpzonename, NULL);
 		dns_name_dup(zname, gmctx, &tmpzonename);
@@ -2742,7 +2742,7 @@ sendrequest(isc_sockaddr_t *destaddr, dns_message_t *msg,
 	requests++;
 }
 
-#ifdef GSSAPI
+#ifdef USE_GSSAPI
 
 /*
  * Get the realm from the users kerberos ticket if possible
@@ -3194,7 +3194,7 @@ cleanup(void) {
 	if (answer != NULL)
 		dns_message_destroy(&answer);
 
-#ifdef GSSAPI
+#ifdef USE_GSSAPI
 	if (tsigkey != NULL) {
 		ddebug("detach tsigkey x%p", tsigkey);
 		dns_tsigkey_detach(&tsigkey);
