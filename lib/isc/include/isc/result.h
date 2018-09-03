@@ -9,7 +9,6 @@
  * information regarding copyright ownership.
  */
 
-
 #ifndef ISC_RESULT_H
 #define ISC_RESULT_H 1
 
@@ -85,9 +84,10 @@
 #define ISC_R_WOULDBLOCK		63	/*%< would block */
 #define ISC_R_COMPLETE			64	/*%< complete */
 #define ISC_R_CRYPTOFAILURE		65	/*%< cryptography library failure */
+#define ISC_R_BADTIME			66	/*%< badtime */
 
 /*% Not a result code: the number of results. */
-#define ISC_R_NRESULTS 			66
+#define ISC_R_NRESULTS 			67
 
 ISC_LANG_BEGINDECLS
 

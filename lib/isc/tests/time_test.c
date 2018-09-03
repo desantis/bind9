@@ -221,6 +221,47 @@ isc_time_formatshorttimestamp_test(void **state) {
 	assert_string_equal(buf, "20151213094640123");
 }
 
+static void
+isc_time_ISO8601fromtext_test(void **state) {
+	isc_result_t result;
+	isc_time_t t;
+	time_t secs;
+	size_t i;
+	struct {
+		const char *time;
+		bool valid;
+		unsigned int secs;
+		unsigned int nsecs;
+	} test[] = {
+		{ "1969-12-31T23:59:59Z", false, 0, 0 },
+		{ "1970-01-01T00:00:00Z", true, 0, 0 },
+		{ "1969-12-31T23:00:00-01:00", true, 0, 0 },
+		{ "1970-01-01T00:00:00+01:00", false, 0, 0 },
+		{ "2018-09-03T06:10:29Z", true, 1535955029, 0 },
+		{ "2018-09-03T06:10:29+00:00", true, 1535955029, 0 },
+		{ "2018-09-03T06:10:29-00:00", false, 0, 0 },
+		{ "2018-09-03T06:10:29+01:30", true, 1535949629, 0 },
+		{ "2018-09-03T06:10:29.524Z", true, 1535955029, 524000000 },
+		{ "2018-09-03T06:10:29.000Z", true, 1535955029, 0 },
+	};
+
+	UNUSED(state);
+
+	for (i = 0; i < (sizeof(test)/sizeof(test[0])); i++) {
+		result = isc_time_ISO8601fromtext(&t, test[i].time);
+		if (test[i].valid) {
+			assert_int_equal(result, ISC_R_SUCCESS);
+			result = isc_time_secondsastimet(&t, &secs);
+			assert_int_equal(result, ISC_R_SUCCESS);
+			assert_int_equal(secs, test[i].secs);
+			assert_int_equal(isc_time_nanoseconds(&t),
+					 test[i].nsecs);
+		} else {
+			assert_int_not_equal(result, ISC_R_SUCCESS);
+		}
+	}
+}
+
 int
 main(void) {
 	const struct CMUnitTest tests[] = {
@@ -229,6 +270,7 @@ main(void) {
 		cmocka_unit_test(isc_time_formatISO8601ms_test),
 		cmocka_unit_test(isc_time_formatISO8601L_test),
 		cmocka_unit_test(isc_time_formatISO8601Lms_test),
+		cmocka_unit_test(isc_time_ISO8601fromtext_test),
 		cmocka_unit_test(isc_time_formatshorttimestamp_test),
 	};
 
