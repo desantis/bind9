@@ -225,7 +225,6 @@ static void
 isc_time_ISO8601fromtext_test(void **state) {
 	isc_result_t result;
 	isc_time_t t;
-	time_t secs;
 	size_t i;
 	struct {
 		const char *time;
@@ -251,9 +250,8 @@ isc_time_ISO8601fromtext_test(void **state) {
 		result = isc_time_ISO8601fromtext(&t, test[i].time);
 		if (test[i].valid) {
 			assert_int_equal(result, ISC_R_SUCCESS);
-			result = isc_time_secondsastimet(&t, &secs);
-			assert_int_equal(result, ISC_R_SUCCESS);
-			assert_int_equal(secs, test[i].secs);
+			assert_int_equal(isc_time_seconds(&t),
+					 test[i].secs);
 			assert_int_equal(isc_time_nanoseconds(&t),
 					 test[i].nsecs);
 		} else {
