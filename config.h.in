@@ -156,8 +156,26 @@
 /* Define to 1 if you have the `EVP_sha384' function. */
 #undef HAVE_EVP_SHA384
 
+/* Define to 1 if you have the `EVP_sha3_224' function. */
+#undef HAVE_EVP_SHA3_224
+
+/* Define to 1 if you have the `EVP_sha3_256' function. */
+#undef HAVE_EVP_SHA3_256
+
+/* Define to 1 if you have the `EVP_sha3_384' function. */
+#undef HAVE_EVP_SHA3_384
+
+/* Define to 1 if you have the `EVP_sha3_512' function. */
+#undef HAVE_EVP_SHA3_512
+
 /* Define to 1 if you have the `EVP_sha512' function. */
 #undef HAVE_EVP_SHA512
+
+/* Define to 1 if you have the `EVP_shake128' function. */
+#undef HAVE_EVP_SHAKE128
+
+/* Define to 1 if you have the `EVP_shake256' function. */
+#undef HAVE_EVP_SHAKE256
 
 /* Define to 1 if you have the `explicit_bzero' function. */
 #undef HAVE_EXPLICIT_BZERO
