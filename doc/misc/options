@@ -47,8 +47,9 @@ logging {
 
 lwres { <unspecified-text> }; // obsolete, may occur multiple times
 
-managed-keys { <string> <string> <integer>
-    <integer> <integer> <quoted_string>; ... }; // may occur multiple times
+managed-keys { <string> ( static-key |
+    initial-key ) <integer> <integer> <integer>
+    <quoted_string>; ... }; // may occur multiple times
 
 masters <string> [ port <integer> ] [ dscp
     <integer> ] { ( <masters> | <ipv4_address> [
@@ -89,9 +90,9 @@ options {
         bindkeys-file <quoted_string>;
         blackhole { <address_match_element>; ... };
         cache-file <quoted_string>;
-        catalog-zones { zone <quoted_string> [ default-masters [ port
-            <integer> ] [ dscp <integer> ] { ( <masters> | <ipv4_address> [
-            port <integer> ] | <ipv6_address> [ port <integer> ] ) [ key
+        catalog-zones { zone <string> [ default-masters [ port <integer> ]
+            [ dscp <integer> ] { ( <masters> | <ipv4_address> [ port
+            <integer> ] | <ipv6_address> [ port <integer> ] ) [ key
             <string> ]; ... } ] [ zone-directory <quoted_string> ] [
             in-memory <boolean> ] [ min-update-interval <ttlval> ]; ... };
         check-dup-records ( fail | warn | ignore );
@@ -305,18 +306,17 @@ options {
         resolver-retry-interval <integer>;
         response-padding { <address_match_element>; ... } block-size
             <integer>;
-        response-policy { zone <quoted_string> [ log <boolean> ] [
-            max-policy-ttl <ttlval> ] [ min-update-interval <ttlval> ] [
-            policy ( cname | disabled | drop | given | no-op | nodata |
-            nxdomain | passthru | tcp-only <quoted_string> ) ] [
-            recursive-only <boolean> ] [ nsip-enable <boolean> ] [
-            nsdname-enable <boolean> ]; ... } [ break-dnssec <boolean> ] [
-            max-policy-ttl <ttlval> ] [ min-update-interval <ttlval> ] [
-            min-ns-dots <integer> ] [ nsip-wait-recurse <boolean> ] [
-            qname-wait-recurse <boolean> ] [ recursive-only <boolean> ] [
-            nsip-enable <boolean> ] [ nsdname-enable <boolean> ] [
-            dnsrps-enable <boolean> ] [ dnsrps-options { <unspecified-text>
-            } ];
+        response-policy { zone <string> [ log <boolean> ] [ max-policy-ttl
+            <ttlval> ] [ min-update-interval <ttlval> ] [ policy ( cname |
+            disabled | drop | given | no-op | nodata | nxdomain | passthru
+            | tcp-only <quoted_string> ) ] [ recursive-only <boolean> ] [
+            nsip-enable <boolean> ] [ nsdname-enable <boolean> ]; ... } [
+            break-dnssec <boolean> ] [ max-policy-ttl <ttlval> ] [
+            min-update-interval <ttlval> ] [ min-ns-dots <integer> ] [
+            nsip-wait-recurse <boolean> ] [ qname-wait-recurse <boolean> ]
+            [ recursive-only <boolean> ] [ nsip-enable <boolean> ] [
+            nsdname-enable <boolean> ] [ dnsrps-enable <boolean> ] [
+            dnsrps-options { <unspecified-text> } ];
         rfc2308-type1 <boolean>; // not yet implemented
         root-delegation-only [ exclude { <string>; ... } ];
         root-key-sentinel <boolean>;
@@ -426,8 +426,9 @@ statistics-channels {
             } ]; // may occur multiple times
 }; // may occur multiple times
 
-trusted-keys { <string> <integer> <integer>
-    <integer> <quoted_string>; ... }; // may occur multiple times
+trusted-keys { <string> <integer>
+    <integer> <integer>
+    <quoted_string>; ... }; // deprecated, may occur multiple times
 
 view <string> [ <class> ] {
         acache-cleaning-interval <integer>; // obsolete
@@ -457,9 +458,9 @@ view <string> [ <class> ] {
         auth-nxdomain <boolean>; // default changed
         auto-dnssec ( allow | maintain | off );
         cache-file <quoted_string>;
-        catalog-zones { zone <quoted_string> [ default-masters [ port
-            <integer> ] [ dscp <integer> ] { ( <masters> | <ipv4_address> [
-            port <integer> ] | <ipv6_address> [ port <integer> ] ) [ key
+        catalog-zones { zone <string> [ default-masters [ port <integer> ]
+            [ dscp <integer> ] { ( <masters> | <ipv4_address> [ port
+            <integer> ] | <ipv6_address> [ port <integer> ] ) [ key
             <string> ]; ... } ] [ zone-directory <quoted_string> ] [
             in-memory <boolean> ] [ min-update-interval <ttlval> ]; ... };
         check-dup-records ( fail | warn | ignore );
@@ -546,9 +547,9 @@ view <string> [ <class> ] {
         lame-ttl <ttlval>;
         lmdb-mapsize <sizeval>;
         maintain-ixfr-base <boolean>; // obsolete
-        managed-keys { <string> <string>
-            <integer> <integer> <integer>
-            <quoted_string>; ... }; // may occur multiple times
+        managed-keys { <string> ( static-key |
+            initial-key ) <integer> <integer>
+            <integer> <quoted_string>; ... }; // may occur multiple times
         masterfile-format ( map | raw | text );
         masterfile-style ( full | relative );
         match-clients { <address_match_element>; ... };
@@ -635,18 +636,17 @@ view <string> [ <class> ] {
         resolver-retry-interval <integer>;
         response-padding { <address_match_element>; ... } block-size
             <integer>;
-        response-policy { zone <quoted_string> [ log <boolean> ] [
-            max-policy-ttl <ttlval> ] [ min-update-interval <ttlval> ] [
-            policy ( cname | disabled | drop | given | no-op | nodata |
-            nxdomain | passthru | tcp-only <quoted_string> ) ] [
-            recursive-only <boolean> ] [ nsip-enable <boolean> ] [
-            nsdname-enable <boolean> ]; ... } [ break-dnssec <boolean> ] [
-            max-policy-ttl <ttlval> ] [ min-update-interval <ttlval> ] [
-            min-ns-dots <integer> ] [ nsip-wait-recurse <boolean> ] [
-            qname-wait-recurse <boolean> ] [ recursive-only <boolean> ] [
-            nsip-enable <boolean> ] [ nsdname-enable <boolean> ] [
-            dnsrps-enable <boolean> ] [ dnsrps-options { <unspecified-text>
-            } ];
+        response-policy { zone <string> [ log <boolean> ] [ max-policy-ttl
+            <ttlval> ] [ min-update-interval <ttlval> ] [ policy ( cname |
+            disabled | drop | given | no-op | nodata | nxdomain | passthru
+            | tcp-only <quoted_string> ) ] [ recursive-only <boolean> ] [
+            nsip-enable <boolean> ] [ nsdname-enable <boolean> ]; ... } [
+            break-dnssec <boolean> ] [ max-policy-ttl <ttlval> ] [
+            min-update-interval <ttlval> ] [ min-ns-dots <integer> ] [
+            nsip-wait-recurse <boolean> ] [ qname-wait-recurse <boolean> ]
+            [ recursive-only <boolean> ] [ nsip-enable <boolean> ] [
+            nsdname-enable <boolean> ] [ dnsrps-enable <boolean> ] [
+            dnsrps-options { <unspecified-text> } ];
         rfc2308-type1 <boolean>; // not yet implemented
         root-delegation-only [ exclude { <string>; ... } ];
         root-key-sentinel <boolean>;
@@ -707,9 +707,10 @@ view <string> [ <class> ] {
         transfer-source-v6 ( <ipv6_address> | * ) [ port ( <integer> | * )
             ] [ dscp <integer> ];
         trust-anchor-telemetry <boolean>; // experimental
-        trusted-keys { <string> <integer>
-            <integer> <integer> <quoted_string>;
-            ... }; // may occur multiple times
+        trusted-keys { <string>
+            <integer> <integer>
+            <integer>
+            <quoted_string>; ... }; // deprecated, may occur multiple times
         try-tcp-refresh <boolean>;
         update-check-ksk <boolean>;
         use-alt-transfer-source <boolean>;
