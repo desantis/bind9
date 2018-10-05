@@ -1512,8 +1512,9 @@ additional_done(isc_task_t *task, isc_event_t *event) {
 	}
 	UNLOCK(&client->query.fetchlock);
 
-	if (match && done)
+	if (match && done) {
 		query_send(client);
+	}
 
 	free_devent(client, &event, &devent);
 	ns_client_detach(&client);
@@ -1535,8 +1536,9 @@ query_fetch_additional(ns_client_t *client, const dns_name_t *name,
 	isc_taskaction_t action = NULL;
 	size_t i;
 
-	if (!RECURSIONOK(client))
+	if (!RECURSIONOK(client)) {
 		return;
+	}
 
 	/*
 	 * If we are not doing full additional the prefetch one of
@@ -1549,8 +1551,9 @@ query_fetch_additional(ns_client_t *client, const dns_name_t *name,
 				break;
 			}
 		}
-		if (fetchp == NULL)
+		if (fetchp == NULL) {
 			return;
+		}
 		action = additional_done;
 	} else if (client->view->prefetch_additional) {
 		if (client->query.prefetch != NULL) {
@@ -1567,10 +1570,13 @@ query_fetch_additional(ns_client_t *client, const dns_name_t *name,
 					  &client->recursionquota);
 		if (result == ISC_R_SUCCESS &&
 		    !client->mortal && !TCP(client))
+		{
 			result = ns_client_replace(client);
-		if (result == ISC_R_SUCCESS)
+		}
+		if (result == ISC_R_SUCCESS) {
 			ns_stats_increment(client->sctx->nsstats,
 					   ns_statscounter_recursclients);
+		}
 	}
 
 	if (client->recursionquota != NULL) {
@@ -1578,10 +1584,11 @@ query_fetch_additional(ns_client_t *client, const dns_name_t *name,
 		sigrdataset = query_newrdataset(client);
 	}
 	if (rdataset != NULL && sigrdataset != NULL) {
-		if (!TCP(client))
+		if (!TCP(client)) {
 			peeraddr = &client->peeraddr;
-		else
+		} else {
 			peeraddr = NULL;
+		}
 		ns_client_attach(client, &dummy);
 		result = dns_resolver_createfetch(client->view->resolver,
 						  name, qtype, NULL, NULL,
@@ -1597,10 +1604,12 @@ query_fetch_additional(ns_client_t *client, const dns_name_t *name,
 			ns_client_detach(&dummy);
 		}
 	} else {
-		if (rdataset != NULL)
+		if (rdataset != NULL) {
 			query_putrdataset(client, &rdataset);
-		if (sigrdataset != NULL)
+		}
+		if (sigrdataset != NULL) {
 			query_putrdataset(client, &sigrdataset);
+		}
 	}
 }
 
@@ -1911,7 +1920,8 @@ query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
 		} else if (result == DNS_R_NCACHENXRRSET) {
 			dns_rdataset_disassociate(rdataset);
 			if (sigrdataset != NULL &&
-			    dns_rdataset_isassociated(sigrdataset)) {
+			    dns_rdataset_isassociated(sigrdataset))
+			{
 				dns_rdataset_disassociate(sigrdataset);
 			}
 			not_a = true;
@@ -1935,7 +1945,8 @@ query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
 					dns_rdataset_disassociate(sigrdataset);
 				}
 			} else if (!query_isduplicate(client, fname,
-						    dns_rdatatype_a, &mname)) {
+						      dns_rdatatype_a, &mname))
+			{
 				if (mname != fname) {
 					if (mname != NULL) {
 						ns_client_releasename(client,
@@ -1985,7 +1996,8 @@ query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
 		} else if (result == DNS_R_NCACHENXRRSET) {
 			dns_rdataset_disassociate(rdataset);
 			if (sigrdataset != NULL &&
-			    dns_rdataset_isassociated(sigrdataset)) {
+			    dns_rdataset_isassociated(sigrdataset))
+			{
 				dns_rdataset_disassociate(sigrdataset);
 			}
 			not_aaaa = true;
@@ -2064,7 +2076,9 @@ query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
 			dns_rdataset_disassociate(rdataset);
 			if (sigrdataset != NULL &&
 			    dns_rdataset_isassociated(sigrdataset))
+			{
 				dns_rdataset_disassociate(sigrdataset);
+			}
 		} else if (result == ISC_R_SUCCESS) {
 			bool invalid = false;
 			mname = NULL;
@@ -2082,16 +2096,20 @@ query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
 				dns_rdataset_disassociate(rdataset);
 				if (sigrdataset != NULL &&
 				    dns_rdataset_isassociated(sigrdataset))
+				{
 					dns_rdataset_disassociate(sigrdataset);
+				}
 			} else if (!query_isduplicate(client, fname,
-					       dns_rdatatype_cname, &mname)) {
+					      dns_rdatatype_cname, &mname))
+			{
 				if (mname != fname) {
 					if (mname != NULL) {
 						query_releasename(client,
 								  &fname);
 						fname = mname;
-					} else
+					} else {
 						need_addname = true;
+					}
 				}
 				ISC_LIST_APPEND(fname->list, rdataset, link);
 				added_something = true;
