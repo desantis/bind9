@@ -2279,6 +2279,7 @@ lowac_checksend(ns_client_t *client) {
 	unsigned char *data;
 	isc_buffer_t buffer;
 	isc_buffer_t tcpbuffer;
+	isc_region_t r;
 	unsigned char sendbuf[SEND_BUFFER_SIZE];
 	result = client_allocsendbuf(client, &buffer, &tcpbuffer, 0,
 				     sendbuf, &data);
@@ -2298,11 +2299,22 @@ lowac_checksend(ns_client_t *client) {
 	        data[1] = client->message->id & 0xff;
 	}
 	isc_buffer_add(&buffer, blen);
-	
+/*
+	isc_buffer_putuint16(&buffer, client->message->id);
+	isc_buffer_putuint8(&buffer, 0x81);
+	isc_buffer_putuint8(&buffer, 0x80);
+	isc_buffer_putuint16(&buffer, 0);
+	isc_buffer_putuint16(&buffer, 0);
+	isc_buffer_putuint16(&buffer, 0);
+	isc_buffer_putuint16(&buffer, 0);
+*/
 	if (client->sendcb != NULL) {
 		client->sendcb(&buffer);
 	} else if (TCP_CLIENT(client)) {
-		result = client_sendpkg(client, &buffer, false);
+		isc_buffer_usedregion(&buffer, &r);
+		isc_buffer_putuint16(&tcpbuffer, (uint16_t) r.length);
+		isc_buffer_add(&tcpbuffer, r.length);
+		result = client_sendpkg(client, &tcpbuffer, false);
 	} else {
 		result = client_sendpkg(client, &buffer, false);
 	}
