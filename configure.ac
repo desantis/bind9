@@ -657,7 +657,7 @@ AC_CHECK_FUNCS(arc4random arc4random_buf arc4random_uniform getrandom)
 
 AX_PTHREAD
 
-LIBS="$PTHREAD_LIBS $LIBS"
+LIBS="$PTHREAD_LIBS -lck $LIBS"
 CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
 CC="$PTHREAD_CC"
 

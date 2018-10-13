@@ -15115,7 +15115,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
 
-LIBS="$PTHREAD_LIBS $LIBS"
+LIBS="$PTHREAD_LIBS -lck $LIBS"
 CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
 CC="$PTHREAD_CC"
 

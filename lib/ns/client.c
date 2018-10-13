@@ -924,7 +924,7 @@ client_allocsendbuf(ns_client_t *client, isc_buffer_t *buffer,
 }
 
 static isc_result_t
-client_sendpkg(ns_client_t *client, isc_buffer_t *buffer) {
+client_sendpkg(ns_client_t *client, isc_buffer_t *buffer, bool lowac) {
 	struct in6_pktinfo *pktinfo;
 	isc_result_t result;
 	isc_region_t r;
@@ -989,7 +989,9 @@ client_sendpkg(ns_client_t *client, isc_buffer_t *buffer) {
 		client->sendevent->attributes |= ISC_SOCKEVENTATTR_USEMINMTU;
 
 	CTRACE("sendto");
-
+	if (lowac) {
+		dns_lowac_put(client->view->lowac, ISC_LIST_HEAD(client->message->sections[0]), (char*) r.base, r.length);
+	}
 	result = isc_socket_sendto2(sock, &r, client->task,
 				    address, pktinfo,
 				    client->sendevent, sockflags);
@@ -1037,7 +1039,7 @@ ns_client_sendraw(ns_client_t *client, dns_message_t *message) {
 	r.base[0] = (client->message->id >> 8) & 0xff;
 	r.base[1] = client->message->id & 0xff;
 
-	result = client_sendpkg(client, &buffer);
+	result = client_sendpkg(client, &buffer, true);
 	if (result == ISC_R_SUCCESS)
 		return;
 
@@ -1302,7 +1304,7 @@ client_send(ns_client_t *client) {
 
 		/* don't count the 2-octet length header */
 		respsize = isc_buffer_usedlength(&tcpbuffer) - 2;
-		result = client_sendpkg(client, &tcpbuffer);
+		result = client_sendpkg(client, &tcpbuffer, true);
 
 		switch (isc_sockaddr_pf(&client->peeraddr)) {
 		case AF_INET:
@@ -1333,7 +1335,7 @@ client_send(ns_client_t *client) {
 #endif /* HAVE_DNSTAP */
 
 		respsize = isc_buffer_usedlength(&buffer);
-		result = client_sendpkg(client, &buffer);
+		result = client_sendpkg(client, &buffer, true);
 
 		switch (isc_sockaddr_pf(&client->peeraddr)) {
 		case AF_INET:
@@ -2271,6 +2273,48 @@ process_opt(ns_client_t *client, dns_rdataset_t *opt) {
 	return (result);
 }
 
+static isc_result_t
+lowac_checksend(ns_client_t *client) {
+	isc_result_t result;
+	unsigned char *data;
+	isc_buffer_t buffer;
+	isc_buffer_t tcpbuffer;
+	unsigned char sendbuf[SEND_BUFFER_SIZE];
+	result = client_allocsendbuf(client, &buffer, &tcpbuffer, 0,
+				     sendbuf, &data);
+	if (result != ISC_R_SUCCESS) {
+		return (result);
+	}
+	int blen;
+	result = dns_lowac_get(client->view->lowac, ISC_LIST_HEAD(client->message->sections[0]), (char*) data, &blen, TCP_CLIENT(client));
+	if (result != ISC_R_SUCCESS) {
+		goto done;
+	}
+	if (TCP_CLIENT(client)) {
+	        data[2] = (client->message->id >> 8) & 0xff;
+	        data[3] = client->message->id & 0xff;
+	} else {
+	        data[0] = (client->message->id >> 8) & 0xff;
+	        data[1] = client->message->id & 0xff;
+	}
+	isc_buffer_add(&buffer, blen);
+	
+	if (client->sendcb != NULL) {
+		client->sendcb(&buffer);
+	} else if (TCP_CLIENT(client)) {
+		result = client_sendpkg(client, &buffer, false);
+	} else {
+		result = client_sendpkg(client, &buffer, false);
+	}
+done:
+	if (client->tcpbuf != NULL) {
+		isc_mem_put(client->mctx, client->tcpbuf, TCP_BUFFER_SIZE);
+		client->tcpbuf = NULL;
+	}
+	return result;
+
+}
+
 /*
  * Handle an incoming request event from the socket (UDP case)
  * or tcpmsg (TCP case).
@@ -2732,6 +2776,11 @@ ns__client_request(isc_task_t *task, isc_event_t *event) {
 	ns_client_log(client, NS_LOGCATEGORY_CLIENT,
 		      NS_LOGMODULE_CLIENT, ISC_LOG_DEBUG(5),
 		      "using view '%s'", client->view->name);
+
+	result = lowac_checksend(client);
+	if (result == ISC_R_SUCCESS) {
+		return;
+	}
 
 	/*
 	 * Check for a signature.  We log bad signatures regardless of

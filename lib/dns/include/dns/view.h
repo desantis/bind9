@@ -75,6 +75,7 @@
 #include <dns/rpz.h>
 #include <dns/types.h>
 #include <dns/zt.h>
+#include <dns/lowac.h>
 
 ISC_LANG_BEGINDECLS
 
@@ -238,6 +239,8 @@ struct dns_view {
 	dns_dtenv_t			*dtenv;		/* Dnstap environment */
 	dns_dtmsgtype_t			dttypes;	/* Dnstap message types
 							   to log */
+
+	dns_lowac_t*	lowac;
 };
 
 #define DNS_VIEW_MAGIC			ISC_MAGIC('V','i','e','w')
