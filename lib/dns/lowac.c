@@ -21,7 +21,7 @@ struct dns_lowac_entry {
 	dns_name_t	  name;
 	uint16_t	  flags;
 	isc_time_t	  expire;
-	char*		  blob;
+	char		  blob[1024];
 	uint32_t	  blobsize;
 };
 
@@ -72,7 +72,6 @@ static struct ck_malloc my_allocator = {
 static void
 free_entry(dns_lowac_t *lowac, dns_lowac_entry_t *entry) {
 	dns_name_free(&entry->name, lowac->mctx);
-	isc_mem_put(lowac->mctx, entry->blob, entry->blobsize);
 	isc_mem_put(lowac->mctx, entry, sizeof(*entry));
 }
 
@@ -119,10 +118,9 @@ rthread(void *d) {
 			}
 			isc_thread_yield();
 		} else {
-			usleep(10000);
 			isc_time_t now;
 			isc_time_now(&now);
-			int i =0;
+			int i = 0;
 			while (ck_ht_next(&lowac->ht, &htit,
 				       &htitentry) && htitentry != NULL && i < 64) {
 				dns_lowac_entry_t *entry = ck_ht_entry_value(
@@ -142,8 +140,11 @@ rthread(void *d) {
 				}
 				i++;
 			}
-			INSIST(ck_ht_gc(&lowac->ht, 16,
+			INSIST(ck_ht_gc(&lowac->ht, 64,
 					isc_random32()) == true);
+			if (i < 64) {
+				usleep(1000);
+			}
 		}
 	}
 	return (NULL);
@@ -161,7 +162,7 @@ dns_lowac_create(isc_mem_t *mctx) {
 		abort();
 	}
 	isc_mem_attach(mctx, &lowac->mctx);
-	isc_interval_set(&lowac->expiry, 30, 0);
+	isc_interval_set(&lowac->expiry, 240, 0);
 	isc_thread_create(rthread, lowac, &lowac->thread);
 	printf("TID %d\n", lowac->thread);
 	printf("Created %p\n", lowac);
@@ -218,10 +219,12 @@ dns_lowac_put(dns_lowac_t *lowac, dns_name_t *name, char*packet, int size) {
 	if (!lowac->running) {
 		return (ISC_R_SHUTTINGDOWN);
 	}
+	if (size > 1024) {
+		return (ISC_R_FAILURE);
+	}
 	dns_lowac_entry_t *entry = isc_mem_get(lowac->mctx, sizeof(*entry));
 	dns_name_init(&entry->name, NULL);
 	dns_name_dup(name, lowac->mctx, &entry->name);
-	entry->blob = isc_mem_get(lowac->mctx, size);
 	memcpy(entry->blob, packet, size);
 	isc_time_nowplusinterval(&entry->expire, &lowac->expiry);
 	entry->blobsize = size;
