@@ -15,12 +15,14 @@
 
 #include <ck_ht.h>
 #include <ck_fifo.h>
+#include <ck_queue.h>
 
 
 struct dns_lowac_entry {
 	dns_name_t	  name;
 	uint16_t	  flags;
 	isc_time_t	  expire;
+	ck_ht_hash_t	  hash;
 	char		  blob[1024];
 	uint32_t	  blobsize;
 };
@@ -33,8 +35,9 @@ struct dns_lowac {
 	isc_interval_t		    expiry;
 	isc_thread_t		    thread;
 	int			    count;
-	ck_fifo_mpmc_entry_t	    mpmc_stub;
-	ck_fifo_mpmc_t		    inqueue;
+	ck_fifo_mpmc_t		    inq;
+
+	ck_fifo_mpmc_t		    remq;
 };
 
 static void *
@@ -71,6 +74,7 @@ static struct ck_malloc my_allocator = {
 
 static void
 free_entry(dns_lowac_t *lowac, dns_lowac_entry_t *entry) {
+	//fprintf(stderr, "XXX ENTRY NAME %p\n", entry);
 	dns_name_free(&entry->name, lowac->mctx);
 	isc_mem_put(lowac->mctx, entry, sizeof(*entry));
 }
@@ -84,65 +88,81 @@ rthread(void *d) {
 	while (lowac->running) {
 		dns_lowac_entry_t *entry = NULL;
 		ck_fifo_mpmc_entry_t *garbage = NULL;
-		if (ck_fifo_mpmc_dequeue(&lowac->inqueue, &entry,
+		if (ck_fifo_mpmc_dequeue(&lowac->inq, &entry,
 					 &garbage) == true) {
-			if (garbage != &lowac->mpmc_stub) {
-				isc_mem_put(lowac->mctx, garbage,
-					    sizeof(*garbage));
-			}
-//			fprintf(stderr, "XXX2 deq %p\n", entry);
+			isc_mem_put(lowac->mctx, garbage,
+				    sizeof(*garbage));
 			ck_ht_entry_t htentry;
 			ck_ht_entry_t oldhtentry;
-			ck_ht_hash_t h;
 			isc_region_t r;
 
 			dns_name_toregion(&entry->name, &r);
-			ck_ht_hash(&h, &lowac->ht, r.base, r.length);
-			ck_ht_entry_set(&htentry, h, r.base, r.length, entry);
-
-			if (ck_ht_get_spmc(&lowac->ht, h,
+			ck_ht_entry_set(&htentry, entry->hash, r.base, r.length, entry);
+			ck_ht_entry_set(&oldhtentry, entry->hash, r.base, r.length, NULL);
+			if (ck_ht_get_spmc(&lowac->ht, entry->hash,
 					   &oldhtentry) == false) {
-				//fprintf(stderr, "XXX3 puton %p\n", entry);
-				if (ck_ht_put_spmc(&lowac->ht, h, &htentry) == false) {
-					//fprintf(stderr, "Unexpected failure\n");
-					free_entry(lowac, entry);
+				if (ck_ht_put_spmc(&lowac->ht, entry->hash, &htentry) == false) {
+					//fprintf(stderr, "XXX put false ENTRY NAME %p\n", entry);
+	    				free_entry(lowac, entry);
 				} else {
 					lowac->count++;
 				}
 			} else {
 				dns_lowac_entry_t *oldentry =
-					ck_ht_entry_value(&htentry);
-				//fprintf(stderr, "XXX4 freedup %p\n", oldentry);
+					ck_ht_entry_value(&oldhtentry);
+				//fprintf(stderr, "XXX replace ENTRY NAME %p %p\n", oldentry, htentry.value);
 				free_entry(lowac, oldentry);
-				ck_ht_set_spmc(&lowac->ht, h, &htentry);
+				RUNTIME_CHECK(ck_ht_remove_spmc(&lowac->ht, entry->hash, &oldhtentry) == true);
+				RUNTIME_CHECK(ck_ht_set_spmc(&lowac->ht, entry->hash, &htentry) == true);
+				//fprintf(stderr, "XXX old got %p\n", ck_ht_entry_value(&htentry));
 			}
 			isc_thread_yield();
 		} else {
 			isc_time_t now;
 			isc_time_now(&now);
-			int i = 0;
-			while (ck_ht_next(&lowac->ht, &htit,
-				       &htitentry) && htitentry != NULL && i < 64) {
+			int removed = 0;
+/*			ck_ht_entry_t htentry;
+			dns_lowac_entry_t *entry;
+			ck_fifo_mpmc_entry_t *garbage = NULL;
+			// TODO race here!
+			while (ck_fifo_mpmc_dequeue(&lowac->remq, &entry,
+					 &garbage) == true) {
+				removed++;
+				isc_mem_put(lowac->mctx, garbage,
+					    sizeof(*garbage));
+				if (ck_ht_get_spmc(&lowac->ht, entry->hash,
+					   &htentry) == true) {
+					RUNTIME_CHECK(ck_ht_remove_spmc(&lowac->ht, entry->hash, &htentry) == true);
+				} else {
+					printf("Oddness\n");
+				}
+				free_entry(lowac, entry);
+				lowac->count--;
+			}
+*/			
+			ck_ht_iterator_init(&htit);
+			bool iterok = ck_ht_next(&lowac->ht, &htit, &htitentry);
+			while (iterok && htitentry != NULL && removed < 256) {
 				dns_lowac_entry_t *entry = ck_ht_entry_value(
 					htitentry);
 				if (isc_time_compare(&entry->expire,
 						     &now) < 0) {
-					isc_region_t r;
-					ck_ht_hash_t h;
-					dns_name_toregion(&entry->name, &r);
-					ck_ht_hash(&h, &lowac->ht, r.base,
-						   r.length);
-					ck_ht_remove_spmc(&lowac->ht, h,
-							  htitentry);
-					//fprintf(stderr, "XXX5 expiry %p\n", entry);
+					RUNTIME_CHECK(ck_ht_remove_spmc(&lowac->ht, entry->hash, htitentry) == true);
+					dns_lowac_entry_t *ent2 = ck_ht_entry_value(htitentry);
+					RUNTIME_CHECK(ent2 == entry);
+					//fprintf(stderr, "XXX free timeout ENTRY NAME %p\n", entry);
 					free_entry(lowac, entry);
 					lowac->count--;
 				}
-				i++;
+				removed++;
+				iterok = ck_ht_next(&lowac->ht, &htit, &htitentry);
 			}
-			INSIST(ck_ht_gc(&lowac->ht, 64,
-					isc_random32()) == true);
-			if (i < 64) {
+			if (!iterok) {
+				ck_ht_iterator_init(&htit);
+			}
+//			INSIST(ck_ht_gc(&lowac->ht, 64,
+//					isc_random32()) == true);
+			if (removed < 256) {
 				usleep(1000);
 			}
 		}
@@ -152,7 +172,11 @@ rthread(void *d) {
 dns_lowac_t*
 dns_lowac_create(isc_mem_t *mctx) {
 	dns_lowac_t *lowac = isc_mem_get(mctx, sizeof(dns_lowac_t));
-	ck_fifo_mpmc_init(&lowac->inqueue, &lowac->mpmc_stub);
+	ck_fifo_mpmc_entry_t *inq_stub = isc_mem_get(mctx, sizeof(ck_fifo_mpmc_entry_t));
+	ck_fifo_mpmc_entry_t *remq_stub = isc_mem_get(mctx, sizeof(ck_fifo_mpmc_entry_t));
+	
+	ck_fifo_mpmc_init(&lowac->inq, inq_stub);
+	ck_fifo_mpmc_init(&lowac->remq, remq_stub);
 	lowac->count = 0;
 	lowac->running = true;
 	if (ck_ht_init(&lowac->ht,
@@ -162,54 +186,50 @@ dns_lowac_create(isc_mem_t *mctx) {
 		abort();
 	}
 	isc_mem_attach(mctx, &lowac->mctx);
-	isc_interval_set(&lowac->expiry, 240, 0);
+	isc_interval_set(&lowac->expiry, 60, 0);
 	isc_thread_create(rthread, lowac, &lowac->thread);
-	printf("TID %d\n", lowac->thread);
-	printf("Created %p\n", lowac);
 	return (lowac);
 }
 
 void
 dns_lowac_destroy(dns_lowac_t *lowac) {
-	printf("LOWAC %p\n", lowac);
 	lowac->running = false;
-	printf("Joining %d\n", lowac->thread);
 	isc_thread_join(lowac->thread, NULL);
 	dns_lowac_entry_t *entry;
 	ck_fifo_mpmc_entry_t *fentry;
 	while (ck_ht_count(&lowac->ht)>0) {
 		ck_ht_gc(&lowac->ht, 0, 0);
-		//fprintf(stderr, "XXX GCing %d\n", ck_ht_count(&lowac->ht));
 		ck_ht_iterator_t htit = CK_HT_ITERATOR_INITIALIZER;
 		ck_ht_entry_t *htitentry = NULL;
 		while (ck_ht_next(&lowac->ht, &htit, &htitentry)) {
 			entry = ck_ht_entry_value(htitentry);
-			//fprintf(stderr, "XXX6 remove %p\n", entry);
-			isc_region_t r;
-			ck_ht_hash_t h;
-			dns_name_toregion(&entry->name, &r);
-			ck_ht_hash(&h, &lowac->ht, r.base,
-						   r.length);
-			bool f = ck_ht_remove_spmc(&lowac->ht, h, htitentry);
-			//fprintf(stderr, "XXX8 remove %d\n", f);
+			ck_ht_remove_spmc(&lowac->ht, entry->hash, htitentry);
+			//fprintf(stderr, "XXX cleanup %p\n", entry);
 			free_entry(lowac, entry);
 		}
 	}
 	
-	while (ck_fifo_mpmc_dequeue(&lowac->inqueue,
+	while (ck_fifo_mpmc_dequeue(&lowac->inq,
 				    &entry,
 				    &fentry))
 	{
-		printf("Dequeuing\n");
-		if (fentry != &lowac->mpmc_stub) {
-			isc_mem_put(lowac->mctx, fentry, sizeof(*fentry));
-		}
+		isc_mem_put(lowac->mctx, fentry, sizeof(*fentry));
+		//fprintf(stderr, "XXX cleanup2 %p\n", entry);
 		free_entry(lowac, entry);
 	}
-	ck_fifo_mpmc_deinit(&lowac->inqueue, &fentry);
-	if (fentry != &lowac->mpmc_stub) {
+
+	while (ck_fifo_mpmc_dequeue(&lowac->remq,
+				    &entry,
+				    &fentry))
+	{
 		isc_mem_put(lowac->mctx, fentry, sizeof(*fentry));
 	}
+	ck_fifo_mpmc_deinit(&lowac->inq, &fentry);
+	isc_mem_put(lowac->mctx, fentry, sizeof(*fentry));
+
+	ck_fifo_mpmc_deinit(&lowac->remq, &fentry);
+	isc_mem_put(lowac->mctx, fentry, sizeof(*fentry));
+
 	ck_ht_destroy(&lowac->ht);
 	isc_mem_putanddetach(&lowac->mctx, lowac, sizeof(*lowac));
 }
@@ -228,10 +248,12 @@ dns_lowac_put(dns_lowac_t *lowac, dns_name_t *name, char*packet, int size) {
 	memcpy(entry->blob, packet, size);
 	isc_time_nowplusinterval(&entry->expire, &lowac->expiry);
 	entry->blobsize = size;
+	isc_region_t r;
+	dns_name_toregion(&entry->name, &r);
+	ck_ht_hash(&entry->hash, &lowac->ht, r.base, r.length);
 	ck_fifo_mpmc_entry_t *qentry =
 		isc_mem_get(lowac->mctx, (sizeof(ck_fifo_mpmc_entry_t)));
-	ck_fifo_mpmc_enqueue(&lowac->inqueue, qentry, entry);
-	//fprintf(stderr, "XXX1 enq %p\n", entry);
+	ck_fifo_mpmc_enqueue(&lowac->inq, qentry, entry);
 	return (ISC_R_SUCCESS);
 }
 
@@ -253,6 +275,9 @@ dns_lowac_get(dns_lowac_t *lowac, dns_name_t *name, char *blob, int *blobsize,
 		isc_time_t now;
 		isc_time_now(&now);
 		if (isc_time_compare(&entry->expire, &now) < 0) {
+/*			ck_fifo_mpmc_entry_t *qentry =
+				isc_mem_get(lowac->mctx, (sizeof(ck_fifo_mpmc_entry_t)));
+			ck_fifo_mpmc_enqueue(&lowac->remq, qentry, entry); */
 			return (ISC_R_NOTFOUND);
 		}
 		if (tcp) {
