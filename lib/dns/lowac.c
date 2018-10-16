@@ -139,30 +139,26 @@ dequeue_input_entry(dns_lowac_t*lowac) {
 				ck_ht_entry_value(&oldhtentry);
 			/* Note: set without remove doesn't seem to work
 			 * properly */
+			oldentry->inht = false;
 			RUNTIME_CHECK(ck_ht_remove_spmc(&lowac->ht,
 							entry->hash,
 							&oldhtentry) == true);
-			oldentry->inht = false;
 			entry->inht = true;
 			RUNTIME_CHECK(ck_ht_set_spmc(&lowac->ht, entry->hash,
 						     &htentry) == true);
 
-			if (oldentry->remq_enqueued) {
-				isc_refcount_decrement(&oldentry->refcount);
-			} else {
-				/*
-				 * We don't need to increment refcount since we
-				 * have not decremented it
-				 * when removing from hashtable
-				 */
-				ck_fifo_mpmc_entry_t *qentry =
-					isc_mem_get(lowac->mctx,
-						    (sizeof(
-							     ck_fifo_mpmc_entry_t)));
-				entry->remq_enqueued = true;
-				ck_fifo_mpmc_enqueue(&lowac->remq, qentry,
-						     entry);
-			}
+			/*
+			 * We don't need to increment refcount since we
+			 * have not decremented it
+			 * when removing from hashtable
+			 */
+			ck_fifo_mpmc_entry_t *qentry =
+				isc_mem_get(lowac->mctx,
+					    (sizeof(
+						     ck_fifo_mpmc_entry_t)));
+			oldentry->remq_enqueued = true;
+			ck_fifo_mpmc_enqueue(&lowac->remq, qentry,
+						     oldentry);
 		}
 		return (true);
 	}
@@ -173,7 +169,7 @@ static int
 expire_entries(dns_lowac_t *lowac) {
 	isc_time_t now;
 	isc_time_now(&now);
-	volatile int iterated = 0;
+	int iterated = 0;
 
 	ck_ht_entry_t *htitentry = NULL;
 	bool iterok = ck_ht_next(&lowac->ht, &lowac->htit, &htitentry);
