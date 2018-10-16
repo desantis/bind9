@@ -73,6 +73,7 @@ ht_free(void *p, size_t b, bool r)
 {
 	(void)b;
 	(void)r;
+	memset(p, 0xb0, b);
 	free(p);
 	return;
 }
@@ -93,8 +94,9 @@ static struct ck_malloc my_allocator = {
 
 static void
 free_entry(dns_lowac_t *lowac, dns_lowac_entry_t *entry) {
-	entry->magic = 0;
+	entry->magic = 0xffffffff;
 	dns_name_free(&entry->name, lowac->mctx);
+	memset(entry, 0xde, sizeof(*entry));
 	isc_mem_put(lowac->mctx, entry, sizeof(*entry));
 }
 
@@ -105,6 +107,7 @@ dequeue_input_entry(dns_lowac_t*lowac) {
 	if (ck_fifo_mpmc_dequeue(&lowac->inq, &entry,
 				 &garbage) == true) {
 		REQUIRE(VALID_LENTRY(entry));
+		memset(garbage, 0xde, sizeof(*garbage));
 		isc_mem_put(lowac->mctx, garbage,
 			    sizeof(*garbage));
 		ck_ht_entry_t htentry;
@@ -178,8 +181,7 @@ expire_entries(dns_lowac_t *lowac) {
 		iterok = ck_ht_next(&lowac->ht, &lowac->htit, &htitentry);
 	}
 	while (iterok && htitentry != NULL && iterated < 256) {
-		dns_lowac_entry_t *entry = ck_ht_entry_value(
-			htitentry);
+		dns_lowac_entry_t *entry = ck_ht_entry_value(htitentry);
 		REQUIRE(VALID_LENTRY(entry));
 		if (isc_time_compare(&entry->expire, &now) < 0) {
 			if (!ck_ht_remove_spmc(&lowac->ht, entry->hash, htitentry)) {
@@ -253,6 +255,7 @@ cleanup_entries(dns_lowac_t *lowac) {
 				ck_fifo_mpmc_enqueue(&lowac->remq, qentry,
 						     entry);
 			} else {
+				memset(qentry, 0xde, sizeof(*qentry));
 				isc_mem_put(lowac->mctx, qentry,
 					    sizeof(*qentry));
 				removed++;
