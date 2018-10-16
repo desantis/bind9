@@ -175,9 +175,13 @@ expire_entries(dns_lowac_t *lowac) {
 		dns_lowac_entry_t *entry = ck_ht_entry_value(
 			htitentry);
 		if (isc_time_compare(&entry->expire, &lowac->now) < 0) {
-			RUNTIME_CHECK(ck_ht_remove_spmc(&lowac->ht,
-							entry->hash,
-							htitentry) == true);
+			if (!ck_ht_remove_spmc(&lowac->ht, entry->hash,htitentry)) {
+				/*
+				 * Very unlikely, but can happen when we're between generations.
+				 * TODO verify that it's ok at all, maybe we're using the iterator wrong?
+				 */
+				 isc_refcount_increment(&entry->refcount);
+			}
 			entry->inht = false;
 			dns_lowac_entry_t *ent2 = ck_ht_entry_value(htitentry);
 			RUNTIME_CHECK(ent2 == entry);
