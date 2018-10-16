@@ -121,6 +121,7 @@ dequeue_input_entry(dns_lowac_t*lowac) {
 		if (ck_ht_get_spmc(&lowac->ht, entry->hash,
 				   &oldhtentry) == false) {
 			/* We don't have this entry in hashtable */
+			entry->inht = true;
 			if (ck_ht_put_spmc(&lowac->ht, entry->hash,
 					   &htentry) == false) {
 				printf("oddness but might happen\n");
@@ -131,7 +132,6 @@ dequeue_input_entry(dns_lowac_t*lowac) {
 					      0);
 				free_entry(lowac, entry);
 			} else {
-				entry->inht = true;
 				lowac->count++;
 			}
 		} else {
@@ -143,6 +143,7 @@ dequeue_input_entry(dns_lowac_t*lowac) {
 							entry->hash,
 							&oldhtentry) == true);
 			oldentry->inht = false;
+			entry->inht = true;
 			RUNTIME_CHECK(ck_ht_set_spmc(&lowac->ht, entry->hash,
 						     &htentry) == true);
 
@@ -172,7 +173,7 @@ static int
 expire_entries(dns_lowac_t *lowac) {
 	isc_time_t now;
 	isc_time_now(&now);
-	int iterated = 0;
+	volatile int iterated = 0;
 
 	ck_ht_entry_t *htitentry = NULL;
 	bool iterok = ck_ht_next(&lowac->ht, &lowac->htit, &htitentry);
@@ -193,7 +194,7 @@ expire_entries(dns_lowac_t *lowac) {
 			} else {
 				dns_lowac_entry_t *ent2 = ck_ht_entry_value(htitentry);
 				RUNTIME_CHECK(ent2 == entry);
-			}
+			} 
 			entry->inht = false;
 			/*
 			 * We don't need to increment refcount since we have
@@ -206,6 +207,7 @@ expire_entries(dns_lowac_t *lowac) {
 			entry->remq_enqueued = true;
 			ck_fifo_mpmc_enqueue(&lowac->remq, qentry, entry);
 		}
+		htitentry = NULL;
 		iterok = ck_ht_next(&lowac->ht, &lowac->htit, &htitentry);
 		iterated++;
 	}
