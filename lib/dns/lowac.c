@@ -181,11 +181,12 @@ expire_entries(dns_lowac_t *lowac) {
 				 * Very unlikely, but can happen when we're between generations.
 				 * TODO verify that it's ok at all, maybe we're using the iterator wrong?
 				 */
-				 isc_refcount_increment(&entry->refcount);
+				isc_refcount_increment(&entry->refcount);
+			} else {
+				dns_lowac_entry_t *ent2 = ck_ht_entry_value(htitentry);
+				RUNTIME_CHECK(ent2 == entry);
 			}
 			entry->inht = false;
-			dns_lowac_entry_t *ent2 = ck_ht_entry_value(htitentry);
-			RUNTIME_CHECK(ent2 == entry);
 			/*
 			 * We don't need to increment refcount since we have
 			 * not decremented it when removing from hashtable.
