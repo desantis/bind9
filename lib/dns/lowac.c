@@ -17,7 +17,7 @@
 #include <ck_ht.h>
 #include <ck_fifo.h>
 #include <ck_queue.h>
-
+#define fprintf(...) {}
 #define MAXIMUM_PKT_SIZE 1024
 
 #define LENTRY_MAGIC		ISC_MAGIC('L', 'o', 'w', 'E')
@@ -33,7 +33,6 @@ struct dns_lowac_entry {
 	unsigned char	      *blob;
 	uint32_t	      blobsize;
 	isc_refcount_t	      refcount;
-
 	/*
 	 * Set to 'true' when we enqueue this entry on remq.
 	 * Nothing serious will happen if we enqueue the entry
@@ -41,22 +40,33 @@ struct dns_lowac_entry {
 	 * It's not locked in any way as it can only change
 	 * from false to true during runtime.
 	 */
-	bool	    remq_enqueued;
+	bool	    	remq_enqueued;
+	isc_refcount_t	      rqrefcount;
+
 
 	bool	    inht;
+	
+	atomic_int_fast64_t	lastusage;
 };
 
 
 struct dns_lowac {
-	bool			running;
-	ck_ht_t			ht;
-	isc_mem_t *		mctx;
-	isc_interval_t		expiry;
-	isc_thread_t		thread;
-	int			count;
-	ck_ht_iterator_t	htit;
-	ck_fifo_mpmc_t		inq;
-	ck_fifo_mpmc_t		remq;
+	isc_mem_t *		mctx;    
+	isc_thread_t		thread;  
+	isc_interval_t		expiry;  /* Time after which records expire */
+
+	bool			running; /* We're not shut down */
+	bool			accepting; /* We're accepting packets into cache */
+	
+	ck_ht_t			ht;      /* Cache hash table */
+	ck_ht_iterator_t	htit;    /* Hashtable maintenance iterator */
+
+	ck_fifo_mpmc_t		inq;     /* Packet input queue */
+	ck_fifo_mpmc_t		remq;    /* Removal queue */
+	
+	atomic_int_fast64_t	now;     /* Epoch time, updated at every loop */
+	int			count; 
+	
 };
 
 static void *
@@ -122,14 +132,16 @@ dequeue_input_entry(dns_lowac_t*lowac) {
 			entry->inht = true;
 			if (ck_ht_put_spmc(&lowac->ht, entry->hash,
 					   &htentry) == false) {
+				abort();
 				printf("oddness but might happen\n");
 				/* We can do it safely as it never was in
 				 * hashtable */
 				RUNTIME_CHECK(isc_refcount_decrement(&entry->
 								     refcount) ==
-					      0);
+					      1);
 				free_entry(lowac, entry);
 			} else {
+				fprintf(stderr, "XXXInsert %p %d\n", entry, lowac->count);
 				lowac->count++;
 			}
 		} else {
@@ -144,7 +156,8 @@ dequeue_input_entry(dns_lowac_t*lowac) {
 			entry->inht = true;
 			RUNTIME_CHECK(ck_ht_set_spmc(&lowac->ht, entry->hash,
 						     &htentry) == true);
-
+			lowac->count++;
+			
 			/*
 			 * We don't need to increment refcount since we
 			 * have not decremented it
@@ -155,6 +168,8 @@ dequeue_input_entry(dns_lowac_t*lowac) {
 					    (sizeof(
 						     ck_fifo_mpmc_entry_t)));
 			oldentry->remq_enqueued = true;
+			isc_refcount_increment(&oldentry->rqrefcount);
+			fprintf(stderr, "XXXenq %p %d\n", oldentry, __LINE__);
 			ck_fifo_mpmc_enqueue(&lowac->remq, qentry,
 						     oldentry);
 		}
@@ -175,16 +190,18 @@ expire_entries(dns_lowac_t *lowac) {
 		ck_ht_iterator_init(&lowac->htit);
 		iterok = ck_ht_next(&lowac->ht, &lowac->htit, &htitentry);
 	}
-	while (iterok && htitentry != NULL && iterated < 256) {
+	while (iterok && htitentry != NULL && iterated < 2048) {
 		dns_lowac_entry_t *entry = ck_ht_entry_value(htitentry);
 		REQUIRE(VALID_LENTRY(entry));
 		if (isc_time_compare(&entry->expire, &now) < 0) {
 			if (!ck_ht_remove_spmc(&lowac->ht, entry->hash, htitentry)) {
+				abort();
 				/*
 				 * Very unlikely, but can happen when we're between generations.
 				 * TODO verify that it's ok at all, maybe we're using the iterator wrong?
 				 */
 				isc_refcount_increment(&entry->refcount);
+				fprintf(stderr, "INCREF %d %p\n", __LINE__, entry);
 			} else {
 				dns_lowac_entry_t *ent2 = ck_ht_entry_value(htitentry);
 				RUNTIME_CHECK(ent2 == entry);
@@ -199,6 +216,8 @@ expire_entries(dns_lowac_t *lowac) {
 					    (sizeof(
 						     ck_fifo_mpmc_entry_t)));
 			entry->remq_enqueued = true;
+			isc_refcount_increment(&entry->rqrefcount);
+			fprintf(stderr, "XXXenq %p %d\n", entry, __LINE__);
 			ck_fifo_mpmc_enqueue(&lowac->remq, qentry, entry);
 		}
 		htitentry = NULL;
@@ -231,6 +250,8 @@ cleanup_entries(dns_lowac_t *lowac) {
 	{
 		REQUIRE(VALID_LENTRY(entry));
 		int rc = isc_refcount_decrement(&entry->refcount);
+		int rqrc = isc_refcount_decrement(&entry->rqrefcount);
+		fprintf(stderr, "DECREF %d %p %d\n", __LINE__, entry, lowac->count);
 		if (entry->inht) {
 			/*
 			 * Remove entry from the hashtable, we'll remove the
@@ -242,19 +263,33 @@ cleanup_entries(dns_lowac_t *lowac) {
 							entry->hash,
 							&htentry) == true);
 			entry->inht = false;
-			isc_refcount_increment(&entry->refcount);
+			isc_refcount_increment(&entry->rqrefcount);
+			/* We don't increment refcount - it was at 2 (remq + ht), it stays at 1 (remq) */
+			fprintf(stderr, "INCREF %d %p\n", __LINE__, entry);
+			fprintf(stderr, "XXXenq %p %d\n", entry, __LINE__);
 			ck_fifo_mpmc_enqueue(&lowac->remq, qentry, entry);
 		} else {
 			if (rc > 1) {
-				/* Requeue if still in use */
-				isc_refcount_increment(&entry->refcount);
-				ck_fifo_mpmc_enqueue(&lowac->remq, qentry,
-						     entry);
+				/* Requeue if still in use and there's no other request in queue */
+				/* TODO that's completely wrong, if we have two instances in the queue they will always have rc > 1 !!! */
+				if (rqrc == 0) { 
+					int p1 = isc_refcount_increment(&entry->rqrefcount);
+					int p2 = isc_refcount_increment(&entry->refcount);
+					fprintf(stderr, "INCREF %d %p %d %d\n", __LINE__, entry, p1, p2);
+					fprintf(stderr, "XXXenq %p %d\n", entry, __LINE__);
+					ck_fifo_mpmc_enqueue(&lowac->remq, qentry,
+							     entry);
+				} else {
+					isc_mem_put(lowac->mctx, qentry,
+					    sizeof(*qentry));
+				}
+				fprintf(stderr, "IGNREF %d %p\n", __LINE__, entry);
 			} else {
 				isc_mem_put(lowac->mctx, qentry,
 					    sizeof(*qentry));
 				removed++;
 				free_entry(lowac, entry);
+				fprintf(stderr, "XXXFree %p %d\n", entry, lowac->count);
 				lowac->count--;
 			}
 		}
@@ -272,7 +307,7 @@ rthread(void *d) {
 			expire_entries(lowac);
 			int removed = cleanup_entries(lowac);
 			if (removed < 256) {
-				usleep(10000);
+				usleep(1000);
 			} else {
 				RUNTIME_CHECK(ck_ht_gc(&lowac->ht, 128,
 						       isc_random32()));
@@ -284,6 +319,17 @@ rthread(void *d) {
 dns_lowac_t*
 dns_lowac_create(isc_mem_t *mctx) {
 	dns_lowac_t *lowac = isc_mem_get(mctx, sizeof(dns_lowac_t));
+	isc_interval_set(&lowac->expiry, 600, 0);
+	lowac->count = 0;
+	lowac->running = true;
+
+	if (ck_ht_init(&lowac->ht,
+		       CK_HT_MODE_BYTESTRING | CK_HT_WORKLOAD_DELETE,
+		       ht_hash_wrapper,
+		       &my_allocator, 32, isc_random32()) == false) {
+		abort();
+	}
+
 	ck_fifo_mpmc_entry_t *inq_stub =
 		isc_mem_get(mctx, sizeof(ck_fifo_mpmc_entry_t));
 	ck_fifo_mpmc_entry_t *remq_stub =
@@ -291,16 +337,11 @@ dns_lowac_create(isc_mem_t *mctx) {
 
 	ck_fifo_mpmc_init(&lowac->inq, inq_stub);
 	ck_fifo_mpmc_init(&lowac->remq, remq_stub);
-	lowac->count = 0;
-	lowac->running = true;
-	if (ck_ht_init(&lowac->ht,
-		       CK_HT_MODE_BYTESTRING | CK_HT_WORKLOAD_DELETE,
-		       ht_hash_wrapper,
-		       &my_allocator, 32, isc_random32()) == false) {
-		abort();
-	}
+	
+	
+	lowac->mctx = NULL;
 	isc_mem_attach(mctx, &lowac->mctx);
-	isc_interval_set(&lowac->expiry, 120, 0);
+
 	isc_thread_create(rthread, lowac, &lowac->thread);
 	return (lowac);
 }
@@ -329,8 +370,11 @@ dns_lowac_destroy(dns_lowac_t *lowac) {
 				    &entry,
 				    &fentry))
 	{
-		if (isc_refcount_decrement(&entry->refcount) == 0) {
+		if (isc_refcount_decrement(&entry->refcount) == 1) {
+			fprintf(stderr, "DECREF %d %p\n", __LINE__, entry);
 			free_entry(lowac, entry);
+		} else {
+			fprintf(stderr, "Non-unreferenced entry in remq %p\n", entry);
 		}
 		isc_mem_put(lowac->mctx, fentry, sizeof(*fentry));
 	}
@@ -373,6 +417,7 @@ dns_lowac_put(dns_lowac_t *lowac, dns_name_t *name, char*packet, int size) {
 	memcpy(entry->blob, packet, size);
 	entry->blobsize = size;
 	isc_refcount_init(&entry->refcount, 1);
+	isc_refcount_init(&entry->rqrefcount, 0);
 	isc_time_nowplusinterval(&entry->expire, &lowac->expiry);
 	entry->remq_enqueued = false;
 	entry->inht = false;
@@ -405,10 +450,12 @@ dns_lowac_get(dns_lowac_t *lowac, dns_name_t *name, unsigned char *blob,
 		dns_lowac_entry_t *entry = ck_ht_entry_value(&htentry);
 		REQUIRE(VALID_LENTRY(entry));
 		int oldrc = isc_refcount_increment(&entry->refcount);
+		fprintf(stderr, "INCREF %d %p\n", __LINE__, entry, oldrc);
 		RUNTIME_CHECK(oldrc > 0);
 		if (entry->remq_enqueued || !entry->inht) {
 			/* This entry is being removed, bail */
 			isc_refcount_decrement(&entry->refcount);
+			fprintf(stderr, "DECREF %d %p\n", __LINE__, entry);
 			return (ISC_R_NOTFOUND);
 		}
 		isc_time_t now;
@@ -418,6 +465,8 @@ dns_lowac_get(dns_lowac_t *lowac, dns_name_t *name, unsigned char *blob,
 				isc_mem_get(lowac->mctx,
 					    (sizeof(ck_fifo_mpmc_entry_t)));
 			entry->remq_enqueued = true;
+			isc_refcount_increment(&entry->rqrefcount);
+			fprintf(stderr, "XXXenq %p %d\n", entry, __LINE__);
 			ck_fifo_mpmc_enqueue(&lowac->remq, qentry, entry);
 			return (ISC_R_NOTFOUND);
 		}
@@ -431,6 +480,7 @@ dns_lowac_get(dns_lowac_t *lowac, dns_name_t *name, unsigned char *blob,
 			*blobsize = entry->blobsize;
 		}
 		isc_refcount_decrement(&entry->refcount);
+		fprintf(stderr, "DECREF %d %p\n", __LINE__, entry);
 		return (ISC_R_SUCCESS);
 	}
 	return (ISC_R_FAILURE);
