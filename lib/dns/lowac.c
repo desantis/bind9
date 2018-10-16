@@ -407,7 +407,7 @@ dns_lowac_get(dns_lowac_t *lowac, dns_name_t *name, unsigned char *blob,
 		REQUIRE(VALID_LENTRY(entry));
 		int oldrc = isc_refcount_increment(&entry->refcount);
 		RUNTIME_CHECK(oldrc > 0);
-		if (entry->remq_enqueued) {
+		if (entry->remq_enqueued || !entry->inht) {
 			/* This entry is being removed, bail */
 			isc_refcount_decrement(&entry->refcount);
 			return (ISC_R_NOTFOUND);
