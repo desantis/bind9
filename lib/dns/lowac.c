@@ -30,7 +30,7 @@ struct dns_lowac_entry {
 	uint16_t	      flags;
 	isc_time_t	      expire;
 	ck_ht_hash_t	      hash;
-	unsigned char	      blob[MAXIMUM_PKT_SIZE];
+	unsigned char	      *blob;
 	uint32_t	      blobsize;
 	isc_refcount_t	      refcount;
 
@@ -73,7 +73,6 @@ ht_free(void *p, size_t b, bool r)
 {
 	(void)b;
 	(void)r;
-	memset(p, 0xb0, b);
 	free(p);
 	return;
 }
@@ -96,7 +95,7 @@ static void
 free_entry(dns_lowac_t *lowac, dns_lowac_entry_t *entry) {
 	entry->magic = 0xffffffff;
 	dns_name_free(&entry->name, lowac->mctx);
-	memset(entry, 0xde, sizeof(*entry));
+	isc_mem_put(lowac->mctx, entry->blob, entry->blobsize);
 	isc_mem_put(lowac->mctx, entry, sizeof(*entry));
 }
 
@@ -107,7 +106,6 @@ dequeue_input_entry(dns_lowac_t*lowac) {
 	if (ck_fifo_mpmc_dequeue(&lowac->inq, &entry,
 				 &garbage) == true) {
 		REQUIRE(VALID_LENTRY(entry));
-		memset(garbage, 0xde, sizeof(*garbage));
 		isc_mem_put(lowac->mctx, garbage,
 			    sizeof(*garbage));
 		ck_ht_entry_t htentry;
@@ -253,7 +251,6 @@ cleanup_entries(dns_lowac_t *lowac) {
 				ck_fifo_mpmc_enqueue(&lowac->remq, qentry,
 						     entry);
 			} else {
-				memset(qentry, 0xde, sizeof(*qentry));
 				isc_mem_put(lowac->mctx, qentry,
 					    sizeof(*qentry));
 				removed++;
@@ -372,10 +369,11 @@ dns_lowac_put(dns_lowac_t *lowac, dns_name_t *name, char*packet, int size) {
 	dns_lowac_entry_t *entry = isc_mem_get(lowac->mctx, sizeof(*entry));
 	dns_name_init(&entry->name, NULL);
 	dns_name_dup(name, lowac->mctx, &entry->name);
+	entry->blob = isc_mem_get(lowac->mctx, size);
 	memcpy(entry->blob, packet, size);
-	isc_time_nowplusinterval(&entry->expire, &lowac->expiry);
 	entry->blobsize = size;
 	isc_refcount_init(&entry->refcount, 1);
+	isc_time_nowplusinterval(&entry->expire, &lowac->expiry);
 	entry->remq_enqueued = false;
 	entry->inht = false;
 	entry->magic = LENTRY_MAGIC;
