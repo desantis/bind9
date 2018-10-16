@@ -20,8 +20,11 @@
 
 #define MAXIMUM_PKT_SIZE 1024
 
+#define LENTRY_MAGIC		ISC_MAGIC('L', 'o', 'w', 'E')
+#define VALID_LENTRY(c)		ISC_MAGIC_VALID(c, LENTRY_MAGIC)
 
 struct dns_lowac_entry {
+	unsigned int	      magic;
 	dns_name_t	      name;
 	isc_region_t	      key;
 	uint16_t	      flags;
@@ -90,6 +93,7 @@ static struct ck_malloc my_allocator = {
 
 static void
 free_entry(dns_lowac_t *lowac, dns_lowac_entry_t *entry) {
+	entry->magic = 0;
 	dns_name_free(&entry->name, lowac->mctx);
 	isc_mem_put(lowac->mctx, entry, sizeof(*entry));
 }
@@ -100,6 +104,7 @@ dequeue_input_entry(dns_lowac_t*lowac) {
 	ck_fifo_mpmc_entry_t *garbage = NULL;
 	if (ck_fifo_mpmc_dequeue(&lowac->inq, &entry,
 				 &garbage) == true) {
+		REQUIRE(VALID_LENTRY(entry));
 		isc_mem_put(lowac->mctx, garbage,
 			    sizeof(*garbage));
 		ck_ht_entry_t htentry;
@@ -175,8 +180,9 @@ expire_entries(dns_lowac_t *lowac) {
 	while (iterok && htitentry != NULL && iterated < 256) {
 		dns_lowac_entry_t *entry = ck_ht_entry_value(
 			htitentry);
+		REQUIRE(VALID_LENTRY(entry));
 		if (isc_time_compare(&entry->expire, &now) < 0) {
-			if (!ck_ht_remove_spmc(&lowac->ht, entry->hash,htitentry)) {
+			if (!ck_ht_remove_spmc(&lowac->ht, entry->hash, htitentry)) {
 				/*
 				 * Very unlikely, but can happen when we're between generations.
 				 * TODO verify that it's ok at all, maybe we're using the iterator wrong?
@@ -225,6 +231,7 @@ cleanup_entries(dns_lowac_t *lowac) {
 	while (--max > 0 &&
 	       ck_fifo_mpmc_dequeue(&lowac->remq, &entry, &qentry) == true)
 	{
+		REQUIRE(VALID_LENTRY(entry));
 		int rc = isc_refcount_decrement(&entry->refcount);
 		if (entry->inht) {
 			/*
@@ -370,6 +377,7 @@ dns_lowac_put(dns_lowac_t *lowac, dns_name_t *name, char*packet, int size) {
 	isc_refcount_init(&entry->refcount, 1);
 	entry->remq_enqueued = false;
 	entry->inht = false;
+	entry->magic = LENTRY_MAGIC;
 
 	dns_name_toregion(&entry->name, &entry->key);
 
@@ -396,6 +404,7 @@ dns_lowac_get(dns_lowac_t *lowac, dns_name_t *name, unsigned char *blob,
 		return (ISC_R_NOTFOUND);
 	} else {
 		dns_lowac_entry_t *entry = ck_ht_entry_value(&htentry);
+		REQUIRE(VALID_LENTRY(entry));
 		int oldrc = isc_refcount_increment(&entry->refcount);
 		RUNTIME_CHECK(oldrc > 0);
 		if (entry->remq_enqueued) {
