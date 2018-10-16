@@ -13,5 +13,5 @@ isc_result_t
 dns_lowac_put(dns_lowac_t *lowac, dns_name_t *name, char* packet, int size);
 
 isc_result_t
-dns_lowac_get(dns_lowac_t *lowac, dns_name_t *name, char* blob, int* blobsize, bool tcp);
+dns_lowac_get(dns_lowac_t *lowac, dns_name_t *name, unsigned char* blob, int* blobsize, bool tcp);
 

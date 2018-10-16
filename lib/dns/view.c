@@ -288,6 +288,7 @@ dns_view_create(isc_mem_t *mctx, dns_rdataclass_t rdclass,
 		       view, NULL, NULL, NULL);
 	view->viewlist = NULL;
 	view->magic = DNS_VIEW_MAGIC;
+	/* TODO we might destroy the view (and LOWAC) when we still need it on shutdown! */
 	view->lowac = dns_lowac_create(view->mctx);
 
 	*viewp = view;
