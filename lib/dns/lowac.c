@@ -303,7 +303,7 @@ dns_lowac_create(isc_mem_t *mctx) {
 		abort();
 	}
 	isc_mem_attach(mctx, &lowac->mctx);
-	isc_interval_set(&lowac->expiry, 30, 0);
+	isc_interval_set(&lowac->expiry, 120, 0);
 	isc_thread_create(rthread, lowac, &lowac->thread);
 	return (lowac);
 }
