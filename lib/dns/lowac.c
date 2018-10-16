@@ -54,6 +54,7 @@ struct dns_lowac {
 	ck_ht_iterator_t	htit;
 	ck_fifo_mpmc_t		inq;
 	ck_fifo_mpmc_t		remq;
+	isc_time_t		now;
 };
 
 static void *
@@ -162,8 +163,6 @@ dequeue_input_entry(dns_lowac_t*lowac) {
 
 static int
 expire_entries(dns_lowac_t *lowac) {
-	isc_time_t now;
-	isc_time_now(&now);
 	int iterated = 0;
 
 	ck_ht_entry_t *htitentry = NULL;
@@ -175,7 +174,7 @@ expire_entries(dns_lowac_t *lowac) {
 	while (iterok && htitentry != NULL && iterated < 256) {
 		dns_lowac_entry_t *entry = ck_ht_entry_value(
 			htitentry);
-		if (isc_time_compare(&entry->expire, &now) < 0) {
+		if (isc_time_compare(&entry->expire, &lowac->now) < 0) {
 			RUNTIME_CHECK(ck_ht_remove_spmc(&lowac->ht,
 							entry->hash,
 							htitentry) == true);
@@ -257,6 +256,7 @@ rthread(void *d) {
 	dns_lowac_t *lowac = (dns_lowac_t*) d;
 	ck_ht_iterator_init(&lowac->htit);
 	while (lowac->running) {
+		isc_time_now(&lowac->now);
 		bool dequeued = dequeue_input_entry(lowac);
 		if (!dequeued) {
 			expire_entries(lowac);
@@ -360,7 +360,7 @@ dns_lowac_put(dns_lowac_t *lowac, dns_name_t *name, char*packet, int size) {
 	dns_name_init(&entry->name, NULL);
 	dns_name_dup(name, lowac->mctx, &entry->name);
 	memcpy(entry->blob, packet, size);
-	isc_time_nowplusinterval(&entry->expire, &lowac->expiry);
+	RUNTIME_CHECK(isc_time_add(&lowac->now, &lowac->expiry, &entry->expire) == ISC_R_SUCCESS);
 	entry->blobsize = size;
 	isc_refcount_init(&entry->refcount, 1);
 	entry->remq_enqueued = false;
@@ -398,9 +398,7 @@ dns_lowac_get(dns_lowac_t *lowac, dns_name_t *name, unsigned char *blob,
 			isc_refcount_decrement(&entry->refcount);
 			return (ISC_R_NOTFOUND);
 		}
-		isc_time_t now;
-		isc_time_now(&now);
-		if (isc_time_compare(&entry->expire, &now) < 0) {
+		if (isc_time_compare(&entry->expire, &lowac->now) < 0) {
 			ck_fifo_mpmc_entry_t *qentry =
 				isc_mem_get(lowac->mctx,
 					    (sizeof(ck_fifo_mpmc_entry_t)));
