@@ -28,7 +28,7 @@ struct dns_lowac_entry {
 	dns_name_t	      name;
 	isc_region_t	      key;
 	uint16_t	      flags;
-	isc_time_t	      expire;
+	int64_t		      expire;
 	ck_ht_hash_t	      hash;
 	unsigned char	      *blob;
 	uint32_t	      blobsize;
@@ -53,7 +53,7 @@ struct dns_lowac_entry {
 struct dns_lowac {
 	isc_mem_t *		mctx;    
 	isc_thread_t		thread;  
-	isc_interval_t		expiry;  /* Time after which records expire */
+	int			expiry;  /* Time after which records expire */
 
 	bool			running; /* We're not shut down */
 	bool			accepting; /* We're accepting packets into cache */
@@ -180,8 +180,6 @@ dequeue_input_entry(dns_lowac_t*lowac) {
 
 static int
 expire_entries(dns_lowac_t *lowac) {
-	isc_time_t now;
-	isc_time_now(&now);
 	int iterated = 0;
 
 	ck_ht_entry_t *htitentry = NULL;
@@ -193,7 +191,7 @@ expire_entries(dns_lowac_t *lowac) {
 	while (iterok && htitentry != NULL && iterated < 2048) {
 		dns_lowac_entry_t *entry = ck_ht_entry_value(htitentry);
 		REQUIRE(VALID_LENTRY(entry));
-		if (isc_time_compare(&entry->expire, &now) < 0) {
+		if (entry->expire < atomic_load(&lowac->now)) {
 			if (!ck_ht_remove_spmc(&lowac->ht, entry->hash, htitentry)) {
 				abort();
 				/*
@@ -302,6 +300,9 @@ rthread(void *d) {
 	dns_lowac_t *lowac = (dns_lowac_t*) d;
 	ck_ht_iterator_init(&lowac->htit);
 	while (lowac->running) {
+		isc_time_t now;
+		isc_time_now(&now);
+		atomic_store(&lowac->now, now.seconds);
 		bool dequeued = dequeue_input_entry(lowac);
 		if (!dequeued) {
 			expire_entries(lowac);
@@ -319,7 +320,7 @@ rthread(void *d) {
 dns_lowac_t*
 dns_lowac_create(isc_mem_t *mctx) {
 	dns_lowac_t *lowac = isc_mem_get(mctx, sizeof(dns_lowac_t));
-	isc_interval_set(&lowac->expiry, 600, 0);
+	lowac->expiry = 600;
 	lowac->count = 0;
 	lowac->running = true;
 
@@ -418,7 +419,7 @@ dns_lowac_put(dns_lowac_t *lowac, dns_name_t *name, char*packet, int size) {
 	entry->blobsize = size;
 	isc_refcount_init(&entry->refcount, 1);
 	isc_refcount_init(&entry->rqrefcount, 0);
-	isc_time_nowplusinterval(&entry->expire, &lowac->expiry);
+	entry->expire = atomic_load(&lowac->now) + lowac->expiry;
 	entry->remq_enqueued = false;
 	entry->inht = false;
 	entry->magic = LENTRY_MAGIC;
@@ -458,9 +459,7 @@ dns_lowac_get(dns_lowac_t *lowac, dns_name_t *name, unsigned char *blob,
 			fprintf(stderr, "DECREF %d %p\n", __LINE__, entry);
 			return (ISC_R_NOTFOUND);
 		}
-		isc_time_t now;
-		isc_time_now(&now);
-		if (isc_time_compare(&entry->expire, &now) < 0) {
+		if (entry->expire < atomic_load(&lowac->now)) {
 			ck_fifo_mpmc_entry_t *qentry =
 				isc_mem_get(lowac->mctx,
 					    (sizeof(ck_fifo_mpmc_entry_t)));
