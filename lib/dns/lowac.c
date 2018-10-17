@@ -330,7 +330,7 @@ dns_lowac_create(isc_mem_t *mctx) {
 	if (ck_ht_init(&lowac->ht,
 		       CK_HT_MODE_BYTESTRING | CK_HT_WORKLOAD_DELETE,
 		       ht_hash_wrapper,
-		       &my_allocator, 32, isc_random32()) == false) {
+		       &my_allocator, 100000, isc_random32()) == false) {
 		abort();
 	}
 
