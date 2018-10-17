@@ -17,9 +17,46 @@
 
 #include <inttypes.h>
 
+#include <isc/atomic.h>
 #include <isc/types.h>
+#include <isc/magic.h>
+#include <isc/util.h>
+#include <isc/rwlock.h>
 
 ISC_LANG_BEGINDECLS
+
+typedef atomic_int_fast64_t isc_stat_t;
+#define ISC_STATS_MAGIC			ISC_MAGIC('S', 't', 'a', 't')
+#define ISC_STATS_VALID(x)		ISC_MAGIC_VALID(x, ISC_STATS_MAGIC)
+
+struct isc_stats {
+	/*% Unlocked */
+	unsigned int	magic;
+	isc_mem_t	*mctx;
+	int		ncounters;
+
+	isc_mutex_t	lock;
+	unsigned int	references; /* locked by lock */
+
+	/*%
+	 * Locked by counterlock or unlocked if efficient rwlock is not
+	 * available.
+	 */
+	isc_stat_t	*counters;
+
+	/*%
+	 * We don't want to lock the counters while we are dumping, so we first
+	 * copy the current counter values into a local array.  This buffer
+	 * will be used as the copy destination.  It's allocated on creation
+	 * of the stats structure so that the dump operation won't fail due
+	 * to memory allocation failure.
+	 * XXX: this approach is weird for non-threaded build because the
+	 * additional memory and the copy overhead could be avoided.  We prefer
+	 * simplicity here, however, under the assumption that this function
+	 * should be only rarely called.
+	 */
+	uint64_t	*copiedcounters;
+};
 
 /*%<
  * Flag(s) for isc_stats_dump().
@@ -78,8 +115,9 @@ isc_stats_ncounters(isc_stats_t *stats);
  *
  */
 
-void
-isc_stats_increment(isc_stats_t *stats, isc_statscounter_t counter);
+#define isc_stats_increment(stats, counter) do { \
+	atomic_fetch_add_explicit(&stats->counters[counter], 1, \
+				  memory_order_relaxed); } while(0)
 /*%<
  * Increment the counter-th counter of stats.
  *
@@ -90,8 +128,10 @@ isc_stats_increment(isc_stats_t *stats, isc_statscounter_t counter);
  *	on creation.
  */
 
-void
-isc_stats_decrement(isc_stats_t *stats, isc_statscounter_t counter);
+
+#define isc_stats_decrement(stats, counter) do { \
+	atomic_fetch_sub_explicit(&stats->counters[counter], 1, \
+				  memory_order_relaxed); } while(0)
 /*%<
  * Decrement the counter-th counter of stats.
  *
