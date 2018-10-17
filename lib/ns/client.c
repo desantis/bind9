@@ -2287,7 +2287,7 @@ lowac_checksend(ns_client_t *client) {
 		return (result);
 	}
 	int blen;
-	result = dns_lowac_get(client->view->lowac, ISC_LIST_HEAD(client->message->sections[0]), (char*) data, &blen, TCP_CLIENT(client));
+	result = dns_lowac_get(client->view->lowac, ISC_LIST_HEAD(client->message->sections[0]), data, &blen, TCP_CLIENT(client));
 	if (result != ISC_R_SUCCESS) {
 		goto done;
 	}

@@ -40,11 +40,11 @@ struct dns_lowac_entry {
 	 * It's not locked in any way as it can only change
 	 * from false to true during runtime.
 	 */
-	bool	    	remq_enqueued;
-	isc_refcount_t	      rqrefcount;
-
-
+	bool	    	       remq_enqueued;
 	bool	    inht;
+	isc_refcount_t	       rqrefcount;
+
+
 	
 	atomic_int_fast64_t	lastusage;
 };
@@ -273,6 +273,8 @@ cleanup_entries(dns_lowac_t *lowac) {
 				if (rqrc == 0) { 
 					int p1 = isc_refcount_increment(&entry->rqrefcount);
 					int p2 = isc_refcount_increment(&entry->refcount);
+					(void) p1;
+					(void) p2;
 					fprintf(stderr, "INCREF %d %p %d %d\n", __LINE__, entry, p1, p2);
 					fprintf(stderr, "XXXenq %p %d\n", entry, __LINE__);
 					ck_fifo_mpmc_enqueue(&lowac->remq, qentry,
@@ -453,7 +455,7 @@ dns_lowac_get(dns_lowac_t *lowac, dns_name_t *name, unsigned char *blob,
 		int oldrc = isc_refcount_increment(&entry->refcount);
 		fprintf(stderr, "INCREF %d %p\n", __LINE__, entry, oldrc);
 		RUNTIME_CHECK(oldrc > 0);
-		if (entry->remq_enqueued) {
+		if (entry->remq_enqueued || !entry->inht) {
 			/* This entry is being removed, bail */
 			isc_refcount_decrement(&entry->refcount);
 			fprintf(stderr, "DECREF %d %p\n", __LINE__, entry);
