@@ -1835,7 +1835,21 @@ dns_name_fromwire(dns_name_t *name, isc_buffer_t *source,
 				if (c == 0)
 					done = true;
 				n = c;
-				state = fw_ordinary;
+				if (downcase) {
+					state = fw_ordinary;
+				} else {
+					current += n;
+					if (current >= source->active) {
+						return (ISC_R_UNEXPECTEDEND);
+					}
+					memcpy(ndata, cdata, n);
+					cdata += n;
+					ndata += n;
+					if (!seen_pointer) {
+						cused+=n;
+					}
+					state = fw_start;
+				}
 			} else if (c >= 128 && c < 192) {
 				/*
 				 * 14 bit local compression pointer.
