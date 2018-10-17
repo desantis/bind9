@@ -300,6 +300,7 @@ cleanup_entries(dns_lowac_t *lowac) {
 static void *
 rthread(void *d) {
 	dns_lowac_t *lowac = (dns_lowac_t*) d;
+	isc_thread_resetaffinity();
 	ck_ht_iterator_init(&lowac->htit);
 	while (lowac->running) {
 		isc_time_t now;
@@ -346,6 +347,7 @@ dns_lowac_create(isc_mem_t *mctx) {
 	isc_mem_attach(mctx, &lowac->mctx);
 
 	isc_thread_create(rthread, lowac, &lowac->thread);
+	isc_thread_setname(lowac->thread, "lowac-worker");
 	return (lowac);
 }
 

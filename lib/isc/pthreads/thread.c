@@ -112,6 +112,38 @@ isc_thread_yield(void) {
 }
 
 isc_result_t
+isc_thread_resetaffinity() {
+#if defined(HAVE_CPUSET_SETAFFINITY)
+	cpuset_t cpuset;
+	CPU_ZERO(&cpuset);
+	for (int cpu=0; cpu < 32; cpu++) {
+		CPU_SET(cpu, &cpuset);
+	}
+	if (cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_TID, -1,
+	    &cpuset, sizeof(cpuset)) != 0) {
+		return (ISC_R_FAILURE);
+	}
+#elif defined(HAVE_PTHREAD_SETAFFINITY_NP)
+	cpu_set_t set;
+	CPU_ZERO(&set);
+	for (int cpu=0; cpu < 32; cpu++) {
+		CPU_SET(cpu, &set);
+	}
+	if (pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t),
+	    &set) != 0) {
+		return (ISC_R_FAILURE);
+	}
+#elif defined(HAVE_PROCESSOR_BIND)
+	if (processor_bind(P_LWPID, P_MYID, PBIND_NONE, NULL) != 0) {
+		return (ISC_R_FAILURE);
+	}
+#else
+	UNUSED(cpu);
+#endif
+	return (ISC_R_SUCCESS);
+}	
+
+isc_result_t
 isc_thread_setaffinity(int cpu) {
 #if defined(HAVE_CPUSET_SETAFFINITY)
 	cpuset_t cpuset;

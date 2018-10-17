@@ -44,8 +44,12 @@ isc_thread_yield(void);
 void
 isc_thread_setname(isc_thread_t thread, const char *name);
 
+
 isc_result_t
 isc_thread_setaffinity(int cpu);
+
+isc_result_t
+isc_thread_resetaffinity(void);
 
 /* XXX We could do fancier error handling... */
 
