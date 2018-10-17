@@ -452,7 +452,7 @@ dns_lowac_get(dns_lowac_t *lowac, dns_name_t *name, unsigned char *blob,
 		int oldrc = isc_refcount_increment(&entry->refcount);
 		fprintf(stderr, "INCREF %d %p\n", __LINE__, entry, oldrc);
 		RUNTIME_CHECK(oldrc > 0);
-		if (entry->remq_enqueued || !entry->inht) {
+		if (entry->remq_enqueued) {
 			/* This entry is being removed, bail */
 			isc_refcount_decrement(&entry->refcount);
 			fprintf(stderr, "DECREF %d %p\n", __LINE__, entry);
