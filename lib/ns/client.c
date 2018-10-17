@@ -989,7 +989,7 @@ client_sendpkg(ns_client_t *client, isc_buffer_t *buffer, bool lowac) {
 		client->sendevent->attributes |= ISC_SOCKEVENTATTR_USEMINMTU;
 
 	CTRACE("sendto");
-	if (lowac) {
+	if (lowac && client->view != NULL) {
 		dns_lowac_put(client->view->lowac, ISC_LIST_HEAD(client->message->sections[0]), (char*) r.base, r.length);
 	}
 	result = isc_socket_sendto2(sock, &r, client->task,
