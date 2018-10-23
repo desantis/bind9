@@ -50,6 +50,7 @@
 /stamp-h1
 /test-driver
 Makefile
+Makefile.in
 ans.run
 gen.dSYM/
 kyua.log
