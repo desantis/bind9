@@ -1989,7 +1989,6 @@ allocate_socket(isc__socketmgr_t *manager, isc_sockettype_t type,
 		return (ISC_R_NOMEMORY);
 
 	sock->common.magic = 0;
-	sock->common.impmagic = 0;
 	isc_refcount_init(&sock->references, 0);
 
 	sock->manager = manager;
@@ -2026,12 +2025,10 @@ allocate_socket(isc__socketmgr_t *manager, isc_sockettype_t type,
 	result = isc_mutex_init(&sock->lock);
 	if (result != ISC_R_SUCCESS) {
 		sock->common.magic = 0;
-		sock->common.impmagic = 0;
 		goto error;
 	}
 
 	sock->common.magic = ISCAPI_SOCKET_MAGIC;
-	sock->common.impmagic = SOCKET_MAGIC;
 	*socketp = sock;
 
 	return (ISC_R_SUCCESS);
@@ -2063,7 +2060,6 @@ free_socket(isc__socket_t **socketp) {
 	INSIST(!ISC_LINK_LINKED(sock, link));
 
 	sock->common.magic = 0;
-	sock->common.impmagic = 0;
 
 	DESTROYLOCK(&sock->lock);
 
@@ -4046,7 +4042,6 @@ isc_socketmgr_create2(isc_mem_t *mctx, isc_socketmgr_t **managerp,
 	manager->stats = NULL;
 
 	manager->common.magic = ISCAPI_SOCKETMGR_MAGIC;
-	manager->common.impmagic = SOCKET_MANAGER_MAGIC;
 	manager->mctx = NULL;
 	ISC_LIST_INIT(manager->socklist);
 	result = isc_mutex_init(&manager->lock);
@@ -4175,7 +4170,6 @@ isc_socketmgr_destroy(isc_socketmgr_t **managerp) {
 		isc_stats_detach(&manager->stats);
 	DESTROYLOCK(&manager->lock);
 	manager->common.magic = 0;
-	manager->common.impmagic = 0;
 	mctx= manager->mctx;
 	isc_mem_put(mctx, manager, sizeof(*manager));
 

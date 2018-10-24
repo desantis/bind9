@@ -291,7 +291,6 @@ typedef enum {
  */
 #ifndef WIN32
 struct isc_socketmgr {
-	unsigned int		impmagic;
 	unsigned int		magic;
 };
 #endif
@@ -301,16 +300,14 @@ struct isc_socketmgr {
 					 (m)->magic == ISCAPI_SOCKETMGR_MAGIC)
 
 /*%
- * This is the common prefix of a socket object.  The same note as
- * that for the socketmgr structure applies.
+ * This is the common prefix of a socket object.
+ * The type determines how we handle it - either directly or
+ * via TLS layer.
  */
-#ifndef WIN32
 struct isc_socket {
-	unsigned int		impmagic;
 	unsigned int		magic;
 	isc_sockettype_t	type;
 };
-#endif
 
 #define ISCAPI_SOCKET_MAGIC	ISC_MAGIC('A','s','c','t')
 #define ISCAPI_SOCKET_VALID(s)	((s) != NULL && \
