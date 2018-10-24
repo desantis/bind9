@@ -337,7 +337,6 @@ struct isc__socket {
 	isc_socket_t		common;
 	isc__socketmgr_t	*manager;
 	isc_mutex_t		lock;
-	isc_sockettype_t	type;
 	const isc_statscounter_t	*statsindex;
 	isc_refcount_t		references;
 
@@ -1275,7 +1274,7 @@ build_msghdr_send(isc__socket_t *sock, char* cmsgbuf, isc_socketevent_t *dev,
 	msg->msg_flags = 0;
 #if defined(USE_CMSG)
 
-	if ((sock->type == isc_sockettype_udp) &&
+	if ((sock->common.type == isc_sockettype_udp) &&
 	    ((dev->attributes & ISC_SOCKEVENTATTR_PKTINFO) != 0))
 	{
 		struct in6_pktinfo *pktinfop;
@@ -1298,7 +1297,7 @@ build_msghdr_send(isc__socket_t *sock, char* cmsgbuf, isc_socketevent_t *dev,
 	}
 
 #if defined(IPV6_USE_MIN_MTU)
-	if ((sock->type == isc_sockettype_udp) &&
+	if ((sock->common.type == isc_sockettype_udp) &&
 	    ((dev->attributes & ISC_SOCKEVENTATTR_USEMINMTU) != 0))
 	{
 		int use_min_mtu = 1;	/* -1, 0, 1 */
@@ -1317,14 +1316,14 @@ build_msghdr_send(isc__socket_t *sock, char* cmsgbuf, isc_socketevent_t *dev,
 #endif
 
 	if (isc_dscp_check_value > -1) {
-		if (sock->type == isc_sockettype_udp)
+		if (sock->common.type == isc_sockettype_udp)
 			INSIST((int)dev->dscp == isc_dscp_check_value);
-		else if (sock->type == isc_sockettype_tcp)
+		else if (sock->common.type == isc_sockettype_tcp)
 			INSIST((int)sock->dscp == isc_dscp_check_value);
 	}
 
 #if defined(IP_TOS) || (defined(IPPROTO_IPV6) && defined(IPV6_TCLASS))
-	if ((sock->type == isc_sockettype_udp) &&
+	if ((sock->common.type == isc_sockettype_udp) &&
 	    ((dev->attributes & ISC_SOCKEVENTATTR_DSCP) != 0))
 	{
 		int dscp = (dev->dscp << 2) & 0xff;
@@ -1429,7 +1428,7 @@ build_msghdr_recv(isc__socket_t *sock, char *cmsgbuf, isc_socketevent_t *dev,
 
 	memset(msg, 0, sizeof(struct msghdr));
 
-	if (sock->type == isc_sockettype_udp) {
+	if (sock->common.type == isc_sockettype_udp) {
 		memset(&dev->address, 0, sizeof(dev->address));
 		msg->msg_name = (void *)&dev->address.type.sa;
 		msg->msg_namelen = sizeof(dev->address.type);
@@ -1486,7 +1485,7 @@ build_msghdr_recv(isc__socket_t *sock, char *cmsgbuf, isc_socketevent_t *dev,
 	 * If needed, set up to receive that one extra byte.
 	 */
 #ifdef ISC_PLATFORM_RECVOVERFLOW
-	if (sock->type == isc_sockettype_udp) {
+	if (sock->common.type == isc_sockettype_udp) {
 		INSIST(iovcount < MAXSCATTERGATHER_RECV);
 		iov[iovcount].iov_base = (void *)(&sock->overflow);
 		iov[iovcount].iov_len = 1;
@@ -1514,12 +1513,12 @@ static void
 set_dev_address(const isc_sockaddr_t *address, isc__socket_t *sock,
 		isc_socketevent_t *dev)
 {
-	if (sock->type == isc_sockettype_udp) {
+	if (sock->common.type == isc_sockettype_udp) {
 		if (address != NULL)
 			dev->address = *address;
 		else
 			dev->address = sock->peer_address;
-	} else if (sock->type == isc_sockettype_tcp) {
+	} else if (sock->common.type == isc_sockettype_tcp) {
 		INSIST(address == NULL);
 		dev->address = sock->peer_address;
 	}
@@ -1667,7 +1666,7 @@ doio_recv(isc__socket_t *sock, isc_socketevent_t *dev) {
 	 * while on UDP sockets, zero length reads are perfectly valid,
 	 * although strange.
 	 */
-	switch (sock->type) {
+	switch (sock->common.type) {
 	case isc_sockettype_tcp:
 	case isc_sockettype_unix:
 		if (cc == 0)
@@ -1680,7 +1679,7 @@ doio_recv(isc__socket_t *sock, isc_socketevent_t *dev) {
 		INSIST(0);
 	}
 
-	if (sock->type == isc_sockettype_udp) {
+	if (sock->common.type == isc_sockettype_udp) {
 		dev->address.length = msghdr.msg_namelen;
 		if (isc_sockaddr_getport(&dev->address) == 0) {
 			if (isc_log_wouldlog(isc_lctx, IOEVENT_LEVEL)) {
@@ -1709,7 +1708,7 @@ doio_recv(isc__socket_t *sock, isc_socketevent_t *dev) {
 	 * dev entry and adjust how much we read by one.
 	 */
 #ifdef ISC_PLATFORM_RECVOVERFLOW
-	if ((sock->type == isc_sockettype_udp) && ((size_t)cc > read_count)) {
+	if ((sock->common.type == isc_sockettype_udp) && ((size_t)cc > read_count)) {
 		dev->attributes |= ISC_SOCKEVENTATTR_TRUNC;
 		cc--;
 	}
@@ -1787,7 +1786,7 @@ doio_send(isc__socket_t *sock, isc_socketevent_t *dev) {
 	build_msghdr_send(sock, cmsgbuf, dev, &msghdr, iov, &write_count);
 
  resend:
-	if (sock->type == isc_sockettype_udp &&
+	if (sock->common.type == isc_sockettype_udp &&
 	    sock->manager->maxudp != 0 &&
 	    write_count > (size_t)sock->manager->maxudp)
 		cc = write_count;
@@ -1994,7 +1993,7 @@ allocate_socket(isc__socketmgr_t *manager, isc_sockettype_t type,
 	isc_refcount_init(&sock->references, 0);
 
 	sock->manager = manager;
-	sock->type = type;
+	sock->common.type = type;
 	sock->fd = -1;
 	sock->threadid = -1;
 	sock->dscp = 0;		/* TOS/TCLASS is zero until set. */
@@ -2252,7 +2251,7 @@ use_min_mtu(isc__socket_t *sock) {
 static void
 set_tcp_maxseg(isc__socket_t *sock, int size) {
 #ifdef TCP_MAXSEG
-	if (sock->type == isc_sockettype_tcp)
+	if (sock->common.type == isc_sockettype_tcp)
 		(void)setsockopt(sock->fd, IPPROTO_TCP, TCP_MAXSEG,
 				(void *)&size, sizeof(size));
 #endif
@@ -2276,7 +2275,7 @@ opensocket(isc__socketmgr_t *manager, isc__socket_t *sock,
 
  again:
 	if (dup_socket == NULL) {
-		switch (sock->type) {
+		switch (sock->common.type) {
 		case isc_sockettype_udp:
 			sock->fd = socket(sock->pf, SOCK_DGRAM, IPPROTO_UDP);
 			break;
@@ -2324,6 +2323,8 @@ opensocket(isc__socketmgr_t *manager, isc__socket_t *sock,
 			}
 #endif
 			break;
+		default:
+			INSIST(0);
 		}
 	} else {
 		sock->fd = dup(dup_socket->fd);
@@ -2337,7 +2338,7 @@ opensocket(isc__socketmgr_t *manager, isc__socket_t *sock,
 	/*
 	 * Leave a space for stdio and TCP to work in.
 	 */
-	if (manager->reserved != 0 && sock->type == isc_sockettype_udp &&
+	if (manager->reserved != 0 && sock->common.type == isc_sockettype_udp &&
 	    sock->fd >= 0 && sock->fd < manager->reserved) {
 		int newfd, tmp;
 		newfd = fcntl(sock->fd, F_DUPFD, manager->reserved);
@@ -2425,7 +2426,7 @@ opensocket(isc__socketmgr_t *manager, isc__socket_t *sock,
 #ifdef SO_BSDCOMPAT
 	RUNTIME_CHECK(isc_once_do(&bsdcompat_once,
 				  clear_bsdcompat) == ISC_R_SUCCESS);
-	if (sock->type != isc_sockettype_unix && bsdcompat &&
+	if (sock->common.type != isc_sockettype_unix && bsdcompat &&
 	    setsockopt(sock->fd, SOL_SOCKET, SO_BSDCOMPAT,
 		       (void *)&on, sizeof(on)) < 0) {
 		strerror_r(errno, strbuf, sizeof(strbuf));
@@ -2456,13 +2457,13 @@ opensocket(isc__socketmgr_t *manager, isc__socket_t *sock,
 	/*
 	 * Use minimum mtu if possible.
 	 */
-	if (sock->type == isc_sockettype_tcp && sock->pf == AF_INET6) {
+	if (sock->common.type == isc_sockettype_tcp && sock->pf == AF_INET6) {
 		use_min_mtu(sock);
 		set_tcp_maxseg(sock, 1280 - 20 - 40); /* 1280 - TCP - IPV6 */
 	}
 
 #if defined(USE_CMSG) || defined(SO_RCVBUF) || defined(SO_SNDBUF)
-	if (sock->type == isc_sockettype_udp) {
+	if (sock->common.type == isc_sockettype_udp) {
 
 #if defined(USE_CMSG)
 #if defined(SO_TIMESTAMP)
@@ -2663,7 +2664,7 @@ socket_create(isc_socketmgr_t *manager0, int pf, isc_sockettype_t type,
 	if (result != ISC_R_SUCCESS)
 		return (result);
 
-	switch (sock->type) {
+	switch (sock->common.type) {
 	case isc_sockettype_udp:
 		sock->statsindex =
 			(pf == AF_INET) ? udp4statsindex : udp6statsindex;
@@ -2758,7 +2759,7 @@ isc_socket_dup(isc_socket_t *sock0, isc_socket_t **socketp) {
 	REQUIRE(socketp != NULL && *socketp == NULL);
 
 	return (socket_create((isc_socketmgr_t *) sock->manager,
-			      sock->pf, sock->type, socketp,
+			      sock->pf, sock->common.type, socketp,
 			      sock0));
 }
 
@@ -4195,7 +4196,7 @@ socket_recv(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 
 	dev->ev_sender = task;
 
-	if (sock->type == isc_sockettype_udp) {
+	if (sock->common.type == isc_sockettype_udp) {
 		io_state = doio_recv(sock, dev);
 	} else {
 		LOCK(&sock->lock);
@@ -4292,7 +4293,7 @@ isc_socket_recvv(isc_socket_t *sock0, isc_bufferlist_t *buflist,
 	/*
 	 * UDP sockets are always partial read
 	 */
-	if (sock->type == isc_sockettype_udp)
+	if (sock->common.type == isc_sockettype_udp)
 		dev->minimum = 1;
 	else {
 		if (minimum == 0)
@@ -4357,7 +4358,7 @@ isc_socket_recv2(isc_socket_t *sock0, isc_region_t *region,
 	/*
 	 * UDP sockets are always partial read.
 	 */
-	if (sock->type == isc_sockettype_udp)
+	if (sock->common.type == isc_sockettype_udp)
 		event->minimum = 1;
 	else {
 		if (minimum == 0)
@@ -4401,7 +4402,7 @@ socket_send(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 		}
 	}
 
-	if (sock->type == isc_sockettype_udp)
+	if (sock->common.type == isc_sockettype_udp)
 		io_state = doio_send(sock, dev);
 	else {
 		LOCK(&sock->lock);
@@ -4574,7 +4575,7 @@ isc_socket_sendto2(isc_socket_t *sock0, isc_region_t *region,
 	REQUIRE(VALID_SOCKET(sock));
 	REQUIRE((flags & ~(ISC_SOCKFLAG_IMMEDIATE|ISC_SOCKFLAG_NORETRY)) == 0);
 	if ((flags & ISC_SOCKFLAG_NORETRY) != 0)
-		REQUIRE(sock->type == isc_sockettype_udp);
+		REQUIRE(sock->common.type == isc_sockettype_udp);
 	event->ev_sender = sock;
 	event->result = ISC_R_UNSET;
 	ISC_LIST_INIT(event->bufferlist);
@@ -4971,8 +4972,8 @@ isc_socket_listen(isc_socket_t *sock0, unsigned int backlog) {
 
 	REQUIRE(!sock->listener);
 	REQUIRE(sock->bound);
-	REQUIRE(sock->type == isc_sockettype_tcp ||
-		sock->type == isc_sockettype_unix);
+	REQUIRE(sock->common.type == isc_sockettype_tcp ||
+		sock->common.type == isc_sockettype_unix);
 
 	if (backlog == 0)
 		backlog = SOMAXCONN;
@@ -5031,7 +5032,7 @@ isc_socket_accept(isc_socket_t *sock0,
 	}
 	ISC_LINK_INIT(dev, ev_link);
 
-	result = allocate_socket(manager, sock->type, &nsock);
+	result = allocate_socket(manager, sock->common.type, &nsock);
 	if (result != ISC_R_SUCCESS) {
 		isc_event_free(ISC_EVENT_PTR(&dev));
 		UNLOCK(&sock->lock);
@@ -5138,7 +5139,7 @@ isc_socket_connect(isc_socket_t *sock0, const isc_sockaddr_t *addr,
 		 * or unsuccessfully (SO_ERROR is one of the usual error codes
 		 * listed here, explaining the reason for the failure).
 		 */
-		if (sock->type == isc_sockettype_udp && errno == EINPROGRESS) {
+		if (sock->common.type == isc_sockettype_udp && errno == EINPROGRESS) {
 			cc = 0;
 			goto success;
 		}
@@ -5520,7 +5521,7 @@ isc_socket_gettype(isc_socket_t *sock0) {
 
 	REQUIRE(VALID_SOCKET(sock));
 
-	return (sock->type);
+	return (sock->common.type);
 }
 
 void
@@ -5755,7 +5756,7 @@ isc_socketmgr_renderxml(isc_socketmgr_t *mgr0, xmlTextWriterPtr writer) {
 		TRY0(xmlTextWriterEndElement(writer));
 
 		TRY0(xmlTextWriterWriteElement(writer, ISC_XMLCHAR "type",
-					  ISC_XMLCHAR _socktype(sock->type)));
+					  ISC_XMLCHAR _socktype(sock->common.type)));
 
 		if (sock->connected) {
 			isc_sockaddr_format(&sock->peer_address, peerbuf,
@@ -5857,7 +5858,7 @@ isc_socketmgr_renderjson(isc_socketmgr_t *mgr0, json_object *stats) {
 		CHECKMEM(obj);
 		json_object_object_add(entry, "references", obj);
 
-		obj = json_object_new_string(_socktype(sock->type));
+		obj = json_object_new_string(_socktype(sock->common.type));
 		CHECKMEM(obj);
 		json_object_object_add(entry, "type", obj);
 

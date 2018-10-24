@@ -244,7 +244,8 @@ typedef enum {
 	isc_sockettype_udp = 1,
 	isc_sockettype_tcp = 2,
 	isc_sockettype_unix = 3,
-	isc_sockettype_raw = 4
+	isc_sockettype_raw = 4,
+	isc_sockettype_tls = 5
 } isc_sockettype_t;
 
 /*@{*/
@@ -307,6 +308,7 @@ struct isc_socketmgr {
 struct isc_socket {
 	unsigned int		impmagic;
 	unsigned int		magic;
+	isc_sockettype_t	type;
 };
 #endif
 
