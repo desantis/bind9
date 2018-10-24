@@ -238,11 +238,27 @@ build:centos:centos6:amd64:
   <<: *centos_centos6_amd64_image
   <<: *build_job
 
+build:fips:centos:centos6:amd64:
+  variables:
+    CC: gcc
+    CFLAGS: "-Wall -Wextra -O2 -g"
+    EXTRA_CONFIGURE: "--with-libidn2 --disable-warn-error --enable-fips-mode"
+  <<: *centos_centos6_amd64_image
+  <<: *build_job
+
 build:centos:centos7:amd64:
   variables:
     CC: gcc
     CFLAGS: "-Wall -Wextra -O2 -g"
     EXTRA_CONFIGURE: "--with-libidn2"
+  <<: *centos_centos7_amd64_image
+  <<: *build_job
+
+build:fips:centos:centos7:amd64:
+  variables:
+    CC: gcc
+    CFLAGS: "-Wall -Wextra -O2 -g"
+    EXTRA_CONFIGURE: "--with-libidn2 --enable-fips-mode"
   <<: *centos_centos7_amd64_image
   <<: *build_job
 
@@ -297,11 +313,23 @@ unittest:centos:centos6:amd64:
   dependencies:
     - build:centos:centos6:amd64
 
+unittest:fips:centos:centos6:amd64:
+  <<: *centos_centos6_amd64_image
+  <<: *unit_test_job
+  dependencies:
+    - build:fips:centos:centos6:amd64
+
 unittest:centos:centos7:amd64:
   <<: *centos_centos7_amd64_image
   <<: *unit_test_job
   dependencies:
     - build:centos:centos7:amd64
+
+unittest:fips:centos:centos7:amd64:
+  <<: *centos_centos7_amd64_image
+  <<: *unit_test_job
+  dependencies:
+    - build:fips:centos:centos7:amd64
 
 unittest:debian:jessie:amd64:
   <<: *debian_jessie_amd64_image
@@ -339,11 +367,23 @@ systemtest:centos:centos6:amd64:
   dependencies:
     - build:centos:centos6:amd64
 
+systemtest:fips:centos:centos6:amd64:
+  <<: *centos_centos6_amd64_image
+  <<: *system_test_job
+  dependencies:
+    - build:fips:centos:centos6:amd64
+
 systemtest:centos:centos7:amd64:
   <<: *centos_centos7_amd64_image
   <<: *system_test_job
   dependencies:
     - build:centos:centos7:amd64
+
+systemtest:fips:centos:centos7:amd64:
+  <<: *centos_centos7_amd64_image
+  <<: *system_test_job
+  dependencies:
+    - build:fips:centos:centos7:amd64
 
 systemtest:debian:jessie:amd64:
   <<: *debian_jessie_amd64_image
