@@ -164,6 +164,8 @@ struct query_ctx {
 
 	dns_view_t *view;			/* client view */
 
+	isc_result_t nxresult;			/* NXDOMAIN/NXRRSET */
+
 	isc_result_t result;			/* query result */
 	int line;				/* line to report error */
 };
@@ -249,5 +251,13 @@ ns__query_start(query_ctx_t *qctx);
 /*%<
  * (Must not be used outside this module and its associated unit tests.)
  */
+
+/*
+ * XXX:
+ * Temporary function used to initialize the dns64 hooks,
+ * which are currently hard-coded rather than loaded as a module.
+ */
+void
+ns__query_inithooks(dns_view_t *view);
 
 #endif /* NS_QUERY_H */

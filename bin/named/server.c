@@ -5319,7 +5319,15 @@ configure_view(dns_view_t *view, dns_viewlist_t *viewlist,
 	}
 
 #ifdef HAVE_DLOPEN
-	if (plugin_list != NULL) {
+	/*
+	 * XXX: because dns64 is still automatically configured,
+	 * we need to create a hooktable for every view regardless
+	 * of whether hook_list is set or not.
+ */
+#if 0
+	if (plugin_list != NULL)
+#endif
+	{
 		INSIST(view->hooktable == NULL);
 		CHECK(ns_hooktable_create(view->mctx,
 				  (ns_hooktable_t **) &view->hooktable));
@@ -5331,6 +5339,9 @@ configure_view(dns_view_t *view, dns_viewlist_t *viewlist,
 		CHECK(cfg_pluginlist_foreach(config, plugin_list, named_g_lctx,
 					     register_one_plugin, view));
 	}
+
+	/* XXX: temporary initialization for built in dns64 hooks */
+	ns__query_inithooks(view);
 #endif
 
 	/*
