@@ -70,12 +70,6 @@ struct ns_query {
 	isc_bufferlist_t		namebufs;
 	ISC_LIST(ns_dbversion_t)	activeversions;
 	ISC_LIST(ns_dbversion_t)	freeversions;
-	dns_rdataset_t *		dns64_aaaa;
-	dns_rdataset_t *		dns64_sigaaaa;
-	bool *				dns64_aaaaok;
-	unsigned int			dns64_aaaaoklen;
-	unsigned int			dns64_options;
-	unsigned int			dns64_ttl;
 
 	struct {
 		dns_db_t *      	db;

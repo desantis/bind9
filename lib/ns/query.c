@@ -671,16 +671,19 @@ query_reset(ns_client_t *client, bool everything) {
 	if (client->query.authzone != NULL)
 		dns_zone_detach(&client->query.authzone);
 
-	if (client->query.dns64_aaaa != NULL)
-		ns_client_putrdataset(client, &client->query.dns64_aaaa);
-	if (client->query.dns64_sigaaaa != NULL)
-		ns_client_putrdataset(client, &client->query.dns64_sigaaaa);
-	if (client->query.dns64_aaaaok != NULL) {
-		isc_mem_put(client->mctx, client->query.dns64_aaaaok,
-			    client->query.dns64_aaaaoklen *
-			    sizeof(bool));
-		client->query.dns64_aaaaok =  NULL;
-		client->query.dns64_aaaaoklen =  0;
+	/* XXX temporary */
+	if (client->dns64_aaaa != NULL) {
+		ns_client_putrdataset(client, &client->dns64_aaaa);
+	}
+	if (client->dns64_sigaaaa != NULL) {
+		ns_client_putrdataset(client, &client->dns64_sigaaaa);
+	}
+
+	if (client->dns64_aaaaok != NULL) {
+		isc_mem_put(client->mctx, client->dns64_aaaaok,
+			    client->dns64_aaaaoklen * sizeof(bool));
+		client->dns64_aaaaok =  NULL;
+		client->dns64_aaaaoklen =  0;
 	}
 
 	ns_client_putrdataset(client, &client->query.redirect.rdataset);
@@ -734,12 +737,13 @@ query_reset(ns_client_t *client, bool everything) {
 	client->query.gluedb = NULL;
 	client->query.authdbset = false;
 	client->query.isreferral = false;
-	client->query.dns64_options = 0;
-	client->query.dns64_ttl = UINT32_MAX;
 	recparam_update(&client->query.recparam, 0, NULL, NULL);
 	client->query.root_key_sentinel_keyid = 0;
 	client->query.root_key_sentinel_is_ta = false;
 	client->query.root_key_sentinel_not_ta = false;
+
+	/* XXX temporary */
+	client->dns64_ttl = UINT32_MAX;
 }
 
 static void
@@ -779,10 +783,6 @@ ns_query_init(ns_client_t *client) {
 	client->query.authzone = NULL;
 	client->query.authdbset = false;
 	client->query.isreferral = false;
-	client->query.dns64_aaaa = NULL;
-	client->query.dns64_sigaaaa = NULL;
-	client->query.dns64_aaaaok = NULL;
-	client->query.dns64_aaaaoklen = 0;
 	client->query.redirect.db = NULL;
 	client->query.redirect.node = NULL;
 	client->query.redirect.zone = NULL;
@@ -805,6 +805,12 @@ ns_query_init(ns_client_t *client) {
 		query_freefreeversions(client, true);
 		isc_mutex_destroy(&client->query.fetchlock);
 	}
+
+	/* XXX: temporary */
+	client->dns64_aaaa = NULL;
+	client->dns64_sigaaaa = NULL;
+	client->dns64_aaaaok = NULL;
+	client->dns64_aaaaoklen = 0;
 
 	return (result);
 }
@@ -4493,10 +4499,10 @@ dns64_aaaaok(ns_client_t *client, dns_rdataset_t *rdataset,
 	unsigned int i, count;
 	bool *aaaaok;
 
-	INSIST(client->query.dns64_aaaaok == NULL);
-	INSIST(client->query.dns64_aaaaoklen == 0);
-	INSIST(client->query.dns64_aaaa == NULL);
-	INSIST(client->query.dns64_sigaaaa == NULL);
+	INSIST(client->dns64_aaaaok == NULL);
+	INSIST(client->dns64_aaaaoklen == 0);
+	INSIST(client->dns64_aaaa == NULL);
+	INSIST(client->dns64_sigaaaa == NULL);
 
 	if (dns64 == NULL)
 		return (true);
@@ -4517,8 +4523,8 @@ dns64_aaaaok(ns_client_t *client, dns_rdataset_t *rdataset,
 	{
 		for (i = 0; i < count; i++) {
 			if (aaaaok != NULL && !aaaaok[i]) {
-				SAVE(client->query.dns64_aaaaok, aaaaok);
-				client->query.dns64_aaaaoklen = count;
+				SAVE(client->dns64_aaaaok, aaaaok);
+				client->dns64_aaaaoklen = count;
 				break;
 			}
 		}
@@ -7041,7 +7047,7 @@ query_addanswer(query_ctx_t *qctx) {
 			qctx->result = result;
 			return (ns_query_done(qctx));
 		}
-	} else if (qctx->client->query.dns64_aaaaok != NULL) {
+	} else if (qctx->client->dns64_aaaaok != NULL) {
 		query_filter64(qctx);
 		ns_client_putrdataset(qctx->client, &qctx->rdataset);
 	} else {
@@ -7075,7 +7081,7 @@ query_respond(query_ctx_t *qctx) {
 	 * Check to see if the AAAA RRset has non-excluded addresses
 	 * in it.  If not look for a A RRset.
 	 */
-	INSIST(qctx->client->query.dns64_aaaaok == NULL);
+	INSIST(qctx->client->dns64_aaaaok == NULL);
 
 	if (qctx->qtype == dns_rdatatype_aaaa && !qctx->dns64_exclude &&
 	    !ISC_LIST_EMPTY(qctx->view->dns64) &&
@@ -7085,9 +7091,9 @@ query_respond(query_ctx_t *qctx) {
 		/*
 		 * Look to see if there are A records for this name.
 		 */
-		qctx->client->query.dns64_ttl = qctx->rdataset->ttl;
-		SAVE(qctx->client->query.dns64_aaaa, qctx->rdataset);
-		SAVE(qctx->client->query.dns64_sigaaaa, qctx->sigrdataset);
+		qctx->client->dns64_ttl = qctx->rdataset->ttl;
+		SAVE(qctx->client->dns64_aaaa, qctx->rdataset);
+		SAVE(qctx->client->dns64_sigaaaa, qctx->sigrdataset);
 		ns_client_releasename(qctx->client, &qctx->fname);
 		dns_db_detachnode(qctx->db, &qctx->node);
 		qctx->type = qctx->qtype = dns_rdatatype_a;
@@ -7257,9 +7263,9 @@ query_dns64(query_ctx_t *qctx) {
 	dns_rdatalist_init(dns64_rdatalist);
 	dns64_rdatalist->rdclass = dns_rdataclass_in;
 	dns64_rdatalist->type = dns_rdatatype_aaaa;
-	if (client->query.dns64_ttl != UINT32_MAX)
+	if (client->dns64_ttl != UINT32_MAX)
 		dns64_rdatalist->ttl = ISC_MIN(qctx->rdataset->ttl,
-					       client->query.dns64_ttl);
+					       client->dns64_ttl);
 	else
 		dns64_rdatalist->ttl = ISC_MIN(qctx->rdataset->ttl, 600);
 
@@ -7370,8 +7376,8 @@ query_filter64(query_ctx_t *qctx) {
 
 	CTRACE(ISC_LOG_DEBUG(3), "query_filter64");
 
-	INSIST(client->query.dns64_aaaaok != NULL);
-	INSIST(client->query.dns64_aaaaoklen ==
+	INSIST(client->dns64_aaaaok != NULL);
+	INSIST(client->dns64_aaaaoklen ==
 	       dns_rdataset_count(qctx->rdataset));
 
 	name = qctx->fname;
@@ -7431,7 +7437,7 @@ query_filter64(query_ctx_t *qctx) {
 	     result == ISC_R_SUCCESS;
 	     result = dns_rdataset_next(qctx->rdataset))
 	{
-		if (!client->query.dns64_aaaaok[i++])
+		if (!client->dns64_aaaaok[i++])
 			continue;
 		dns_rdataset_current(qctx->rdataset, &rdata);
 		INSIST(rdata.length == 16);
@@ -8034,8 +8040,8 @@ query_nodata(query_ctx_t *qctx, isc_result_t res) {
 			ns_client_putrdataset(qctx->client, &qctx->rdataset);
 		if (qctx->sigrdataset != NULL)
 			ns_client_putrdataset(qctx->client, &qctx->sigrdataset);
-		RESTORE(qctx->rdataset, qctx->client->query.dns64_aaaa);
-		RESTORE(qctx->sigrdataset, qctx->client->query.dns64_sigaaaa);
+		RESTORE(qctx->rdataset, qctx->client->dns64_aaaa);
+		RESTORE(qctx->sigrdataset, qctx->client->dns64_sigaaaa);
 		if (qctx->fname == NULL) {
 			qctx->dbuf = ns_client_getnamebuf(qctx->client);
 			if (qctx->dbuf == NULL) {
@@ -8082,15 +8088,14 @@ query_nodata(query_ctx_t *qctx, isc_result_t res) {
 			 * cache ttl in the answer.
 			 */
 			if (qctx->rdataset->ttl != 0) {
-				qctx->client->query.dns64_ttl =
-					qctx->rdataset->ttl;
+				qctx->client->dns64_ttl = qctx->rdataset->ttl;
 				break;
 			}
 			if (dns_rdataset_first(qctx->rdataset) == ISC_R_SUCCESS)
-				qctx->client->query.dns64_ttl = 0;
+				qctx->client->dns64_ttl = 0;
 			break;
 		case DNS_R_NXRRSET:
-			qctx->client->query.dns64_ttl =
+			qctx->client->dns64_ttl =
 				dns64_ttl(qctx->db, qctx->version);
 			break;
 		default:
@@ -8098,8 +8103,8 @@ query_nodata(query_ctx_t *qctx, isc_result_t res) {
 			ISC_UNREACHABLE();
 		}
 
-		SAVE(qctx->client->query.dns64_aaaa, qctx->rdataset);
-		SAVE(qctx->client->query.dns64_sigaaaa, qctx->sigrdataset);
+		SAVE(qctx->client->dns64_aaaa, qctx->rdataset);
+		SAVE(qctx->client->dns64_sigaaaa, qctx->sigrdataset);
 		ns_client_releasename(qctx->client, &qctx->fname);
 		dns_db_detachnode(qctx->db, &qctx->node);
 		qctx->type = qctx->qtype = dns_rdatatype_a;

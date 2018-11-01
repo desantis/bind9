@@ -3058,6 +3058,13 @@ client_create(ns_clientmgr_t *manager, ns_client_t **clientp) {
 	client->keytag = NULL;
 	client->keytag_len = 0;
 
+	/* XXX temporary */
+	client->dns64_aaaa = NULL;
+	client->dns64_sigaaaa = NULL;
+	client->dns64_aaaaok = NULL;
+	client->dns64_aaaaoklen = 0;
+	client->dns64_ttl = UINT32_MAX;
+
 	/*
 	 * We call the init routines for the various kinds of client here,
 	 * after we have created an otherwise valid client, because some
