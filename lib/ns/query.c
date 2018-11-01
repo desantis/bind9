@@ -633,21 +633,6 @@ query_reset(ns_client_t *client, bool everything) {
 	if (client->query.authzone != NULL)
 		dns_zone_detach(&client->query.authzone);
 
-	/* XXX temporary */
-	if (client->dns64_aaaa != NULL) {
-		ns_client_putrdataset(client, &client->dns64_aaaa);
-	}
-	if (client->dns64_sigaaaa != NULL) {
-		ns_client_putrdataset(client, &client->dns64_sigaaaa);
-	}
-
-	if (client->dns64_aaaaok != NULL) {
-		isc_mem_put(client->mctx, client->dns64_aaaaok,
-			    client->dns64_aaaaoklen * sizeof(bool));
-		client->dns64_aaaaok =  NULL;
-		client->dns64_aaaaoklen =  0;
-	}
-
 	ns_client_putrdataset(client, &client->query.redirect.rdataset);
 	ns_client_putrdataset(client, &client->query.redirect.sigrdataset);
 	if (client->query.redirect.db != NULL) {
@@ -703,9 +688,6 @@ query_reset(ns_client_t *client, bool everything) {
 	client->query.root_key_sentinel_keyid = 0;
 	client->query.root_key_sentinel_is_ta = false;
 	client->query.root_key_sentinel_not_ta = false;
-
-	/* XXX temporary */
-	client->dns64_ttl = UINT32_MAX;
 }
 
 static void
@@ -767,12 +749,6 @@ ns_query_init(ns_client_t *client) {
 		query_freefreeversions(client, true);
 		isc_mutex_destroy(&client->query.fetchlock);
 	}
-
-	/* XXX: temporary */
-	client->dns64_aaaa = NULL;
-	client->dns64_sigaaaa = NULL;
-	client->dns64_aaaaok = NULL;
-	client->dns64_aaaaoklen = 0;
 
 	return (result);
 }
@@ -6910,14 +6886,6 @@ static isc_result_t
 query_respond(query_ctx_t *qctx) {
 	isc_result_t result;
 
-	/*
-	 * XXX: This hook is meant to be at the top of this function,
-	 * but is postponed until after DNS64 in order to avoid an
-	 * assertion if the hook causes recursion. (When DNS64 also
-	 * becomes a plugin, it will be necessary to find some
-	 * other way to prevent that assertion, since the order in
-	 * which plugins are configured can't be enforced.)
-	 */
 	CALL_HOOK(NS_QUERY_RESPOND_BEGIN, qctx);
 
 	if (NOQNAME(qctx->rdataset) && WANTDNSSEC(qctx->client)) {
@@ -8400,7 +8368,7 @@ query_coveringnsec(query_ctx_t *qctx) {
 	/*
 	 * Zero TTL handling of wildcard record.
 	 *
-	 * We don't yet have code to handle synthesis and type ANY or dns64
+	 * We don't yet have code to handle synthesis and type ANY
 	 * processing so we abort the synthesis here if there would be a
 	 * interaction.
 	 */

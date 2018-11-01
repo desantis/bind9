@@ -105,8 +105,8 @@ struct ns_query {
 #define NS_QUERYATTR_NOADDITIONAL	0x00800
 #define NS_QUERYATTR_CACHEACLOKVALID	0x01000
 #define NS_QUERYATTR_CACHEACLOK		0x02000
-#define NS_QUERYATTR_DNS64		0x04000
-#define NS_QUERYATTR_DNS64EXCLUDE	0x08000
+/* Obsolete: NS_QUERYATTR_DNS64		0x04000 */
+/* Obsolete: NS_QUERYATTR_DNS64EXCLUDE	0x08000 */
 #define NS_QUERYATTR_RRL_CHECKED	0x10000
 #define NS_QUERYATTR_REDIRECT		0x20000
 
@@ -132,7 +132,7 @@ struct query_ctx {
 	bool is_zone;				/* is DB a zone DB? */
 	bool is_staticstub_zone;
 	bool resuming;				/* resumed from recursion? */
-	bool dns64, dns64_exclude, rpz;
+	bool rpz;
 	bool authoritative;			/* authoritative query? */
 	bool want_restart;			/* CNAME chain or other
 						 * restart needed */
