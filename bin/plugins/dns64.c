@@ -133,19 +133,22 @@ typedef struct dns64_data {
 	bool dns64_exclude;
 } dns64_data_t;
 
-/*
- * Memory pool for allocating persistent data blobs.
- */
-static isc_mempool_t *datapool = NULL;
+typedef struct dns64_instance {
+	isc_mem_t *mctx;
+	/*
+	 * Memory pool for allocating persistent data blobs.
+	 */
+	isc_mempool_t *datapool;
 
-/*
- * Hash table associating a client object with its persistent data.
- */
-static isc_ht_t *client_ht = NULL;
+	/*
+	 * Hash table associating a client object with its persistent data.
+	 */
+	isc_ht_t *ht;
 
-dns_acl_t *dns64_mapped = NULL;
-dns64list_t dns64list;
-unsigned int dns64cnt;
+	dns_acl_t *dns64_mapped;
+	dns64list_t dns64list;
+	unsigned int dns64cnt;
+} dns64_instance_t;
 
 static isc_result_t
 dns64_createentry(isc_mem_t *mctx, const isc_netaddr_t *prefix,
@@ -166,11 +169,13 @@ static uint32_t
 dns64_ttl(dns_db_t *db, dns_dbversion_t *version);
 
 static bool
-dns64_aaaaok(ns_client_t *client, dns64_data_t *client_state,
+dns64_aaaaok(ns_client_t *client,
+	     dns64_instance_t *inst, dns64_data_t *client_state,
 	     dns_rdataset_t *rdataset, dns_rdataset_t *sigrdataset);
 
 static isc_result_t
-dns64_synth(query_ctx_t *qctx, dns64_data_t *client_state);
+dns64_synth(query_ctx_t *qctx, dns64_instance_t *inst,
+	    dns64_data_t *client_state);
 
 static void
 dns64_filter(query_ctx_t *qctx, dns64_data_t *client_state);
@@ -185,15 +190,9 @@ dns64_respond_begin(void *arg, void *cbdata, isc_result_t *resp);
 static ns_hookresult_t
 dns64_addanswer(void *arg, void *cbdata, isc_result_t *resp);
 static ns_hookresult_t
-dns64_resume_restored(void *arg, void *cbdata, isc_result_t *resp);
-static ns_hookresult_t
-dns64_notfound_recurse(void *arg, void *cbdata, isc_result_t *resp);
-static ns_hookresult_t
 dns64_delegation_recurse(void *arg, void *cbdata, isc_result_t *resp);
 static ns_hookresult_t
 dns64_nodata_begin(void *arg, void *cbdata, isc_result_t *resp);
-static ns_hookresult_t
-dns64_zerottl_recurse(void *arg, void *cbdata, isc_result_t *resp);
 static ns_hookresult_t
 dns64_qctx_destroy(void *arg, void *cbdata, isc_result_t *resp);
 
@@ -204,50 +203,37 @@ dns64_qctx_destroy(void *arg, void *cbdata, isc_result_t *resp);
  * argument to every callback.
  */
 static void
-install_hooks(ns_hooktable_t *hooktable, isc_mem_t *mctx, isc_ht_t *ht) {
+install_hooks(ns_hooktable_t *hooktable, isc_mem_t *mctx,
+	      dns64_instance_t *inst)
+{
 	const ns_hook_t dns64_init = {
 		.action = dns64_qctx_initialize,
-		.action_data = ht,
+		.action_data = inst,
 	};
 
 	const ns_hook_t dns64_respbegin = {
 		.action = dns64_respond_begin,
-		.action_data = ht,
+		.action_data = inst,
 	};
 
 	const ns_hook_t dns64_addanswerbegin = {
 		.action = dns64_addanswer,
-		.action_data = ht,
-	};
-
-	const ns_hook_t dns64_resumerest = {
-		.action = dns64_resume_restored,
-		.action_data = ht,
-	};
-
-	const ns_hook_t dns64_nfrec = {
-		.action = dns64_notfound_recurse,
-		.action_data = ht,
+		.action_data = inst,
 	};
 
 	const ns_hook_t dns64_delrec = {
 		.action = dns64_delegation_recurse,
-		.action_data = ht,
+		.action_data = inst,
 	};
 
 	const ns_hook_t dns64_nodata = {
 		.action = dns64_nodata_begin,
-		.action_data = ht,
-	};
-
-	const ns_hook_t dns64_zerottl = {
-		.action = dns64_zerottl_recurse,
-		.action_data = ht,
+		.action_data = inst,
 	};
 
 	const ns_hook_t dns64_destroy = {
 		.action = dns64_qctx_destroy,
-		.action_data = ht,
+		.action_data = inst,
 	};
 
 	ns_hook_add(hooktable, mctx,
@@ -257,15 +243,9 @@ install_hooks(ns_hooktable_t *hooktable, isc_mem_t *mctx, isc_ht_t *ht) {
 	ns_hook_add(hooktable, mctx,
 		    NS_QUERY_ADDANSWER_BEGIN, &dns64_addanswerbegin);
 	ns_hook_add(hooktable, mctx,
-		    NS_QUERY_RESUME_RESTORED, &dns64_resumerest);
-	ns_hook_add(hooktable, mctx,
-		    NS_QUERY_NOTFOUND_RECURSE, &dns64_nfrec);
-	ns_hook_add(hooktable, mctx,
 		    NS_QUERY_DELEGATION_RECURSE_BEGIN, &dns64_delrec);
 	ns_hook_add(hooktable, mctx,
 		    NS_QUERY_NODATA_BEGIN, &dns64_nodata);
-	ns_hook_add(hooktable, mctx,
-		    NS_QUERY_ZEROTTL_RECURSE, &dns64_zerottl);
 	ns_hook_add(hooktable, mctx,
 		    NS_QUERY_QCTX_DESTROYED, &dns64_destroy);
 
@@ -423,8 +403,8 @@ cleanup:
 }
 
 static isc_result_t
-parse_parameters(const char *parameters, const void *cfg,
-		 const char *cfg_file, unsigned long cfg_line,
+parse_parameters(dns64_instance_t *inst, const char *parameters,
+		 const void *cfg, const char *cfg_file, unsigned long cfg_line,
 		 void *actx, isc_mem_t *mctx, isc_log_t *lctx,
 		 dns_view_t *view)
 {
@@ -505,10 +485,11 @@ parse_parameters(const char *parameters, const void *cfg,
 					 (cfg_aclconfctx_t *) actx,
 					 mctx, 0, &excluded));
 		} else {
-			if (dns64_mapped == NULL) {
-				CHECK(create_mapped_acl(mctx, &dns64_mapped));
+			if (inst->dns64_mapped == NULL) {
+				CHECK(create_mapped_acl(mctx,
+							&inst->dns64_mapped));
 			}
-			dns_acl_attach(dns64_mapped, &excluded);
+			dns_acl_attach(inst->dns64_mapped, &excluded);
 		}
 
 		obj = NULL;
@@ -527,8 +508,8 @@ parse_parameters(const char *parameters, const void *cfg,
 					clients, mapped, excluded,
 					dns64options, &dns64));
 
-		dns64_append(&dns64list, dns64);
-		dns64cnt++;
+		dns64_append(&inst->dns64list, dns64);
+		inst->dns64cnt++;
 		CHECK(dns64_reverse(view, lctx, &na, prefixlen,
 				    server, contact));
 
@@ -583,23 +564,27 @@ plugin_register(const char *parameters,
 		dns_view_t *view, void **instp)
 {
 	isc_result_t result;
-
-	UNUSED(instp);
+	dns64_instance_t *inst = NULL;
 
 	isc_log_write(lctx, NS_LOGCATEGORY_GENERAL,
 		      NS_LOGMODULE_HOOKS, ISC_LOG_INFO,
-		      "loading 'dns64' "
+		      "registering 'dns64' "
 		      "module from %s:%lu, %s parameters",
 		      cfg_file, cfg_line, parameters != NULL ? "with" : "no");
 
+	inst = isc_mem_get(mctx, sizeof(*inst));
+	memset(inst, 0, sizeof(*inst));
+	isc_mem_attach(mctx, &inst->mctx);
+
 	if (parameters != NULL) {
-		CHECK(parse_parameters(parameters, cfg, cfg_file, cfg_line,
+		CHECK(parse_parameters(inst, parameters,
+				       cfg, cfg_file, cfg_line,
 				       actx, mctx, lctx, view));
 	}
 
-	CHECK(isc_mempool_create(mctx, sizeof(dns64_data_t), &datapool));
-
-	CHECK(isc_ht_init(&client_ht, mctx, 16));
+	CHECK(isc_mempool_create(mctx, sizeof(dns64_data_t),
+				 &inst->datapool));
+	CHECK(isc_ht_init(&inst->ht, mctx, 16));
 
 	/*
 	 * Fill the mempool with 1K filter_aaaa state objects at
@@ -611,13 +596,15 @@ plugin_register(const char *parameters,
 	 * so that they'll always be returned to the pool and not
 	 * freed until the pool is destroyed on shutdown.
 	 */
-	isc_mempool_setfillcount(datapool, 1024);
-	isc_mempool_setfreemax(datapool, UINT_MAX);
+	isc_mempool_setfillcount(inst->datapool, 1024);
+	isc_mempool_setfreemax(inst->datapool, UINT_MAX);
 
 	/*
 	 * Set hook points in the view's hooktable.
 	 */
-	install_hooks(view->hooktable, mctx, client_ht);
+	install_hooks(view->hooktable, mctx, inst);
+
+	*instp = inst;
 
  cleanup:
 	return (result);
@@ -645,50 +632,52 @@ plugin_check(const char *parameters,
  */
 void
 plugin_destroy(void **instp) {
+	dns64_instance_t *inst = (dns64_instance_t *) *instp;
 	dns64_t *dns64 = NULL;
 
-	UNUSED(instp);
-
-	if (client_ht != NULL) {
-		isc_ht_destroy(&client_ht);
+	if (inst->ht != NULL) {
+		isc_ht_destroy(&inst->ht);
 	}
 
-	if (datapool != NULL) {
-		isc_mempool_destroy(&datapool);
+	if (inst->datapool != NULL) {
+		isc_mempool_destroy(&inst->datapool);
 	}
 
-	for (dns64 = ISC_LIST_HEAD(dns64list);
+	for (dns64 = ISC_LIST_HEAD(inst->dns64list);
 	     dns64 != NULL;
-	     dns64 = ISC_LIST_HEAD(dns64list))
+	     dns64 = ISC_LIST_HEAD(inst->dns64list))
 	{
-		dns64_unlink(&dns64list, dns64);
+		dns64_unlink(&inst->dns64list, dns64);
 		dns64_destroyentry(&dns64);
 	}
 
-	if (dns64_mapped != NULL) {
-		dns_acl_detach(&dns64_mapped);
+	if (inst->dns64_mapped != NULL) {
+		dns_acl_detach(&inst->dns64_mapped);
 	}
+
+	isc_mem_putanddetach(&inst->mctx, inst, sizeof(*inst));
+	*instp = NULL;
 
 	return;
 }
 
 static dns64_data_t *
-client_state_get(const ns_client_t *client, isc_ht_t *ht) {
+client_state_get(const ns_client_t *client, dns64_instance_t *inst) {
 	dns64_data_t *client_state = NULL;
 	isc_result_t result;
 
-	result = isc_ht_find(ht, (const unsigned char *)&client,
+	result = isc_ht_find(inst->ht, (const unsigned char *)&client,
 			     sizeof(client), (void **)&client_state);
 
 	return (result == ISC_R_SUCCESS ? client_state : NULL);
 }
 
 static void
-client_state_create(const ns_client_t *client, isc_ht_t *ht) {
+client_state_create(const ns_client_t *client, dns64_instance_t *inst) {
 	dns64_data_t *client_state;
 	isc_result_t result;
 
-	client_state = isc_mempool_get(datapool);
+	client_state = isc_mempool_get(inst->datapool);
 	if (client_state == NULL) {
 		return;
 	}
@@ -701,25 +690,25 @@ client_state_create(const ns_client_t *client, isc_ht_t *ht) {
 	client_state->flags = 0;
 	client_state->dns64 = client_state->dns64_exclude = false;
 
-	result = isc_ht_add(ht, (const unsigned char *)&client,
+	result = isc_ht_add(inst->ht, (const unsigned char *)&client,
 			    sizeof(client), client_state);
 	RUNTIME_CHECK(result == ISC_R_SUCCESS);
 }
 
 static void
-client_state_destroy(const ns_client_t *client, isc_ht_t *ht) {
-	dns64_data_t *client_state = client_state_get(client, ht);
+client_state_destroy(const ns_client_t *client, dns64_instance_t *inst) {
+	dns64_data_t *client_state = client_state_get(client, inst);
 	isc_result_t result;
 
 	if (client_state == NULL) {
 		return;
 	}
 
-	result = isc_ht_delete(ht, (const unsigned char *)&client,
+	result = isc_ht_delete(inst->ht, (const unsigned char *)&client,
 			       sizeof(client));
 	RUNTIME_CHECK(result == ISC_R_SUCCESS);
 
-	isc_mempool_put(datapool, client_state);
+	isc_mempool_put(inst->datapool, client_state);
 }
 
 /*
@@ -1046,12 +1035,13 @@ cleanup:
 }
 
 static bool
-dns64_aaaaok(ns_client_t *client, dns64_data_t *client_state,
+dns64_aaaaok(ns_client_t *client,
+	     dns64_instance_t *inst, dns64_data_t *client_state,
 	     dns_rdataset_t *rdataset, dns_rdataset_t *sigrdataset)
 {
 	isc_netaddr_t netaddr;
 	dns_aclenv_t *env = ns_interfacemgr_getaclenv(client->interface->mgr);
-	dns64_t *dns64 = ISC_LIST_HEAD(dns64list);
+	dns64_t *dns64 = ISC_LIST_HEAD(inst->dns64list);
 	unsigned int flags = 0;
 	unsigned int i, count;
 	bool *aaaaok;
@@ -1101,7 +1091,9 @@ dns64_aaaaok(ns_client_t *client, dns64_data_t *client_state,
 }
 
 static isc_result_t
-dns64_synth(query_ctx_t *qctx, dns64_data_t *client_state) {
+dns64_synth(query_ctx_t *qctx, dns64_instance_t *inst,
+	    dns64_data_t *client_state)
+{
 	ns_client_t *client = qctx->client;
 	dns_aclenv_t *env = ns_interfacemgr_getaclenv(client->interface->mgr);
 	dns_name_t *name = qctx->fname, *mname = NULL;
@@ -1167,7 +1159,7 @@ dns64_synth(query_ctx_t *qctx, dns64_data_t *client_state) {
 	isc_netaddr_fromsockaddr(&netaddr, &client->peeraddr);
 
 	CHECK(isc_buffer_allocate(client->mctx, &buffer,
-				  dns64cnt * 16 *
+				  inst->dns64cnt * 16 *
 				  dns_rdataset_count(qctx->rdataset)));
 
 	CHECK(dns_message_gettemprdataset(client->message, &dns64_rdataset));
@@ -1200,7 +1192,7 @@ dns64_synth(query_ctx_t *qctx, dns64_data_t *client_state) {
 	for (result = dns_rdataset_first(qctx->rdataset);
 	     result == ISC_R_SUCCESS;
 	     result = dns_rdataset_next(qctx->rdataset)) {
-		for (dns64 = ISC_LIST_HEAD(dns64list);
+		for (dns64 = ISC_LIST_HEAD(inst->dns64list);
 		     dns64 != NULL; dns64 = dns64_next(dns64)) {
 
 			dns_rdataset_current(qctx->rdataset, &rdata);
@@ -1419,14 +1411,14 @@ dns64_filter(query_ctx_t *qctx, dns64_data_t *client_state) {
 static ns_hookresult_t
 dns64_qctx_initialize(void *arg, void *cbdata, isc_result_t *resp) {
 	query_ctx_t *qctx = (query_ctx_t *) arg;
-	isc_ht_t *ht = (isc_ht_t *) cbdata;
+	dns64_instance_t *inst = (dns64_instance_t *) cbdata;
 	dns64_data_t *client_state;
 
 	*resp = ISC_R_UNSET;
 
-	client_state = client_state_get(qctx->client, ht);
+	client_state = client_state_get(qctx->client, inst);
 	if (client_state == NULL) {
-		client_state_create(qctx->client, ht);
+		client_state_create(qctx->client, inst);
 	}
 
 	return (NS_HOOK_CONTINUE);
@@ -1435,8 +1427,8 @@ dns64_qctx_initialize(void *arg, void *cbdata, isc_result_t *resp) {
 static ns_hookresult_t
 dns64_respond_begin(void *arg, void *cbdata, isc_result_t *resp) {
 	query_ctx_t *qctx = (query_ctx_t *) arg;
-	isc_ht_t *ht = (isc_ht_t *) cbdata;
-	dns64_data_t *client_state = client_state_get(qctx->client, ht);
+	dns64_instance_t *inst = (dns64_instance_t *) cbdata;
+	dns64_data_t *client_state = client_state_get(qctx->client, inst);
 
 	*resp = ISC_R_UNSET;
 
@@ -1452,9 +1444,9 @@ dns64_respond_begin(void *arg, void *cbdata, isc_result_t *resp) {
 
 	if (qctx->qtype == dns_rdatatype_aaaa &&
 	    !client_state->dns64_exclude &&
-	    !ISC_LIST_EMPTY(dns64list) &&
+	    !ISC_LIST_EMPTY(inst->dns64list) &&
 	    qctx->client->message->rdclass == dns_rdataclass_in &&
-	    !dns64_aaaaok(qctx->client, client_state,
+	    !dns64_aaaaok(qctx->client, inst, client_state,
 			  qctx->rdataset, qctx->sigrdataset))
 	{
 		/*
@@ -1486,8 +1478,8 @@ dns64_respond_begin(void *arg, void *cbdata, isc_result_t *resp) {
 static ns_hookresult_t
 dns64_addanswer(void *arg, void *cbdata, isc_result_t *resp) {
 	query_ctx_t *qctx = (query_ctx_t *) arg;
-	isc_ht_t *ht = (isc_ht_t *) cbdata;
-	dns64_data_t *client_state = client_state_get(qctx->client, ht);
+	dns64_instance_t *inst = (dns64_instance_t *) cbdata;
+	dns64_data_t *client_state = client_state_get(qctx->client, inst);
 
 	*resp = ISC_R_UNSET;
 
@@ -1496,7 +1488,7 @@ dns64_addanswer(void *arg, void *cbdata, isc_result_t *resp) {
 	}
 
 	if (client_state->dns64) {
-		isc_result_t result = dns64_synth(qctx, client_state);
+		isc_result_t result = dns64_synth(qctx, inst, client_state);
 		qctx->noqname = NULL;
 		dns_rdataset_disassociate(qctx->rdataset);
 		dns_message_puttemprdataset(qctx->client->message,
@@ -1540,40 +1532,10 @@ dns64_addanswer(void *arg, void *cbdata, isc_result_t *resp) {
 }
 
 static ns_hookresult_t
-dns64_resume_restored(void *arg, void *cbdata, isc_result_t *resp) {
-	query_ctx_t *qctx = (query_ctx_t *) arg;
-	isc_ht_t *ht = (isc_ht_t *) cbdata;
-	dns64_data_t *client_state = client_state_get(qctx->client, ht);
-
-	*resp = ISC_R_UNSET;
-
-	if (client_state == NULL) {
-		return (NS_HOOK_CONTINUE);
-	}
-
-	return (NS_HOOK_CONTINUE);
-}
-
-static ns_hookresult_t
-dns64_notfound_recurse(void *arg, void *cbdata, isc_result_t *resp) {
-	query_ctx_t *qctx = (query_ctx_t *) arg;
-	isc_ht_t *ht = (isc_ht_t *) cbdata;
-	dns64_data_t *client_state = client_state_get(qctx->client, ht);
-
-	*resp = ISC_R_UNSET;
-
-	if (client_state == NULL) {
-		return (NS_HOOK_CONTINUE);
-	}
-
-	return (NS_HOOK_CONTINUE);
-}
-
-static ns_hookresult_t
 dns64_delegation_recurse(void *arg, void *cbdata, isc_result_t *resp) {
 	query_ctx_t *qctx = (query_ctx_t *) arg;
-	isc_ht_t *ht = (isc_ht_t *) cbdata;
-	dns64_data_t *client_state = client_state_get(qctx->client, ht);
+	dns64_instance_t *inst = (dns64_instance_t *) cbdata;
+	dns64_data_t *client_state = client_state_get(qctx->client, inst);
 
 	*resp = ISC_R_UNSET;
 
@@ -1601,8 +1563,8 @@ dns64_delegation_recurse(void *arg, void *cbdata, isc_result_t *resp) {
 static ns_hookresult_t
 dns64_nodata_begin(void *arg, void *cbdata, isc_result_t *resp) {
 	query_ctx_t *qctx = (query_ctx_t *) arg;
-	isc_ht_t *ht = (isc_ht_t *) cbdata;
-	dns64_data_t *client_state = client_state_get(qctx->client, ht);
+	dns64_instance_t *inst = (dns64_instance_t *) cbdata;
+	dns64_data_t *client_state = client_state_get(qctx->client, inst);
 	isc_result_t result;
 
 	*resp = ISC_R_UNSET;
@@ -1644,7 +1606,7 @@ dns64_nodata_begin(void *arg, void *cbdata, isc_result_t *resp) {
 		client_state->dns64 = false;
 	} else if ((qctx->nxresult == DNS_R_NXRRSET ||
 		    qctx->nxresult == DNS_R_NCACHENXRRSET) &&
-		   !ISC_LIST_EMPTY(dns64list) &&
+		   !ISC_LIST_EMPTY(inst->dns64list) &&
 		   qctx->client->message->rdclass == dns_rdataclass_in &&
 		   qctx->qtype == dns_rdatatype_aaaa)
 	{
@@ -1690,25 +1652,10 @@ dns64_nodata_begin(void *arg, void *cbdata, isc_result_t *resp) {
 }
 
 static ns_hookresult_t
-dns64_zerottl_recurse(void *arg, void *cbdata, isc_result_t *resp) {
-	query_ctx_t *qctx = (query_ctx_t *) arg;
-	isc_ht_t *ht = (isc_ht_t *) cbdata;
-	dns64_data_t *client_state = client_state_get(qctx->client, ht);
-
-	*resp = ISC_R_UNSET;
-
-	if (client_state == NULL) {
-		return (NS_HOOK_CONTINUE);
-	}
-
-	return (NS_HOOK_CONTINUE);
-}
-
-static ns_hookresult_t
 dns64_qctx_destroy(void *arg, void *cbdata, isc_result_t *resp) {
 	query_ctx_t *qctx = (query_ctx_t *) arg;
-	isc_ht_t *ht = (isc_ht_t *) cbdata;
-	dns64_data_t *client_state = client_state_get(qctx->client, ht);
+	dns64_instance_t *inst = (dns64_instance_t *) cbdata;
+	dns64_data_t *client_state = client_state_get(qctx->client, inst);
 
 	*resp = ISC_R_UNSET;
 
@@ -1729,7 +1676,7 @@ dns64_qctx_destroy(void *arg, void *cbdata, isc_result_t *resp) {
 		client_state->aaaaoklen =  0;
 	}
 
-	client_state_destroy(qctx->client, ht);
+	client_state_destroy(qctx->client, inst);
 
 	return (NS_HOOK_CONTINUE);
 }

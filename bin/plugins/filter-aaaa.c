@@ -78,7 +78,6 @@ typedef struct filter_data {
 } filter_data_t;
 
 typedef struct filter_instance {
-	ns_plugin_t *module;
 	isc_mem_t *mctx;
 
 	/*
