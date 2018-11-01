@@ -48,6 +48,7 @@
 #include <dns/rdataset.h>
 #include <dns/rdatalist.h>
 #include <dns/result.h>
+#include <dns/sdb.h>
 #include <dns/types.h>
 #include <dns/view.h>
 #include <dns/zone.h>
@@ -121,7 +122,6 @@ typedef enum {
  * accessible until the client object is detached.
  */
 
-
 typedef struct dns64_data {
 	dns_rdataset_t *aaaa;
 	dns_rdataset_t *sigaaaa;
@@ -144,6 +144,11 @@ typedef struct dns64_instance {
 	 * Hash table associating a client object with its persistent data.
 	 */
 	isc_ht_t *ht;
+
+	/*
+	 * SDB DNS64 database implementation.
+	 */
+	dns_sdbimplementation_t *dns64_impl;
 
 	dns_acl_t *dns64_mapped;
 	dns64list_t dns64list;
@@ -248,7 +253,6 @@ install_hooks(ns_hooktable_t *hooktable, isc_mem_t *mctx,
 		    NS_QUERY_NODATA_BEGIN, &dns64_nodata);
 	ns_hook_add(hooktable, mctx,
 		    NS_QUERY_QCTX_DESTROYED, &dns64_destroy);
-
 }
 
 /**
@@ -545,6 +549,366 @@ parse_parameters(dns64_instance_t *inst, const char *parameters,
 }
 
 /**
+ ** DNS64 SDB zone implementation starts here
+ **/
+
+typedef struct builtin {
+	isc_result_t (*do_lookup)(dns_sdblookup_t *lookup);
+	isc_mem_t *mctx;
+	char *server;
+	char *contact;
+} builtin_t;
+
+static isc_result_t dns64_zone_dolookup(dns_sdblookup_t *lookup);
+static builtin_t dns64_builtin = { dns64_zone_dolookup, NULL, NULL, NULL };
+
+/*
+ * Pre computed HEX * 16 or 1 table.
+ */
+static const unsigned char hex16[256] = {
+	 1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1, /*00*/
+	 1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,	/*10*/
+	 1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1, /*20*/
+	 0, 16, 32, 48, 64, 80, 96,112,128,144,  1,  1,  1,  1,  1,  1,	/*30*/
+	 1,160,176,192,208,224,240,  1,  1,  1,  1,  1,  1,  1,  1,  1, /*40*/
+	 1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1, /*50*/
+	 1,160,176,192,208,224,240,  1,  1,  1,  1,  1,  1,  1,  1,  1, /*60*/
+	 1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1, /*70*/
+	 1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1, /*80*/
+	 1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1, /*90*/
+	 1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1, /*A0*/
+	 1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1, /*B0*/
+	 1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1, /*C0*/
+	 1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1, /*D0*/
+	 1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1, /*E0*/
+	 1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1  /*F0*/
+};
+
+const unsigned char decimal[] = "0123456789";
+
+static size_t
+dns64_zone_rdata(unsigned char *v, size_t start, unsigned char *rdata) {
+	size_t i, j = 0;
+
+	for (i = 0; i < 4U; i++) {
+		unsigned char c = v[start++];
+		if (start == 7U) {
+			start++;
+		}
+		if (c > 99) {
+			rdata[j++] = 3;
+			rdata[j++] = decimal[c / 100]; c = c % 100;
+			rdata[j++] = decimal[c / 10]; c = c % 10;
+			rdata[j++] = decimal[c];
+		} else if (c > 9) {
+			rdata[j++] = 2;
+			rdata[j++] = decimal[c / 10]; c = c % 10;
+			rdata[j++] = decimal[c];
+		} else {
+			rdata[j++] = 1;
+			rdata[j++] = decimal[c];
+		}
+	}
+	memmove(&rdata[j], "\07in-addr\04arpa", 14);
+	return (j + 14);
+}
+
+static isc_result_t
+dns64_zone_cname(const dns_name_t *zone,
+	    const dns_name_t *name,
+	    dns_sdblookup_t *lookup)
+{
+	size_t zlen, nlen, j, len;
+	unsigned char v[16], n;
+	unsigned int i;
+	unsigned char rdata[sizeof("123.123.123.123.in-addr.arpa.")];
+	unsigned char *ndata;
+
+	/*
+	 * The combined length of the zone and name is 74.
+	 *
+	 * The minimum zone length is 10 ((3)ip6(4)arpa(0)).
+	 *
+	 * The length of name should always be even as we are expecting
+	 * a series of nibbles.
+	 */
+	zlen = zone->length;
+	nlen = name->length;
+	if ((zlen + nlen) > 74U || zlen < 10U || (nlen % 2) != 0U) {
+		return (ISC_R_NOTFOUND);
+	}
+
+	/*
+	 * We assume the zone name is well formed.
+	 */
+
+	/*
+	 * XXXMPA We could check the dns64 suffix here if we need to.
+	 */
+	/*
+	 * Check that name is a series of nibbles.
+	 * Compute the byte values that correspond to the nibbles as we go.
+	 *
+	 * Shift the final result 4 bits, by setting 'i' to 1, if we if we
+	 * have a odd number of nibbles so that "must be zero" tests below
+	 * are byte aligned and we correctly return ISC_R_NOTFOUND or
+	 * ISC_R_SUCCESS.  We will not generate a CNAME in this case.
+	 */
+	ndata = name->ndata;
+	i = (nlen % 4) == 2U ? 1 : 0;
+	j = nlen;
+	memset(v, 0, sizeof(v));
+	while (j != 0U) {
+		INSIST((i / 2) < sizeof(v));
+		if (ndata[0] != 1) {
+			return (ISC_R_NOTFOUND);
+		}
+		n = hex16[ndata[1] & 0xff];
+		if (n == 1) {
+			return (ISC_R_NOTFOUND);
+		}
+		v[i / 2] = n | (v[i / 2] >> 4);
+		j -= 2;
+		ndata += 2;
+		i++;
+	}
+
+	/*
+	 * If we get here then we know name only consisted of nibbles.
+	 * Now we need to determine if the name exists or not and whether
+	 * it corresponds to a empty node in the zone or there should be
+	 * a CNAME.
+	 */
+#define ZLEN(x) (10 + (x) / 2)
+	switch (zlen) {
+	case ZLEN(32):  /* prefix len 32 */
+		/*
+		 * The nibbles that map to this byte must be zero for 'name'
+		 * to exist in the zone.
+		 */
+		if (nlen > 16U && v[(nlen - 1) / 4 - 4] != 0) {
+			return (ISC_R_NOTFOUND);
+		}
+		/*
+		 * If the total length is not 74 then this is a empty node
+		 * so return success.
+		 */
+		if (nlen + zlen != 74U) {
+			return (ISC_R_SUCCESS);
+		}
+		len = dns64_zone_rdata(v, 8, rdata);
+		break;
+	case ZLEN(40):  /* prefix len 40 */
+		/*
+		 * The nibbles that map to this byte must be zero for 'name'
+		 * to exist in the zone.
+		 */
+		if (nlen > 12U && v[(nlen - 1) / 4 - 3] != 0) {
+			return (ISC_R_NOTFOUND);
+		}
+		/*
+		 * If the total length is not 74 then this is a empty node
+		 * so return success.
+		 */
+		if (nlen + zlen != 74U) {
+			return (ISC_R_SUCCESS);
+		}
+		len = dns64_zone_rdata(v, 6, rdata);
+		break;
+	case ZLEN(48):  /* prefix len 48 */
+		/*
+		 * The nibbles that map to this byte must be zero for 'name'
+		 * to exist in the zone.
+		 */
+		if (nlen > 8U && v[(nlen - 1) / 4 - 2] != 0) {
+			return (ISC_R_NOTFOUND);
+		}
+		/*
+		 * If the total length is not 74 then this is a empty node
+		 * so return success.
+		 */
+		if (nlen + zlen != 74U) {
+			return (ISC_R_SUCCESS);
+		}
+		len = dns64_zone_rdata(v, 5, rdata);
+		break;
+	case ZLEN(56):  /* prefix len 56 */
+		/*
+		 * The nibbles that map to this byte must be zero for 'name'
+		 * to exist in the zone.
+		 */
+		if (nlen > 4U && v[(nlen - 1) / 4 - 1] != 0) {
+			return (ISC_R_NOTFOUND);
+		}
+		/*
+		 * If the total length is not 74 then this is a empty node
+		 * so return success.
+		 */
+		if (nlen + zlen != 74U) {
+			return (ISC_R_SUCCESS);
+		}
+		len = dns64_zone_rdata(v, 4, rdata);
+		break;
+	case ZLEN(64):  /* prefix len 64 */
+		/*
+		 * The nibbles that map to this byte must be zero for 'name'
+		 * to exist in the zone.
+		 */
+		if (v[(nlen - 1) / 4] != 0) {
+			return (ISC_R_NOTFOUND);
+		}
+		/*
+		 * If the total length is not 74 then this is a empty node
+		 * so return success.
+		 */
+		if (nlen + zlen != 74U) {
+			return (ISC_R_SUCCESS);
+		}
+		len = dns64_zone_rdata(v, 3, rdata);
+		break;
+	case ZLEN(96):  /* prefix len 96 */
+		/*
+		 * If the total length is not 74 then this is a empty node
+		 * so return success.
+		 */
+		if (nlen + zlen != 74U) {
+			return (ISC_R_SUCCESS);
+		}
+		len = dns64_zone_rdata(v, 0, rdata);
+		break;
+	default:
+		/*
+		 * This should never be reached unless someone adds a
+		 * zone declaration with this internal type to named.conf.
+		 */
+		return (ISC_R_NOTFOUND);
+	}
+	return (dns_sdb_putrdata(lookup, dns_rdatatype_cname, 600,
+				 rdata, (unsigned int)len));
+}
+
+static isc_result_t
+dns64_zone_lookup(const dns_name_t *zone, const dns_name_t *name,
+	     void *dbdata, dns_sdblookup_t *lookup,
+	     dns_clientinfomethods_t *methods, dns_clientinfo_t *clientinfo)
+{
+	builtin_t *b = (builtin_t *) dbdata;
+
+	UNUSED(methods);
+	UNUSED(clientinfo);
+
+	if (name->labels == 0 && name->length == 0) {
+		return (b->do_lookup(lookup));
+	} else {
+		return (dns64_zone_cname(zone, name, lookup));
+	}
+}
+
+static isc_result_t
+dns64_zone_dolookup(dns_sdblookup_t *lookup) {
+	UNUSED(lookup);
+	return (ISC_R_SUCCESS);
+}
+
+static isc_result_t
+dns64_zone_create(const char *zone, isc_mem_t *mctx, int argc, char **argv,
+	     void *driverdata, void **dbdata)
+{
+	builtin_t *dns64;
+	char *server;
+	char *contact;
+
+	UNUSED(zone);
+	UNUSED(driverdata);
+
+	if (argc != 3) {
+		return (DNS_R_SYNTAX);
+	}
+
+	dns64 = isc_mem_get(mctx, sizeof(*dns64));
+	server = isc_mem_strdup(mctx, argv[1]);
+	contact = isc_mem_strdup(mctx, argv[2]);
+	if (dns64 == NULL || server == NULL || contact == NULL) {
+		*dbdata = &dns64_builtin;
+		if (server != NULL) {
+			isc_mem_free(mctx, server);
+		}
+		if (contact != NULL) {
+			isc_mem_free(mctx, contact);
+		}
+		if (dns64 != NULL) {
+			isc_mem_put(mctx, dns64, sizeof (*dns64));
+		}
+	} else {
+		memmove(dns64, &dns64_builtin, sizeof (dns64_builtin));
+		isc_mem_attach(mctx, &dns64->mctx);
+		dns64->server = server;
+		dns64->contact = contact;
+		*dbdata = dns64;
+	}
+
+	return (ISC_R_SUCCESS);
+}
+
+static isc_result_t
+dns64_zone_authority(const char *zone, void *dbdata, dns_sdblookup_t *lookup) {
+	isc_result_t result;
+	const char *contact = "hostmaster";
+	const char *server = "@";
+	builtin_t *b = (builtin_t *) dbdata;
+
+	UNUSED(zone);
+	UNUSED(dbdata);
+
+	if (b->server != NULL) {
+		server = b->server;
+	}
+	if (b->contact != NULL) {
+		contact = b->contact;
+	}
+
+	result = dns_sdb_putsoa(lookup, server, contact, 0);
+	if (result != ISC_R_SUCCESS) {
+		return (ISC_R_FAILURE);
+	}
+
+	result = dns_sdb_putrr(lookup, "ns", 0, server);
+	if (result != ISC_R_SUCCESS) {
+		return (ISC_R_FAILURE);
+	}
+
+	return (ISC_R_SUCCESS);
+}
+
+static void
+dns64_zone_destroy(const char *zone, void *driverdata, void **dbdata) {
+	builtin_t *b = (builtin_t *) *dbdata;
+
+	UNUSED(zone);
+	UNUSED(driverdata);
+
+	/*
+	 * Don't free the static versions.
+	 */
+	if (*dbdata == &dns64_builtin) {
+		return;
+	}
+
+	isc_mem_free(b->mctx, b->server);
+	isc_mem_free(b->mctx, b->contact);
+	isc_mem_putanddetach(&b->mctx, b, sizeof(*b));
+}
+
+static dns_sdbmethods_t dns64_methods = {
+	NULL,
+	dns64_zone_authority,
+	NULL,           /* allnodes */
+	dns64_zone_create,
+	dns64_zone_destroy,
+	dns64_zone_lookup,
+};
+
+/**
  ** Mandatory plugin API functions:
  **
  ** - plugin_check
@@ -576,6 +940,19 @@ plugin_register(const char *parameters,
 	memset(inst, 0, sizeof(*inst));
 	isc_mem_attach(mctx, &inst->mctx);
 
+	/*
+	 * Set up dns64 SDB implementation.
+	 */
+	RUNTIME_CHECK(dns_sdb_register("_dns64", &dns64_methods, NULL,
+				       DNS_SDBFLAG_RELATIVEOWNER |
+				       DNS_SDBFLAG_RELATIVERDATA |
+				       DNS_SDBFLAG_DNS64,
+				       mctx, &inst->dns64_impl)
+		      == ISC_R_SUCCESS);
+
+	/*
+	 * Parse parameters.
+	 */
 	if (parameters != NULL) {
 		CHECK(parse_parameters(inst, parameters,
 				       cfg, cfg_file, cfg_line,
@@ -635,6 +1012,8 @@ plugin_destroy(void **instp) {
 	dns64_instance_t *inst = (dns64_instance_t *) *instp;
 	dns64_t *dns64 = NULL;
 
+	dns_sdb_unregister(&inst->dns64_impl);
+
 	if (inst->ht != NULL) {
 		isc_ht_destroy(&inst->ht);
 	}
@@ -661,6 +1040,19 @@ plugin_destroy(void **instp) {
 	return;
 }
 
+/*
+ * Returns plugin API version for compatibility checks.
+ */
+int
+plugin_version(void) {
+	return (NS_PLUGIN_VERSION);
+}
+
+
+/*
+ * Helper function to get persistent state information based on
+ * the client address.
+ */
 static dns64_data_t *
 client_state_get(const ns_client_t *client, dns64_instance_t *inst) {
 	dns64_data_t *client_state = NULL;
@@ -672,6 +1064,10 @@ client_state_get(const ns_client_t *client, dns64_instance_t *inst) {
 	return (result == ISC_R_SUCCESS ? client_state : NULL);
 }
 
+/*
+ * Helper function to create persistent state information based on
+ * the client address.
+ */
 static void
 client_state_create(const ns_client_t *client, dns64_instance_t *inst) {
 	dns64_data_t *client_state;
@@ -695,6 +1091,10 @@ client_state_create(const ns_client_t *client, dns64_instance_t *inst) {
 	RUNTIME_CHECK(result == ISC_R_SUCCESS);
 }
 
+/*
+ * Helper function to delete persistent state information based on
+ * the client address.
+ */
 static void
 client_state_destroy(const ns_client_t *client, dns64_instance_t *inst) {
 	dns64_data_t *client_state = client_state_get(client, inst);
@@ -709,14 +1109,6 @@ client_state_destroy(const ns_client_t *client, dns64_instance_t *inst) {
 	RUNTIME_CHECK(result == ISC_R_SUCCESS);
 
 	isc_mempool_put(inst->datapool, client_state);
-}
-
-/*
- * Returns plugin API version for compatibility checks.
- */
-int
-plugin_version(void) {
-	return (NS_PLUGIN_VERSION);
 }
 
 /**

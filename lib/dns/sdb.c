@@ -1346,7 +1346,7 @@ dns_sdb_create(isc_mem_t *mctx, const dns_name_t *origin, dns_dbtype_t type,
 	sdb->dbdata = NULL;
 	if (imp->methods->create != NULL) {
 		MAYBE_LOCK(sdb);
-		result = imp->methods->create(sdb->zone, argc, argv,
+		result = imp->methods->create(sdb->zone, mctx, argc, argv,
 					      imp->driverdata, &sdb->dbdata);
 		MAYBE_UNLOCK(sdb);
 		if (result != ISC_R_SUCCESS)

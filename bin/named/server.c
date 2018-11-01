@@ -87,6 +87,7 @@
 #include <dns/resolver.h>
 #include <dns/rootns.h>
 #include <dns/rriterator.h>
+#include <dns/sdb.h>
 #include <dns/secalg.h>
 #include <dns/soa.h>
 #include <dns/stats.h>

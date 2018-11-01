@@ -21,6 +21,7 @@
 #include <isc/result.h>
 
 #include <dns/rdatatype.h>
+#include <dns/sdb.h>
 
 #include <ns/client.h>
 #include <ns/query.h>

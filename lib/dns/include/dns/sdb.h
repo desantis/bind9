@@ -71,7 +71,8 @@ typedef isc_result_t
 			 dns_sdballnodes_t *allnodes);
 
 typedef isc_result_t
-(*dns_sdbcreatefunc_t)(const char *zone, int argc, char **argv,
+(*dns_sdbcreatefunc_t)(const char *zone, isc_mem_t *mctx,
+		       int argc, char **argv,
 		       void *driverdata, void **dbdata);
 
 typedef void
@@ -97,6 +98,13 @@ ISC_LANG_BEGINDECLS
 #define DNS_SDBFLAG_RELATIVERDATA 0x00000002U
 #define DNS_SDBFLAG_THREADSAFE 0x00000004U
 #define DNS_SDBFLAG_DNS64 0x00000008U
+
+typedef isc_result_t
+(*dns_sdbregister_t)(const char *drivername, const dns_sdbmethods_t *methods,
+		     void *driverdata, unsigned int flags, isc_mem_t *mctx,
+		     dns_sdbimplementation_t **sdbimp);
+typedef void
+(*dns_sdbunregister_t)(dns_sdbimplementation_t **sdbimp);
 
 isc_result_t
 dns_sdb_register(const char *drivername, const dns_sdbmethods_t *methods,
