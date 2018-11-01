@@ -41,6 +41,8 @@ options {
 	response-policy { zone "rpz"; };
 };
 
+plugin query "../../../../plugins/lib/dns64.so";
+
 zone "." {
 	type hint;
 	file "../../common/root.hint";

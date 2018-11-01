@@ -1,0 +1,173 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<!--
+ - Copyright (C) 2000-2018 Internet Systems Consortium, Inc. ("ISC")
+ - 
+ - This Source Code Form is subject to the terms of the Mozilla Public
+ - License, v. 2.0. If a copy of the MPL was not distributed with this
+ - file, You can obtain one at http://mozilla.org/MPL/2.0/.
+-->
+<html lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>dns64.so</title>
+<meta name="generator" content="DocBook XSL Stylesheets V1.79.1">
+<link rel="home" href="Bv9ARM.html" title="BIND 9 Administrator Reference Manual">
+<link rel="up" href="Bv9ARM.ch12.html" title="Manual pages">
+<link rel="prev" href="man.filter-aaaa.html" title="filter-aaaa.so">
+<link rel="next" href="man.host.html" title="host">
+</head>
+<body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF">
+<div class="navheader">
+<table width="100%" summary="Navigation header">
+<tr><th colspan="3" align="center"><span class="application">dns64.so</span></th></tr>
+<tr>
+<td width="20%" align="left">
+<a accesskey="p" href="man.filter-aaaa.html">Prev</a> </td>
+<th width="60%" align="center">Manual pages</th>
+<td width="20%" align="right"> <a accesskey="n" href="man.host.html">Next</a>
+</td>
+</tr>
+</table>
+<hr>
+</div>
+<div class="refentry">
+<a name="man.dns64"></a><div class="titlepage"></div>
+<div class="refnamediv">
+<h2>Name</h2>
+<p><span class="application">dns64.so</span> &#8212; perform DNS64 synthesis</p>
+</div>
+<div class="refsynopsisdiv">
+<h2>Synopsis</h2>
+<div class="cmdsynopsis"><p><code class="command">hook query "dns64.so"</code>  [<em class="replaceable"><code>{ parameters }</code></em>];
+    </p></div>
+</div>
+<div class="refsection">
+<a name="id-1.13.20.7"></a><h2>DESCRIPTION</h2>
+<p>
+      <span class="command"><strong>dns64.so</strong></span> is a query hook module for
+      <span class="command"><strong>named</strong></span>, enabling <span class="command"><strong>named</strong></span>
+      to perform DNS64 address synthesis.
+    </p>
+<p>
+      Until BIND 9.12, this feature was implemented natively in
+      <span class="command"><strong>named</strong></span> and enabled with the
+      <span class="command"><strong>dns64</strong></span> option.
+      This option is now deprecated in <code class="filename">named.conf</code>,
+      but can be passed as parameters to the
+      <span class="command"><strong>dns64.so</strong></span> module, for example:
+    </p>
+<pre class="programlisting">
+	acl rfc1918 { 10/8; 192.168/16; 172.16/12; };
+
+	plugin query "/usr/local/lib/dns64.so" {
+		dns64 64:FF9B::/96 {
+			clients { any; };
+			mapped { !rfc1918; any; };
+			exclude { 64:FF9B::/96; ::ffff:0000:0000/96; };
+			suffix ::;
+		};
+
+		dns64-server "dns64.example.net.";
+		dns64-contact "hostmaster.example.net.";
+	};
+</pre>
+<p>
+      This plugin enables <span class="command"><strong>named</strong></span> to
+      return mapped IPv4 addresses to AAAA queries when
+      there are no AAAA records.  It is intended to be
+      used in conjunction with NAT64.
+    </p>
+<p>
+      Each <span class="command"><strong>dns64</strong></span> option defined in the plugin
+      parameters defines one DNS64 prefix. Multiple DNS64 prefixes
+      can be defined.
+    </p>
+<p>
+      Compatible IPv6 prefixes have lengths of 32, 40, 48, 56,
+      64 and 96 as per RFC 6052.
+    </p>
+<p>
+      Additionally a reverse IP6.ARPA zone will be created for
+      the prefix to provide a mapping from the IP6.ARPA names
+      to the corresponding IN-ADDR.ARPA names using synthesized
+      CNAMEs.  <span class="command"><strong>dns64-server</strong></span> and
+      <span class="command"><strong>dns64-contact</strong></span> can be used to specify
+      the name of the server and contact for the zones.
+      These are not settable on a per-prefix basis.
+    </p>
+<p>
+      Each <span class="command"><strong>dns64</strong></span> supports an optional
+      <span class="command"><strong>clients</strong></span> ACL that determines which
+      clients are affected by this directive.  If not defined,
+      it defaults to <strong class="userinput"><code>any;</code></strong>.
+    </p>
+<p>
+      Each <span class="command"><strong>dns64</strong></span> supports an optional
+      <span class="command"><strong>mapped</strong></span> ACL that selects which
+      IPv4 addresses are to be mapped in the corresponding
+      A RRset.  If not defined it defaults to
+      <strong class="userinput"><code>any;</code></strong>.
+    </p>
+<p>
+      Normally, DNS64 won't apply to a domain name that
+      owns one or more AAAA records; these records will
+      simply be returned.  The optional
+      <span class="command"><strong>exclude</strong></span> ACL allows specification
+      of a list of IPv6 addresses that will be ignored
+      if they appear in a domain name's AAAA records, and
+      DNS64 will be applied to any A records the domain
+      name owns.  If not defined, <span class="command"><strong>exclude</strong></span>
+      defaults to ::ffff:0.0.0.0/96.
+    </p>
+<p>
+      A optional <span class="command"><strong>suffix</strong></span> can also
+      be defined to set the bits trailing the mapped
+      IPv4 address bits.  By default these bits are
+      set to <strong class="userinput"><code>::</code></strong>.  The bits
+      matching the prefix and mapped IPv4 address
+      must be zero.
+    </p>
+<p>
+      If <span class="command"><strong>recursive-only</strong></span> is set to
+      <span class="command"><strong>yes</strong></span> the DNS64 synthesis will
+      only happen for recursive queries.  The default
+      is <span class="command"><strong>no</strong></span>.
+    </p>
+<p>
+      If <span class="command"><strong>break-dnssec</strong></span> is set to
+      <span class="command"><strong>yes</strong></span> the DNS64 synthesis will
+      happen even if the result, if validated, would
+      cause a DNSSEC validation failure.  If this option
+      is set to <span class="command"><strong>no</strong></span> (the default), the DO
+      is set on the incoming query, and there are RRSIGs on
+      the applicable records, then synthesis will not happen.
+    </p>
+</div>
+<div class="refsection">
+<a name="id-1.13.20.8"></a><h2>SEE ALSO</h2>
+<p>
+      <em class="citetitle">BIND 9 Administrator Reference Manual</em>.
+    </p>
+</div>
+</div>
+<div class="navfooter">
+<hr>
+<table width="100%" summary="Navigation footer">
+<tr>
+<td width="40%" align="left">
+<a accesskey="p" href="man.filter-aaaa.html">Prev</a> </td>
+<td width="20%" align="center"><a accesskey="u" href="Bv9ARM.ch12.html">Up</a></td>
+<td width="40%" align="right"> <a accesskey="n" href="man.host.html">Next</a>
+</td>
+</tr>
+<tr>
+<td width="40%" align="left" valign="top">
+<span class="application">filter-aaaa.so</span> </td>
+<td width="20%" align="center"><a accesskey="h" href="Bv9ARM.html">Home</a></td>
+<td width="40%" align="right" valign="top"> host</td>
+</tr>
+</table>
+</div>
+<p xmlns:db="http://docbook.org/ns/docbook" style="text-align: center;">BIND 9.13.4 (Development Release)</p>
+</body>
+</html>

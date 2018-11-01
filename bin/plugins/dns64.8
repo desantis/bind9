@@ -1,0 +1,144 @@
+.\" Copyright (C) 2018 Internet Systems Consortium, Inc. ("ISC")
+.\" 
+.\" This Source Code Form is subject to the terms of the Mozilla Public
+.\" License, v. 2.0. If a copy of the MPL was not distributed with this
+.\" file, You can obtain one at http://mozilla.org/MPL/2.0/.
+.\"
+.hy 0
+.ad l
+'\" t
+.\"     Title: dns64.so
+.\"    Author: 
+.\" Generator: DocBook XSL Stylesheets v1.79.1 <http://docbook.sf.net/>
+.\"      Date: 2018-11-30
+.\"    Manual: BIND9
+.\"    Source: ISC
+.\"  Language: English
+.\"
+.TH "DNS64\&.SO" "8" "2018\-11\-30" "ISC" "BIND9"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "NAME"
+dns64.so \- perform DNS64 synthesis
+.SH "SYNOPSIS"
+.HP 24
+\fBplugin query "dns64\&.so"\fR [\fI{\ parameters\ }\fR];
+.SH "DESCRIPTION"
+.PP
+\fBdns64\&.so\fR
+is a query plugin module for
+\fBnamed\fR, enabling
+\fBnamed\fR
+to perform DNS64 address synthesis\&.
+.PP
+Until BIND 9\&.12, this feature was implemented natively in
+\fBnamed\fR
+and enabled with the
+\fBdns64\fR
+option\&. This option is now deprecated in
+named\&.conf, but can be passed as parameters to the
+\fBdns64\&.so\fR
+plugin, for example:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+	acl rfc1918 { 10/8; 192\&.168/16; 172\&.16/12; };
+	plugin query "/usr/local/lib/dns64\&.so" {
+		dns64 64:FF9B::/96 {
+			clients { any; };
+			mapped { !rfc1918; any; };
+			exclude { 64:FF9B::/96; ::ffff:0000:0000/96; };
+			suffix ::;
+		};
+		dns64\-server "dns64\&.example\&.net\&.";
+		dns64\-contact "hostmaster\&.example\&.net\&.";
+	};
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+This plugin enables
+\fBnamed\fR
+to return mapped IPv4 addresses to AAAA queries when there are no AAAA records\&. It is intended to be used in conjunction with NAT64\&.
+.PP
+Each
+\fBdns64\fR
+option defined in the plugin parameters defines one DNS64 prefix\&. Multiple DNS64 prefixes can be defined\&.
+.PP
+Compatible IPv6 prefixes have lengths of 32, 40, 48, 56, 64 and 96 as per RFC 6052\&.
+.PP
+Additionally a reverse IP6\&.ARPA zone will be created for the prefix to provide a mapping from the IP6\&.ARPA names to the corresponding IN\-ADDR\&.ARPA names using synthesized CNAMEs\&.
+\fBdns64\-server\fR
+and
+\fBdns64\-contact\fR
+can be used to specify the name of the server and contact for the zones\&. These are not settable on a per\-prefix basis\&.
+.PP
+Each
+\fBdns64\fR
+supports an optional
+\fBclients\fR
+ACL that determines which clients are affected by this directive\&. If not defined, it defaults to
+\fBany;\fR\&.
+.PP
+Each
+\fBdns64\fR
+supports an optional
+\fBmapped\fR
+ACL that selects which IPv4 addresses are to be mapped in the corresponding A RRset\&. If not defined it defaults to
+\fBany;\fR\&.
+.PP
+Normally, DNS64 won\*(Aqt apply to a domain name that owns one or more AAAA records; these records will simply be returned\&. The optional
+\fBexclude\fR
+ACL allows specification of a list of IPv6 addresses that will be ignored if they appear in a domain name\*(Aqs AAAA records, and DNS64 will be applied to any A records the domain name owns\&. If not defined,
+\fBexclude\fR
+defaults to ::ffff:0\&.0\&.0\&.0/96\&.
+.PP
+A optional
+\fBsuffix\fR
+can also be defined to set the bits trailing the mapped IPv4 address bits\&. By default these bits are set to
+\fB::\fR\&. The bits matching the prefix and mapped IPv4 address must be zero\&.
+.PP
+If
+\fBrecursive\-only\fR
+is set to
+\fByes\fR
+the DNS64 synthesis will only happen for recursive queries\&. The default is
+\fBno\fR\&.
+.PP
+If
+\fBbreak\-dnssec\fR
+is set to
+\fByes\fR
+the DNS64 synthesis will happen even if the result, if validated, would cause a DNSSEC validation failure\&. If this option is set to
+\fBno\fR
+(the default), the DO is set on the incoming query, and there are RRSIGs on the applicable records, then synthesis will not happen\&.
+.SH "SEE ALSO"
+.PP
+BIND 9 Administrator Reference Manual\&.
+.SH "AUTHOR"
+.PP
+\fBInternet Systems Consortium, Inc\&.\fR
+.SH "COPYRIGHT"
+.br
+Copyright \(co 2018 Internet Systems Consortium, Inc. ("ISC")
+.br

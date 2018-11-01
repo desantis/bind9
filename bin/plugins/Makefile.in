@@ -24,22 +24,30 @@ NSLIBS =	../../lib/ns/libns.@A@
 
 LIBS =
 
-SO_TARGETS =	lib/filter-aaaa.@SO@
+SO_TARGETS =	lib/dns64.@SO@ lib/filter-aaaa.@SO@
 TARGETS =	@SO_TARGETS@
 
-SO_OBJS =	filter-aaaa.@O@
-SO_SRCS =	filter-aaaa.c
+SO_OBJS =	dns64.@O@ filter-aaaa.@O@
+SO_SRCS =	dns64.c filter-aaaa.c
 
 CFLAGS =	@CFLAGS@ @SO_CFLAGS@
 SO_LDFLAGS =	@LDFLAGS@ @SO_LDFLAGS@
 
-MANPAGES =	filter-aaaa.8
+MANPAGES =	dns64.8 filter-aaaa.8
 
-HTMLPAGES =	filter-aaaa.html
+HTMLPAGES =	dns64.html filter-aaaa.html
 
 MANOBJS =	${MANPAGES} ${HTMLPAGES}
 
 @BIND9_MAKE_RULES@
+
+lib/dns64.@SO@: dns64.@SO@
+	$(SHELL) ${top_srcdir}/mkinstalldirs `pwd`/lib
+	${LIBTOOL_MODE_INSTALL} ${INSTALL} dns64.@SO@ `pwd`/lib
+
+dns64.@SO@: dns64.@O@
+	${LIBTOOL_MODE_LINK} @SO_LD@ ${SO_LDFLAGS} -o $@ \
+		dns64.@O@ ${LIBS}
 
 lib/filter-aaaa.@SO@: filter-aaaa.@SO@
 	$(SHELL) ${top_srcdir}/mkinstalldirs `pwd`/lib
@@ -55,18 +63,23 @@ docclean manclean maintainer-clean::
 	rm -f ${MANOBJS}
 
 clean distclean::
-	rm -f filter-aaaa.so
+	rm -f dns64.@SO@ filter-aaaa.@SO@
 	rm -f ${TARGETS} ${OBJS}
 
 installdirs:
 	$(SHELL) ${top_srcdir}/mkinstalldirs ${DESTDIR}${plugindir}
 	$(SHELL) ${top_srcdir}/mkinstalldirs ${DESTDIR}${mandir}/man8
 
-install:: filter-aaaa.@SO@ installdirs
+install:: filter-aaaa.@SO@ dns64.@O@ installdirs
+	${LIBTOOL_MODE_INSTALL} ${INSTALL_LIBRARY} dns64.@SO@ \
+		${DESTDIR}${plugindir}
 	${LIBTOOL_MODE_INSTALL} ${INSTALL_LIBRARY} filter-aaaa.@SO@ \
 		${DESTDIR}${plugindir}
+	${INSTALL_DATA} ${srcdir}/dns64.8 ${DESTDIR}${mandir}/man8
 	${INSTALL_DATA} ${srcdir}/filter-aaaa.8 ${DESTDIR}${mandir}/man8
 
 uninstall::
+	${LIBTOOL_MODE_UNINSTALL} rm -f ${DESTDIR}${plugindir}/dns64.@SO@
 	${LIBTOOL_MODE_UNINSTALL} rm -f ${DESTDIR}${plugindir}/filter-aaaa.@SO@
+	rm -f ${DESTDIR}${mandir}/man8/dns64.8
 	rm -f ${DESTDIR}${mandir}/man8/filter-aaaa.8

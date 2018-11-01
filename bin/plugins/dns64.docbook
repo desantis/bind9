@@ -1,0 +1,154 @@
+<!--
+ - Copyright (C) Internet Systems Consortium, Inc. ("ISC")
+ -
+ - This Source Code Form is subject to the terms of the Mozilla Public
+ - License, v. 2.0. If a copy of the MPL was not distributed with this
+ - file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ -
+ - See the COPYRIGHT file distributed with this work for additional
+ - information regarding copyright ownership.
+-->
+
+<!-- Converted by db4-upgrade version 1.0 -->
+<refentry xmlns:db="http://docbook.org/ns/docbook" version="5.0" xml:id="man.dns64">
+  <info>
+    <date>2018-11-30</date>
+  </info>
+  <refentryinfo>
+    <corpname>ISC</corpname>
+    <corpauthor>Internet Systems Consortium, Inc.</corpauthor>
+  </refentryinfo>
+  <refmeta>
+    <refentrytitle><application>dns64.so</application></refentrytitle>
+    <manvolnum>8</manvolnum>
+    <refmiscinfo>BIND9</refmiscinfo>
+  </refmeta>
+
+  <refnamediv>
+    <refname><application>dns64.so</application></refname>
+    <refpurpose>perform DNS64 synthesis</refpurpose>
+  </refnamediv>
+
+  <docinfo>
+    <copyright>
+      <year>2018</year>
+      <holder>Internet Systems Consortium, Inc. ("ISC")</holder>
+    </copyright>
+  </docinfo>
+
+  <refsynopsisdiv>
+    <cmdsynopsis sepchar=" ">
+      <command>plugin query "dns64.so"</command>
+      <arg choice="opt" rep="norepeat"><replaceable class="parameter">{ parameters }</replaceable></arg>;
+    </cmdsynopsis>
+  </refsynopsisdiv>
+
+  <refsection><info><title>DESCRIPTION</title></info>
+    <para>
+      <command>dns64.so</command> is a query plugin module for
+      <command>named</command>, enabling <command>named</command>
+      to perform DNS64 address synthesis.
+    </para>
+    <para>
+      Until BIND 9.12, this feature was implemented natively in
+      <command>named</command> and enabled with the
+      <command>dns64</command> option.
+      This option is now deprecated in <filename>named.conf</filename>,
+      but can be passed as parameters to the
+      <command>dns64.so</command> plugin, for example:
+    </para>
+    <programlisting>
+	acl rfc1918 { 10/8; 192.168/16; 172.16/12; };
+
+	plugin query "/usr/local/lib/dns64.so" {
+		dns64 64:FF9B::/96 {
+			clients { any; };
+			mapped { !rfc1918; any; };
+			exclude { 64:FF9B::/96; ::ffff:0000:0000/96; };
+			suffix ::;
+		};
+
+		dns64-server "dns64.example.net.";
+		dns64-contact "hostmaster.example.net.";
+	};
+</programlisting>
+    <para>
+      This plugin enables <command>named</command> to
+      return mapped IPv4 addresses to AAAA queries when
+      there are no AAAA records.  It is intended to be
+      used in conjunction with NAT64.
+    </para>
+    <para>
+      Each <command>dns64</command> option defined in the plugin
+      parameters defines one DNS64 prefix. Multiple DNS64 prefixes
+      can be defined.
+    </para>
+    <para>
+      Compatible IPv6 prefixes have lengths of 32, 40, 48, 56,
+      64 and 96 as per RFC 6052.
+    </para>
+    <para>
+      Additionally a reverse IP6.ARPA zone will be created for
+      the prefix to provide a mapping from the IP6.ARPA names
+      to the corresponding IN-ADDR.ARPA names using synthesized
+      CNAMEs.  <command>dns64-server</command> and
+      <command>dns64-contact</command> can be used to specify
+      the name of the server and contact for the zones.
+      These are not settable on a per-prefix basis.
+    </para>
+    <para>
+      Each <command>dns64</command> supports an optional
+      <command>clients</command> ACL that determines which
+      clients are affected by this directive.  If not defined,
+      it defaults to <userinput>any;</userinput>.
+    </para>
+    <para>
+      Each <command>dns64</command> supports an optional
+      <command>mapped</command> ACL that selects which
+      IPv4 addresses are to be mapped in the corresponding
+      A RRset.  If not defined it defaults to
+      <userinput>any;</userinput>.
+    </para>
+    <para>
+      Normally, DNS64 won't apply to a domain name that
+      owns one or more AAAA records; these records will
+      simply be returned.  The optional
+      <command>exclude</command> ACL allows specification
+      of a list of IPv6 addresses that will be ignored
+      if they appear in a domain name's AAAA records, and
+      DNS64 will be applied to any A records the domain
+      name owns.  If not defined, <command>exclude</command>
+      defaults to ::ffff:0.0.0.0/96.
+    </para>
+    <para>
+      A optional <command>suffix</command> can also
+      be defined to set the bits trailing the mapped
+      IPv4 address bits.  By default these bits are
+      set to <userinput>::</userinput>.  The bits
+      matching the prefix and mapped IPv4 address
+      must be zero.
+    </para>
+    <para>
+      If <command>recursive-only</command> is set to
+      <command>yes</command> the DNS64 synthesis will
+      only happen for recursive queries.  The default
+      is <command>no</command>.
+    </para>
+    <para>
+      If <command>break-dnssec</command> is set to
+      <command>yes</command> the DNS64 synthesis will
+      happen even if the result, if validated, would
+      cause a DNSSEC validation failure.  If this option
+      is set to <command>no</command> (the default), the DO
+      is set on the incoming query, and there are RRSIGs on
+      the applicable records, then synthesis will not happen.
+    </para>
+  </refsection>
+
+  <refsection><info><title>SEE ALSO</title></info>
+    <para>
+      <citetitle>BIND 9 Administrator Reference Manual</citetitle>.
+    </para>
+  </refsection>
+
+</refentry>

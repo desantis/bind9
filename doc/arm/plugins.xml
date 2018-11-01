@@ -26,15 +26,16 @@
     in the future.
   </para>
   <para>
-    The only plugin currently included in BIND is
-    <filename>filter-aaaa.so</filename>, which replaces the
-    <command>filter-aaaa</command> feature that previously existed natively
+    The only plugins currently included in BIND are
+    <filename>filter-aaaa.so</filename> and <filename>dns64.so</filename>,
+    which replace the <command>filter-aaaa</command> and
+    <command>dns64</command> features that previously existed natively
     as part of <command>named</command>.
-    The code for this feature has been removed from <command>named</command>,
-    and can no longer be configured using standard
+    The code for these features has been removed from <command>named</command>,
+    and they can no longer be configured using standard
     <filename>named.conf</filename> syntax, but linking in the
-    <filename>filter-aaaa.so</filename> plugin provides identical
-    functionality.
+    <filename>filter-aaaa.so</filename> or <filename>dns64.so</filename>
+    plugins provides identical functionality.
   </para>
 
   <section><info><title>Configuring Plugins</title></info>

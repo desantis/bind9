@@ -239,6 +239,43 @@ ns_query_recurse(ns_client_t *client, dns_rdatatype_t qtype, dns_name_t *qname,
  * recursion completes.
  */
 
+isc_result_t
+ns_query_lookup(query_ctx_t *qctx);
+/*%<
+ * Perform a local database lookup, in either an authoritative or
+ * cache database. If unable to answer, call ns_query_done(); otherwise
+ * hand off processing to query_gotanswer().
+ */
+
+isc_result_t
+ns_query_addsoa(query_ctx_t *qctx, dns_ttl_t ttl, dns_section_t section);
+/*%<
+ * Add SOA to the authority section when sending negative responses
+ * (or to the additional section if sending negative responses triggered
+ * by RPZ rewriting.)
+ */
+
+isc_result_t
+ns_query_nodata(query_ctx_t *qctx);
+/*%<
+ * Handle authoritative NOERROR/NODATA responses.
+ */
+
+isc_result_t
+ns_query_ncache(query_ctx_t *qctx);
+/*%<
+ * Handle negative cache responses, DNS_R_NCACHENXRRSET or
+ * DNS_R_NCACHENXDOMAIN. (Note: may be called with other
+ * result codes as a result of hook actions; for example,
+ * DNS64 may call with DNS_R_NXOMAIN.)
+ */
+
+void
+ns_query_setorder(ns_client_t *client, dns_name_t *name,
+		  dns_rdataset_t *rdataset);
+/*%<
+ * Set the ordering for 'rdataset'.
+ */
 
 isc_result_t
 ns__query_sfcache(query_ctx_t *qctx);
@@ -251,13 +288,5 @@ ns__query_start(query_ctx_t *qctx);
 /*%<
  * (Must not be used outside this module and its associated unit tests.)
  */
-
-/*
- * XXX:
- * Temporary function used to initialize the dns64 hooks,
- * which are currently hard-coded rather than loaded as a module.
- */
-void
-ns__query_inithooks(dns_view_t *view);
 
 #endif /* NS_QUERY_H */
