@@ -1796,30 +1796,6 @@ static cfg_type_t cfg_type_prefetch = {
 	"prefetch", cfg_parse_tuple, cfg_print_tuple, cfg_doc_tuple,
 	&cfg_rep_tuple, prefetch_fields
 };
-/*
- * DNS64.
- */
-static cfg_clausedef_t
-dns64_clauses[] = {
-	{ "break-dnssec", &cfg_type_boolean, 0 },
-	{ "clients", &cfg_type_bracketed_aml, 0 },
-	{ "exclude", &cfg_type_bracketed_aml, 0 },
-	{ "mapped", &cfg_type_bracketed_aml, 0 },
-	{ "recursive-only", &cfg_type_boolean, 0 },
-	{ "suffix", &cfg_type_netaddr6, 0 },
-	{ NULL, NULL, 0 },
-};
-
-static cfg_clausedef_t *
-dns64_clausesets[] = {
-	dns64_clauses,
-	NULL
-};
-
-static cfg_type_t cfg_type_dns64 = {
-	"dns64", cfg_parse_netprefix_map, cfg_print_map, cfg_doc_map,
-	&cfg_rep_map, dns64_clausesets
-};
 
 /*%
  * Clauses that can be found within the 'view' statement,
@@ -1857,9 +1833,10 @@ view_clauses[] = {
 	{ "disable-ds-digests", &cfg_type_disabledsdigest,
 	  CFG_CLAUSEFLAG_MULTI },
 	{ "disable-empty-zone", &cfg_type_astring, CFG_CLAUSEFLAG_MULTI },
-	{ "dns64", &cfg_type_dns64, CFG_CLAUSEFLAG_MULTI },
-	{ "dns64-contact", &cfg_type_astring, 0 },
-	{ "dns64-server", &cfg_type_astring, 0 },
+	{ "dns64", &cfg_type_bracketed_text,
+	  CFG_CLAUSEFLAG_MULTI|CFG_CLAUSEFLAG_OBSOLETE },
+	{ "dns64-contact", &cfg_type_astring, CFG_CLAUSEFLAG_OBSOLETE },
+	{ "dns64-server", &cfg_type_astring, CFG_CLAUSEFLAG_OBSOLETE },
 #ifdef USE_DNSRPS
 	{ "dnsrps-enable", &cfg_type_boolean, 0 },
 	{ "dnsrps-options", &cfg_type_bracketed_text, 0 },

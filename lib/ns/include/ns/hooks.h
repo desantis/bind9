@@ -266,7 +266,7 @@ typedef isc_result_t
 ns_plugin_register_t(const char *parameters,
 		     const void *cfg, const char *file, unsigned long line,
 		     isc_mem_t *mctx, isc_log_t *lctx, void *actx,
-		     ns_hooktable_t *hooktable, void **instp);
+		     dns_view_t *view, void **instp);
 /*%<
  * Called when registering a new plugin.
  *

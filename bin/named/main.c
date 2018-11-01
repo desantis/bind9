@@ -1232,9 +1232,6 @@ static void
 cleanup(void) {
 	destroy_managers();
 
-	if (named_g_mapped != NULL)
-		dns_acl_detach(&named_g_mapped);
-
 	named_server_destroy(&named_g_server);
 
 	named_builtin_deinit();

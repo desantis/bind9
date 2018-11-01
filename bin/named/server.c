@@ -64,7 +64,6 @@
 #include <dns/dispatch.h>
 #include <dns/dlz.h>
 #include <dns/dnsrps.h>
-#include <dns/dns64.h>
 #include <dns/dyndb.h>
 #include <dns/events.h>
 #include <dns/forward.h>
@@ -1780,83 +1779,6 @@ dlzconfigure_callback(dns_view_t *view, dns_dlzdb_t *dlzdb, dns_zone_t *zone) {
 
 	return (named_zone_configure_writeable_dlz(dlzdb, zone,
 						   zclass, origin));
-}
-
-static isc_result_t
-dns64_reverse(dns_view_t *view, isc_mem_t *mctx, isc_netaddr_t *na,
-	      unsigned int prefixlen, const char *server,
-	      const char *contact)
-{
-	char reverse[48+sizeof("ip6.arpa.")] = { 0 };
-	char buf[sizeof("x.x.")];
-	const char *dns64_dbtype[4] = { "_dns64", "dns64", ".", "." };
-	const char *sep = ": view ";
-	const char *viewname = view->name;
-	const unsigned char *s6;
-	dns_fixedname_t fixed;
-	dns_name_t *name;
-	dns_zone_t *zone = NULL;
-	int dns64_dbtypec = 4;
-	isc_buffer_t b;
-	isc_result_t result;
-
-	REQUIRE(prefixlen == 32 || prefixlen == 40 || prefixlen == 48 ||
-		prefixlen == 56 || prefixlen == 64 || prefixlen == 96);
-
-	if (!strcmp(viewname, "_default")) {
-		sep = "";
-		viewname = "";
-	}
-
-	/*
-	 * Construct the reverse name of the zone.
-	 */
-	s6 = na->type.in6.s6_addr;
-	while (prefixlen > 0) {
-		prefixlen -= 8;
-		snprintf(buf, sizeof(buf), "%x.%x.", s6[prefixlen/8] & 0xf,
-			 (s6[prefixlen/8] >> 4) & 0xf);
-		strlcat(reverse, buf, sizeof(reverse));
-	}
-	strlcat(reverse, "ip6.arpa.", sizeof(reverse));
-
-	/*
-	 * Create the actual zone.
-	 */
-	if (server != NULL)
-		dns64_dbtype[2] = server;
-	if (contact != NULL)
-		dns64_dbtype[3] = contact;
-	name = dns_fixedname_initname(&fixed);
-	isc_buffer_constinit(&b, reverse, strlen(reverse));
-	isc_buffer_add(&b, strlen(reverse));
-	CHECK(dns_name_fromtext(name, &b, dns_rootname, 0, NULL));
-	CHECK(dns_zone_create(&zone, mctx));
-	CHECK(dns_zone_setorigin(zone, name));
-	dns_zone_setview(zone, view);
-	CHECK(dns_zonemgr_managezone(named_g_server->zonemgr, zone));
-	dns_zone_setclass(zone, view->rdclass);
-	dns_zone_settype(zone, dns_zone_master);
-	dns_zone_setstats(zone, named_g_server->zonestats);
-	CHECK(dns_zone_setdbtype(zone, dns64_dbtypec, dns64_dbtype));
-	if (view->queryacl != NULL)
-		dns_zone_setqueryacl(zone, view->queryacl);
-	if (view->queryonacl != NULL)
-		dns_zone_setqueryonacl(zone, view->queryonacl);
-	dns_zone_setdialup(zone, dns_dialuptype_no);
-	dns_zone_setnotifytype(zone, dns_notifytype_no);
-	dns_zone_setoption(zone, DNS_ZONEOPT_NOCHECKNS, true);
-	CHECK(setquerystats(zone, mctx, dns_zonestat_none));	/* XXXMPA */
-	CHECK(dns_view_addzone(view, zone));
-	isc_log_write(named_g_lctx, NAMED_LOGCATEGORY_GENERAL,
-		      NAMED_LOGMODULE_SERVER, ISC_LOG_INFO,
-		      "dns64 reverse zone%s%s: %s", sep,
-		      viewname, reverse);
-
-cleanup:
-	if (zone != NULL)
-		dns_zone_detach(&zone);
-	return (result);
 }
 
 #ifdef USE_DNSRPS
@@ -3639,26 +3561,6 @@ configure_dnstap(const cfg_obj_t **maps, dns_view_t *view) {
 }
 #endif /* HAVE_DNSTAP */
 
-static isc_result_t
-create_mapped_acl(void) {
-	isc_result_t result;
-	dns_acl_t *acl = NULL;
-	struct in6_addr in6 = IN6ADDR_V4MAPPED_INIT;
-	isc_netaddr_t addr;
-
-	isc_netaddr_fromin6(&addr, &in6);
-
-	result = dns_acl_create(named_g_mctx, 1, &acl);
-	if (result != ISC_R_SUCCESS)
-		return (result);
-
-	result = dns_iptable_addprefix(acl->iptable, &addr, 96, true);
-	if (result == ISC_R_SUCCESS)
-		dns_acl_attach(acl, &named_g_mapped);
-	dns_acl_detach(&acl);
-	return (result);
-}
-
 #ifdef HAVE_DLOPEN
 /*%
  * A callback for the cfg_pluginlist_foreach() call in configure_view() below.
@@ -3764,7 +3666,6 @@ configure_view(dns_view_t *view, dns_viewlist_t *viewlist,
 	bool auto_root = false;
 	named_cache_t *nsc;
 	bool zero_no_soattl;
-	dns_acl_t *clients = NULL, *mapped = NULL, *excluded = NULL;
 	unsigned int query_timeout, ndisp;
 	bool old_rpz_ok = false;
 	isc_dscp_t dscp4 = -1, dscp6 = -1;
@@ -3800,6 +3701,11 @@ configure_view(dns_view_t *view, dns_viewlist_t *viewlist,
 	if (config != NULL)
 		cfgmaps[k++] = config;
 	cfgmaps[k] = NULL;
+
+	/*
+	 * Set the view's zone manager.
+	 */
+	dns_view_setzonemgr(view, named_g_server->zonemgr);
 
 	/*
 	 * Set the view's port number for outgoing queries.
@@ -4027,115 +3933,6 @@ configure_view(dns_view_t *view, dns_viewlist_t *viewlist,
 	result = named_config_get(maps, "zero-no-soa-ttl-cache", &obj);
 	INSIST(result == ISC_R_SUCCESS);
 	zero_no_soattl = cfg_obj_asboolean(obj);
-
-	obj = NULL;
-	result = named_config_get(maps, "dns64", &obj);
-	if (result == ISC_R_SUCCESS && strcmp(view->name, "_bind") &&
-	    strcmp(view->name, "_meta")) {
-		isc_netaddr_t na, suffix, *sp;
-		unsigned int prefixlen;
-		const char *server, *contact;
-		const cfg_obj_t *myobj;
-
-		myobj = NULL;
-		result = named_config_get(maps, "dns64-server", &myobj);
-		if (result == ISC_R_SUCCESS)
-			server = cfg_obj_asstring(myobj);
-		else
-			server = NULL;
-
-		myobj = NULL;
-		result = named_config_get(maps, "dns64-contact", &myobj);
-		if (result == ISC_R_SUCCESS)
-			contact = cfg_obj_asstring(myobj);
-		else
-			contact = NULL;
-
-		for (element = cfg_list_first(obj);
-		     element != NULL;
-		     element = cfg_list_next(element))
-		{
-			const cfg_obj_t *map = cfg_listelt_value(element);
-			dns_dns64_t *dns64 = NULL;
-			unsigned int dns64options = 0;
-
-			cfg_obj_asnetprefix(cfg_map_getname(map), &na,
-					    &prefixlen);
-
-			obj = NULL;
-			(void)cfg_map_get(map, "suffix", &obj);
-			if (obj != NULL) {
-				sp = &suffix;
-				isc_netaddr_fromsockaddr(sp,
-						      cfg_obj_assockaddr(obj));
-			} else
-				sp = NULL;
-
-			clients = mapped = excluded = NULL;
-			obj = NULL;
-			(void)cfg_map_get(map, "clients", &obj);
-			if (obj != NULL) {
-				result = cfg_acl_fromconfig(obj, config,
-							    named_g_lctx, actx,
-							    mctx, 0, &clients);
-				if (result != ISC_R_SUCCESS)
-					goto cleanup;
-			}
-			obj = NULL;
-			(void)cfg_map_get(map, "mapped", &obj);
-			if (obj != NULL) {
-				result = cfg_acl_fromconfig(obj, config,
-							    named_g_lctx, actx,
-							    mctx, 0, &mapped);
-				if (result != ISC_R_SUCCESS)
-					goto cleanup;
-			}
-			obj = NULL;
-			(void)cfg_map_get(map, "exclude", &obj);
-			if (obj != NULL) {
-				result = cfg_acl_fromconfig(obj, config,
-							    named_g_lctx, actx,
-							    mctx, 0, &excluded);
-				if (result != ISC_R_SUCCESS)
-					goto cleanup;
-			} else {
-				if (named_g_mapped == NULL) {
-					result = create_mapped_acl();
-					if (result != ISC_R_SUCCESS)
-						goto cleanup;
-				}
-				dns_acl_attach(named_g_mapped, &excluded);
-			}
-
-			obj = NULL;
-			(void)cfg_map_get(map, "recursive-only", &obj);
-			if (obj != NULL && cfg_obj_asboolean(obj))
-				dns64options |= DNS_DNS64_RECURSIVE_ONLY;
-
-			obj = NULL;
-			(void)cfg_map_get(map, "break-dnssec", &obj);
-			if (obj != NULL && cfg_obj_asboolean(obj))
-				dns64options |= DNS_DNS64_BREAK_DNSSEC;
-
-			result = dns_dns64_create(mctx, &na, prefixlen, sp,
-						  clients, mapped, excluded,
-						  dns64options, &dns64);
-			if (result != ISC_R_SUCCESS)
-				goto cleanup;
-			dns_dns64_append(&view->dns64, dns64);
-			view->dns64cnt++;
-			result = dns64_reverse(view, mctx, &na, prefixlen,
-					       server, contact);
-			if (result != ISC_R_SUCCESS)
-				goto cleanup;
-			if (clients != NULL)
-				dns_acl_detach(&clients);
-			if (mapped != NULL)
-				dns_acl_detach(&mapped);
-			if (excluded != NULL)
-				dns_acl_detach(&excluded);
-		}
-	}
 
 	obj = NULL;
 	result = named_config_get(maps, "dnssec-accept-expired", &obj);
@@ -4369,9 +4166,9 @@ configure_view(dns_view_t *view, dns_viewlist_t *viewlist,
 	 * XXXRTH  Hardwired number of tasks.
 	 */
 	CHECK(get_view_querysource_dispatch(maps, AF_INET, &dispatch4, &dscp4,
-					    (ISC_LIST_PREV(view, link) == NULL)));
+				    (ISC_LIST_PREV(view, link) == NULL)));
 	CHECK(get_view_querysource_dispatch(maps, AF_INET6, &dispatch6, &dscp6,
-					    (ISC_LIST_PREV(view, link) == NULL)));
+				    (ISC_LIST_PREV(view, link) == NULL)));
 	if (dispatch4 == NULL && dispatch6 == NULL) {
 		UNEXPECTED_ERROR(__FILE__, __LINE__,
 				 "unable to obtain neither an IPv4 nor"
@@ -5541,15 +5338,6 @@ configure_view(dns_view_t *view, dns_viewlist_t *viewlist,
  cleanup:
 	if (ntatable != NULL) {
 		dns_ntatable_detach(&ntatable);
-	}
-	if (clients != NULL) {
-		dns_acl_detach(&clients);
-	}
-	if (mapped != NULL) {
-		dns_acl_detach(&mapped);
-	}
-	if (excluded != NULL) {
-		dns_acl_detach(&excluded);
 	}
 	if (ring != NULL) {
 		dns_tsigkeyring_detach(&ring);

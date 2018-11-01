@@ -25,7 +25,10 @@ options {
 	notify yes;
 	dnssec-enable yes;
 	dnssec-validation yes;
+	response-policy { zone "rpz"; };
+};
 
+plugin query "../../../../plugins/lib/dns64.so" {
 	dns64 2001:aaaa::/96 {
 		clients { 10.53.0.2; };
 		mapped { !rfc1918; any; };
@@ -55,11 +58,7 @@ options {
 	dns64 2001:64::/64 { clients { 10.53.0.6; }; };
 
 	dns64 2001:96::/96 { clients { 10.53.0.7; }; };
-
-	response-policy { zone "rpz"; };
 };
-
-plugin query "../../../../plugins/lib/dns64.so";
 
 zone "." {
 	type hint;

@@ -35,10 +35,12 @@
 #include <isc/types.h>
 
 #include <dns/view.h>
+#include <dns/zone.h>
 
 #include <ns/hooks.h>
 #include <ns/log.h>
 #include <ns/query.h>
+#include <ns/server.h>
 
 #define CHECK(op)						\
 	do {							\
@@ -413,7 +415,7 @@ ns_plugin_register(const char *modpath, const char *parameters,
 		      "registering plugin '%s'", modpath);
 
 	CHECK(plugin->register_func(parameters, cfg, cfg_file, cfg_line,
-				    mctx, lctx, actx, view->hooktable,
+				    mctx, lctx, actx, view,
 				    &plugin->inst));
 
 	ISC_LIST_APPEND(*(ns_plugins_t *)view->plugins, plugin, link);

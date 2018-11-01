@@ -25,7 +25,9 @@ options {
 	notify yes;
 	dnssec-enable yes;
 	dnssec-validation yes;
+};
 
+plugin query "../../../../plugins/lib/dns64.so" {
 	dns64 2001:bbbb::/96 {
 		clients { any; };
 		mapped { !rfc1918; any; };
@@ -34,8 +36,6 @@ options {
 		recursive-only yes;
 	};
 };
-
-plugin query "../../../../plugins/lib/dns64.so";
 
 zone "." {
 	type master;

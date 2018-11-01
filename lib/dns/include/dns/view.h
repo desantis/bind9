@@ -179,8 +179,6 @@ struct dns_view {
 	uint16_t			padding;
 	dns_acl_t *			pad_acl;
 	unsigned int			maxbits;
-	dns_dns64list_t 		dns64;
-	unsigned int 			dns64cnt;
 	dns_rpz_zones_t			*rpzs;
 	dns_catz_zones_t		*catzs;
 	dns_dlzdblist_t 		dlz_searched;
@@ -235,6 +233,8 @@ struct dns_view {
 	dns_dtenv_t			*dtenv;		/* Dnstap environment */
 	dns_dtmsgtype_t			dttypes;	/* Dnstap message types
 							   to log */
+
+	dns_zonemgr_t			*zonemgr;
 
 	/* Registered module instances */
 	void				*plugins;
@@ -1361,6 +1361,14 @@ dns_view_setviewrevert(dns_view_t *view);
  *\li	'view' to be valid.
  */
 
+void
+dns_view_setzonemgr(dns_view_t *view, dns_zonemgr_t *zonemgr);
+/*%<
+ * Set the view's zone manager.
+ *
+ * Requires:
+ *\li	'view' to be valid.
+ */
 
 ISC_LANG_ENDDECLS
 

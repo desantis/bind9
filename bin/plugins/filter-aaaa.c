@@ -353,7 +353,7 @@ isc_result_t
 plugin_register(const char *parameters,
 		const void *cfg, const char *cfg_file, unsigned long cfg_line,
 		isc_mem_t *mctx, isc_log_t *lctx, void *actx,
-		ns_hooktable_t *hooktable, void **instp)
+		dns_view_t *view, void **instp)
 {
 	filter_instance_t *inst = NULL;
 	isc_result_t result;
@@ -394,7 +394,7 @@ plugin_register(const char *parameters,
 	/*
 	 * Set hook points in the view's hooktable.
 	 */
-	install_hooks(hooktable, mctx, inst);
+	install_hooks(view->hooktable, mctx, inst);
 
 	*instp = inst;
 
