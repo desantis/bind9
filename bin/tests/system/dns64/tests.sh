@@ -1400,5 +1400,21 @@ n=`expr $n + 1`
 if [ $ret != 0 ]; then echo_i "failed"; fi
 status=`expr $status + $ret`
 
+echo_i "checking dns64 client resume after rpz match with A ($n)"
+ret=0
+$DIG $DIGOPTS aaaa a.example +rec @10.53.0.3 > dig.out.ns3.test$n || ret=1
+grep "status: NOERROR" dig.out.ns3.test$n >/dev/null || ret=1
+n=`expr $n + 1`
+if [ $ret != 0 ]; then echo_i "failed"; fi
+status=`expr $status + $ret`
+
+echo_i "checking dns64 client resume after rpz match without A ($n)"
+ret=0
+$DIG $DIGOPTS aaaa noa.example +rec @10.53.0.3 > dig.out.ns3.test$n || ret=1
+grep "status: NOERROR" dig.out.ns3.test$n >/dev/null || ret=1
+n=`expr $n + 1`
+if [ $ret != 0 ]; then echo_i "failed"; fi
+status=`expr $status + $ret`
+
 echo_i "exit status: $status"
 [ $status -eq 0 ] || exit 1
