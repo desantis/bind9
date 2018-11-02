@@ -114,7 +114,8 @@ bool
 	showsearch = false,
 	is_dst_up = false,
 	keep_open = false,
-	verbose = false;
+	verbose = false,
+	explicit_port = false;
 in_port_t port = 53;
 unsigned int timeout = 0;
 unsigned int extrabytes;
@@ -649,6 +650,8 @@ make_empty_lookup(void) {
 	looknew->nsfound = 0;
 	looknew->tcp_mode = false;
 	looknew->tcp_mode_set = false;
+	looknew->dot_mode = false;
+	looknew->dot_mode_set = false;
 	looknew->comments = true;
 	looknew->stats = true;
 	looknew->section_question = true;
@@ -787,6 +790,8 @@ clone_lookup(dig_lookup_t *lookold, bool servers) {
 	looknew->ns_search_only = lookold->ns_search_only;
 	looknew->tcp_mode = lookold->tcp_mode;
 	looknew->tcp_mode_set = lookold->tcp_mode_set;
+	looknew->dot_mode = lookold->dot_mode;
+	looknew->dot_mode_set = lookold->dot_mode_set;
 	looknew->comments = lookold->comments;
 	looknew->stats = lookold->stats;
 	looknew->section_question = lookold->section_question;
@@ -1541,7 +1546,11 @@ clear_query(dig_query_t *query) {
 	isc_mempool_put(commctx, query->tmpsendspace);
 	isc_buffer_invalidate(&query->recvbuf);
 	isc_buffer_invalidate(&query->lengthbuf);
-	if (query->waiting_senddone)
+	if (query->servssldigest != NULL) {
+		isc_mem_free(mctx, query->servssldigest);
+	}
+
+	if (query->waiting_senddone) {
 		query->pending_free = true;
 	else
 		isc_mem_free(mctx, query);
@@ -2474,6 +2483,7 @@ setup_lookup(dig_lookup_t *lookup) {
 		query->first_rr_serial = 0;
 		query->second_rr_serial = 0;
 		query->servname = serv->servername;
+		query->servssldigest = NULL;
 		query->userarg = serv->userarg;
 		query->rr_count = 0;
 		query->msg_count = 0;
@@ -2717,6 +2727,7 @@ send_tcp_connect(dig_query_t *query) {
 
 	result = isc_socket_create(socketmgr,
 				   isc_sockaddr_pf(&query->sockaddr),
+				   query->lookup->dot_mode ? isc_sockettype_tls :
 				   isc_sockettype_tcp, &query->sock);
 	check_result(result, "isc_socket_create");
 	sockcount++;
@@ -3163,6 +3174,11 @@ connect_done(isc_task_t *task, isc_event_t *event) {
 		return;
 	}
 	exitcode = 0;
+	query->servssldigest = isc_mem_allocate(mctx, 4096);
+	if (isc_socket_getsslhexdigest(query->sock, query->servssldigest, 4096) != ISC_R_SUCCESS) {
+		isc_mem_free(mctx, query->servssldigest);
+		query->servssldigest = NULL;
+	}
 	if (keep_open) {
 		if (keep != NULL)
 			isc_socket_detach(&keep);

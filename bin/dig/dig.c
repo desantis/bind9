@@ -263,6 +263,9 @@ received(unsigned int bytes, isc_sockaddr_t *from, dig_query_t *query) {
 		else
 			printf(";; Query time: %ld msec\n", (long) diff / 1000);
 		printf(";; SERVER: %s(%s)\n", fromtext, query->servname);
+		if (query->servssldigest != NULL) {
+			printf(";; DNSoTLS cert digest: %s\n", query->servssldigest);
+		}
 		time(&tnow);
 #if !defined(WIN32)
 		(void)localtime_r(&tnow, &tmnow);
@@ -920,6 +923,18 @@ plus_option(char *option, bool is_batchfile,
 		case 'o': /* domain ... but treat "do" as synonym for dnssec */
 			if (cmd[2] == '\0')
 				goto dnssec;
+			if (cmd[2] == 't') {
+				FULLCHECK("dot");
+				if (!is_batchfile) {
+					lookup->tcp_mode = true;
+					lookup->dot_mode = state;
+					lookup->dot_mode_set = true;
+					if (!explicit_port) {
+						port = 853;
+					}
+				}
+				break;
+			}
 			FULLCHECK("domain");
 			if (value == NULL)
 				goto need_value;
@@ -1692,6 +1707,7 @@ dash_option(char *option, char *next, dig_lookup_t **lookup,
 		result = parse_uint(&num, value, MAXPORT, "port number");
 		if (result != ISC_R_SUCCESS)
 			fatal("Couldn't parse port number");
+		explicit_port = true;
 		port = num;
 		return (value_from_next);
 	case 'q':

@@ -101,6 +101,8 @@ struct dig_lookup {
 		zflag,
 		trace, /*% dig +trace */
 		trace_root, /*% initial query for either +trace or +nssearch */
+		dot_mode,
+		dot_mode_set,
 		tcp_mode,
 		tcp_mode_set,
 		comments,
@@ -201,6 +203,7 @@ struct dig_query {
 	uint32_t rr_count;
 	bool ixfr_axfr;
 	char *servname;
+	char *servssldigest;
 	char *userarg;
 	isc_buffer_t recvbuf,
 		lengthbuf,
@@ -242,7 +245,7 @@ extern dig_searchlistlist_t search_list;
 extern unsigned int extrabytes;
 
 extern bool check_ra, have_ipv4, have_ipv6, specified_source,
-	usesearch, showsearch;
+	usesearch, showsearch, explicit_port;
 extern in_port_t port;
 extern unsigned int timeout;
 extern isc_mem_t *mctx;

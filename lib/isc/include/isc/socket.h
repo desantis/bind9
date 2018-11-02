@@ -243,7 +243,8 @@ typedef enum {
 	isc_sockettype_udp = 1,
 	isc_sockettype_tcp = 2,
 	isc_sockettype_unix = 3,
-	isc_sockettype_raw = 4
+	isc_sockettype_raw = 4,
+	isc_sockettype_tls = 5
 } isc_sockettype_t;
 
 /*@{*/
@@ -1039,5 +1040,8 @@ typedef isc_result_t
 (*isc_socketmgrcreatefunc_t)(isc_mem_t *mctx, isc_socketmgr_t **managerp);
 
 ISC_LANG_ENDDECLS
+
+isc_result_t
+isc_socket_getsslhexdigest(isc_socket_t *sock0, char *dest, unsigned int len);
 
 #endif /* ISC_SOCKET_H */

@@ -15407,8 +15407,8 @@ else
             # then use that information and don't search ssldirs
 
 pkg_failed=no
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for crypto" >&5
-$as_echo_n "checking for crypto... " >&6; }
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for OPENSSL" >&5
+$as_echo_n "checking for OPENSSL... " >&6; }
 
 if test -n "$OPENSSL_CFLAGS"; then
     pkg_cv_OPENSSL_CFLAGS="$OPENSSL_CFLAGS"
@@ -15448,7 +15448,7 @@ fi
 
 
 if test $pkg_failed = yes; then
-        { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+   	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
 
 if $PKG_CONFIG --atleast-pkgconfig-version 0.20; then
@@ -15466,7 +15466,7 @@ fi
 
 	ssldirs="$default_ssldirs"
 elif test $pkg_failed = untried; then
-        { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+     	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
 	ssldirs="$default_ssldirs"
 else
@@ -15495,7 +15495,7 @@ $as_echo_n "checking for openssl/ssl.h in $ssldir... " >&6; }
 	    if test -f "$ssldir/include/openssl/ssl.h"; then :
 
 		    OPENSSL_INCLUDES="-I$ssldir/include"
-                    OPENSSL_LIBS="-L$ssldir/lib -lcrypto"
+                    OPENSSL_LIBS="-L$ssldir/lib -lcrypto -lssl"
                     found=true
                     { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 $as_echo "yes" >&6; }
@@ -19420,8 +19420,8 @@ case $with_libidn2 in #(
   yes) :
 
 pkg_failed=no
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for libidn2" >&5
-$as_echo_n "checking for libidn2... " >&6; }
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for LIBIDN2" >&5
+$as_echo_n "checking for LIBIDN2... " >&6; }
 
 if test -n "$LIBIDN2_CFLAGS"; then
     pkg_cv_LIBIDN2_CFLAGS="$LIBIDN2_CFLAGS"
@@ -19461,7 +19461,7 @@ fi
 
 
 if test $pkg_failed = yes; then
-        { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+   	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
 
 if $PKG_CONFIG --atleast-pkgconfig-version 0.20; then
@@ -19488,7 +19488,7 @@ Alternatively, you may set the environment variables LIBIDN2_CFLAGS
 and LIBIDN2_LIBS to avoid the need to call pkg-config.
 See the pkg-config man page for more details." "$LINENO" 5
 elif test $pkg_failed = untried; then
-        { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+     	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
 	{ { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
 $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
@@ -19628,8 +19628,8 @@ case $with_cmocka in #(
   yes) :
 
 pkg_failed=no
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for cmocka >= 1.0.0" >&5
-$as_echo_n "checking for cmocka >= 1.0.0... " >&6; }
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for CMOCKA" >&5
+$as_echo_n "checking for CMOCKA... " >&6; }
 
 if test -n "$CMOCKA_CFLAGS"; then
     pkg_cv_CMOCKA_CFLAGS="$CMOCKA_CFLAGS"
@@ -19669,7 +19669,7 @@ fi
 
 
 if test $pkg_failed = yes; then
-        { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+   	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
 
 if $PKG_CONFIG --atleast-pkgconfig-version 0.20; then
@@ -19696,7 +19696,7 @@ Alternatively, you may set the environment variables CMOCKA_CFLAGS
 and CMOCKA_LIBS to avoid the need to call pkg-config.
 See the pkg-config man page for more details." "$LINENO" 5
 elif test $pkg_failed = untried; then
-        { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+     	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
 	{ { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
 $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}

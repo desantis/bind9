@@ -879,6 +879,96 @@ ATF_TC_BODY(udp_trunc, tc) {
 	isc_test_end();
 }
 
+/* Test TCP ssl sendto/recv */
+ATF_TC(tls);
+ATF_TC_HEAD(tls, tc) {
+	atf_tc_set_md_var(tc, "descr", "tls");
+}
+ATF_TC_BODY(tls, tc) {
+	isc_result_t result;
+	isc_sockaddr_t addr1;
+	struct in_addr in;
+	isc_socket_t *s1 = NULL, *s2 = NULL, *s3 = NULL;
+	isc_task_t *task = NULL;
+	char sendbuf[BUFSIZ], recvbuf[BUFSIZ];
+	completion_t completion, completion2;
+	isc_region_t r;
+
+	UNUSED(tc);
+
+	result = isc_test_begin(NULL, true, 0);
+	ATF_REQUIRE_EQ(result, ISC_R_SUCCESS);
+
+	in.s_addr = inet_addr("127.0.0.1");
+	isc_sockaddr_fromin(&addr1, &in, 0);
+
+	result = isc_socket_create(socketmgr, PF_INET, isc_sockettype_tls, &s1);
+	ATF_REQUIRE_EQ(result, ISC_R_SUCCESS);
+
+	result = isc_socket_bind(s1, &addr1, 0);
+	ATF_REQUIRE_EQ(result, ISC_R_SUCCESS);
+	result = isc_socket_getsockname(s1, &addr1);
+	ATF_CHECK_EQ_MSG(result, ISC_R_SUCCESS, "%s",
+			 isc_result_totext(result));
+	ATF_REQUIRE(isc_sockaddr_getport(&addr1) != 0);
+
+	result = isc_socket_listen(s1, 3);
+	ATF_REQUIRE_EQ(result, ISC_R_SUCCESS);
+
+	result = isc_socket_create(socketmgr, PF_INET, isc_sockettype_tls, &s2);
+	ATF_REQUIRE_EQ(result, ISC_R_SUCCESS);
+
+	result = isc_task_create(taskmgr, 0, &task);
+	ATF_REQUIRE_EQ(result, ISC_R_SUCCESS);
+
+	completion_init(&completion2);
+	result = isc_socket_accept(s1, task, accept_done, &completion2);
+	ATF_REQUIRE_EQ(result, ISC_R_SUCCESS);
+
+	completion_init(&completion);
+	result = isc_socket_connect(s2, &addr1, task, event_done, &completion);
+	ATF_REQUIRE_EQ(result, ISC_R_SUCCESS);
+	waitfor2(&completion, &completion2);
+	ATF_CHECK(completion.done);
+	ATF_CHECK_EQ(completion.result, ISC_R_SUCCESS);
+	ATF_CHECK(completion2.done);
+	ATF_CHECK_EQ(completion2.result, ISC_R_SUCCESS);
+	s3 = completion2.socket;
+
+	snprintf(sendbuf, sizeof(sendbuf), "Hello");
+	r.base = (void *) sendbuf;
+	r.length = strlen(sendbuf) + 1;
+
+	recv_dscp = false;
+	recv_dscp_value = 0;
+
+	completion_init(&completion);
+	result = isc_socket_sendto(s2, &r, task, event_done, &completion,
+				   NULL, NULL);
+	ATF_CHECK_EQ(result, ISC_R_SUCCESS);
+	waitfor(&completion);
+	ATF_CHECK(completion.done);
+	ATF_CHECK_EQ(completion.result, ISC_R_SUCCESS);
+
+	r.base = (void *) recvbuf;
+	r.length = BUFSIZ;
+	completion_init(&completion);
+	result = isc_socket_recv(s3, &r, 1, task, event_done, &completion);
+	ATF_CHECK_EQ(result, ISC_R_SUCCESS);
+	waitfor(&completion);
+	ATF_CHECK(completion.done);
+	ATF_CHECK_EQ(completion.result, ISC_R_SUCCESS);
+	ATF_CHECK_STREQ(recvbuf, "Hello");
+
+	isc_task_detach(&task);
+
+	isc_socket_detach(&s1);
+	isc_socket_detach(&s2);
+	isc_socket_detach(&s3);
+
+	isc_test_end();
+}
+
 /*
  * Main
  */
@@ -891,6 +981,7 @@ ATF_TP_ADD_TCS(tp) {
 	ATF_TP_ADD_TC(tp, udp_dscp_v6);
 	ATF_TP_ADD_TC(tp, net_probedscp);
 	ATF_TP_ADD_TC(tp, udp_trunc);
+	ATF_TP_ADD_TC(tp, tls);
 
 	return (atf_no_error());
 }

@@ -31,6 +31,8 @@
 #include <linux/rtnetlink.h>
 #endif
 
+#include <openssl/ssl.h>
+
 #include <errno.h>
 #include <fcntl.h>
 #include <stddef.h>
@@ -41,6 +43,7 @@
 #include <isc/buffer.h>
 #include <isc/condition.h>
 #include <isc/formatcheck.h>
+#include <isc/hex.h>
 #include <isc/json.h>
 #include <isc/list.h>
 #include <isc/log.h>
@@ -331,6 +334,20 @@ typedef struct isc__socketthread isc__socketthread_t;
 
 #define NEWCONNSOCK(ev) ((isc__socket_t *)(ev)->newsocket)
 
+/*
+ * When using TLS read() might require write() on the underlying
+ * socket, and write() might require read() on the underlying socket.
+ * To trace this properly we have a 'tlsstate' field in the socket
+ * that's a combination of the fields below.
+ * 'write' here also includes SSL_connect, and 'read' includes SSL_accept.
+ */
+
+#define TLSSTATE_RWR	0x0001	/* Read Wants to Read */
+#define TLSSTATE_RWW	0x0002	/* Read Wants to Write */
+#define TLSSTATE_WWR	0x0004	/* Write Wants to Read */
+#define TLSSTATE_WWW	0x0008	/* Write Wants to Write */
+
+
 struct isc__socket {
 	/* Not locked. */
 	isc_socket_t		common;
@@ -353,15 +370,21 @@ struct isc__socket {
 	ISC_LIST(isc_socket_newconnev_t)	accept_list;
 	ISC_LIST(isc_socket_connev_t)		connect_list;
 
-	isc_sockaddr_t		peer_address;       /* remote address */
+	SSL *			ssl;
 
-	unsigned int		listener : 1,       /* listener socket */
+	isc_sockaddr_t		peer_address;      /* remote address */
+
+	unsigned int		listener : 1,      /* listener socket */
 				connected : 1,
-				connecting : 1,     /* connect pending */
-				bound : 1,          /* bound to local addr */
+				connecting : 1,    /* connect pending */
+				bound : 1,         /* bound to local addr */
 				dupped : 1,
-				active : 1,         /* currently active */
-				pktdscp : 1;	    /* per packet dscp */
+				active : 1,        /* currently active */
+				pktdscp : 1,	   /* per packet dscp */
+				tlsconnecting : 1, /* waiting for TLS conn */
+				tlsaccepting : 1;  /* waiting for TLS accept */
+
+	int			tlsstate;
 
 #ifdef ISC_PLATFORM_RECVOVERFLOW
 	unsigned char		overflow; /* used for MSG_TRUNC fake */
@@ -464,6 +487,10 @@ static void build_msghdr_recv(isc__socket_t *, char *, isc_socketevent_t *,
 			      struct msghdr *, struct iovec *, size_t *);
 static bool process_ctlfd(isc__socketthread_t *thread);
 static void setdscp(isc__socket_t *sock, isc_dscp_t dscp);
+static void internal_tls_accept(isc__socket_t *);
+static void internal_tls_connect(isc__socket_t *);
+static void internal_tls_recv(isc__socket_t *);
+static void internal_tls_send(isc__socket_t *);
 
 #define SELECT_POKE_SHUTDOWN		(-1)
 #define SELECT_POKE_NOTHING		(-2)
@@ -1776,6 +1803,104 @@ doio_send(isc__socket_t *sock, isc_socketevent_t *dev) {
 	return (DOIO_SUCCESS);
 }
 
+static int
+doio_tls_recv(isc__socket_t *sock, isc_socketevent_t *dev) {
+	int cc;
+	size_t read_count;
+	void *read_base;
+
+	read_count = dev->region.length - dev->n;
+	read_base = (void *)(dev->region.base + dev->n);
+	dev->address = sock->peer_address;
+
+	cc = SSL_read(sock->ssl, read_base, read_count);
+	printf("SSL read res %d\n", cc);
+	if (cc <= 0) {
+		int err = SSL_get_error(sock->ssl, cc);
+		printf("err %d\n", err);
+		if (err == SSL_ERROR_WANT_READ) {
+			sock->tlsstate |= TLSSTATE_RWR;
+			dev->result = ISC_R_WOULDBLOCK;
+			return (DOIO_SOFT);
+		} else if (err == SSL_ERROR_WANT_WRITE) {
+			sock->tlsstate |= TLSSTATE_RWW;
+			dev->result = ISC_R_WOULDBLOCK;
+			return (DOIO_SOFT);
+		} else {
+			printf("Hard err in read %d\n", cc);
+			return (DOIO_HARD);
+		}
+	}
+	if (cc == 0) {
+		return (DOIO_EOF);
+	}
+
+	dev->n += cc;
+	/*
+	 * If we have a partial read we need to watch the socket
+	 */
+	if (((size_t)cc != read_count) && (dev->n < dev->minimum)) {
+		sock->tlsstate |= TLSSTATE_RWR;
+		return (DOIO_SOFT);
+	}
+
+	/*
+	 * Full reads are posted, or partials if partials are ok.
+	 */
+	dev->result = ISC_R_SUCCESS;
+	return (DOIO_SUCCESS);
+}
+
+/*
+ * Returns:
+ *	DOIO_SUCCESS	The operation succeeded.  dev->result contains
+ *			ISC_R_SUCCESS.
+ *
+ *	DOIO_HARD	A hard or unexpected I/O error was encountered.
+ *			dev->result contains the appropriate error.
+ *
+ *	DOIO_SOFT	A soft I/O error was encountered.  No senddone
+ *			event was sent.  The operation should be retried.
+ *
+ *	No other return values are possible.
+ */
+static int
+doio_tls_send(isc__socket_t *sock, isc_socketevent_t *dev) {
+	int cc;
+	size_t write_count;
+	char *send_base;
+
+	write_count = dev->region.length - dev->n;
+	send_base = (void *) (dev->region.base + dev->n);
+
+	cc = SSL_write(sock->ssl, send_base, write_count);
+	printf("SSL write res %d\n", cc);
+	if (cc <= 0) {
+		int err = SSL_get_error(sock->ssl, cc);
+		printf("err %d\n", err);
+		if (err == SSL_ERROR_WANT_READ) {
+			sock->tlsstate |= TLSSTATE_WWR;
+			dev->result = ISC_R_WOULDBLOCK;
+			return (DOIO_SOFT);
+		} else if (err == SSL_ERROR_WANT_WRITE) {
+			sock->tlsstate |= TLSSTATE_WWW;
+			dev->result = ISC_R_WOULDBLOCK;
+			return (DOIO_SOFT);
+		} else {
+			/* XXXWPK TODO log specific error */
+			return (DOIO_HARD);
+		}
+	}
+	/*
+	 * With SSL with no SSL_MODE_ENABLE_PARTIAL_WRITE writes are
+	 * always complete.
+	 */
+	dev->n += cc;
+
+	dev->result = ISC_R_SUCCESS;
+	return (DOIO_SUCCESS);
+}
+
 /*
  * Kill.
  *
@@ -1891,6 +2016,11 @@ allocate_socket(isc__socketmgr_t *manager, isc_sockettype_t type,
 	sock->dupped = 0;
 	sock->statsindex = NULL;
 	sock->active = 0;
+
+	sock->tlsconnecting = 0;
+	sock->tlsaccepting = 0;
+	sock->tlsstate = 0;
+	sock->ssl = NULL;
 
 	ISC_LINK_INIT(sock, link);
 
@@ -2171,6 +2301,7 @@ opensocket(isc__socketmgr_t *manager, isc__socket_t *sock,
 			sock->fd = socket(sock->pf, SOCK_DGRAM, IPPROTO_UDP);
 			break;
 		case isc_sockettype_tcp:
+		case isc_sockettype_tls:
 			sock->fd = socket(sock->pf, SOCK_STREAM, IPPROTO_TCP);
 			break;
 		case isc_sockettype_unix:
@@ -2561,6 +2692,7 @@ socket_create(isc_socketmgr_t *manager0, int pf, isc_sockettype_t type,
 		sock->pktdscp = (isc_net_probedscp() & DCSPPKT(pf)) != 0;
 		break;
 	case isc_sockettype_tcp:
+	case isc_sockettype_tls: /* XXXWPK TODO */
 		sock->statsindex =
 			(pf == AF_INET) ? tcp4statsindex : tcp6statsindex;
 		break;
@@ -3113,6 +3245,8 @@ internal_accept(isc__socket_t *sock) {
 	return;
 }
 
+static void internal_tls_accept(isc__socket_t *sock) { UNUSED(sock); abort(); };
+
 static void
 internal_recv(isc__socket_t *sock) {
 	isc_socketevent_t *dev;
@@ -3207,6 +3341,124 @@ internal_send(isc__socket_t *sock) {
 	UNLOCK(&sock->lock);
 }
 
+static void
+watch_unwatch(isc__socket_t *sock, bool wanted_read, bool wanted_write) {
+	if (wanted_read && !(sock->tlsstate & (TLSSTATE_RWR | TLSSTATE_WWR))) {
+		unwatch_fd(&sock->manager->threads[sock->threadid], sock->fd,
+			   SELECT_POKE_READ);
+	} else if (!wanted_read && (sock->tlsstate & (TLSSTATE_RWR | TLSSTATE_WWR))) {
+		watch_fd(&sock->manager->threads[sock->threadid], sock->fd,
+			 SELECT_POKE_READ);
+	}
+
+	if (wanted_write && !(sock->tlsstate & (TLSSTATE_RWW | TLSSTATE_WWW))) {
+		unwatch_fd(&sock->manager->threads[sock->threadid], sock->fd,
+			   SELECT_POKE_WRITE);
+	} else if (!wanted_write && (sock->tlsstate & (TLSSTATE_RWW | TLSSTATE_WWW))) {
+		watch_fd(&sock->manager->threads[sock->threadid], sock->fd,
+			 SELECT_POKE_READ);
+	}
+}
+
+static void
+internal_tls_recv(isc__socket_t *sock) {
+	isc_socketevent_t *dev = NULL;
+
+	INSIST(VALID_SOCKET(sock));
+
+	LOCK(&sock->lock);
+	bool wanted_read = sock->tlsstate & (TLSSTATE_RWR | TLSSTATE_WWR);
+	bool wanted_write = sock->tlsstate & (TLSSTATE_RWW | TLSSTATE_WWW);
+	sock->tlsstate &= ~(TLSSTATE_RWR | TLSSTATE_RWW);
+
+	dev = ISC_LIST_HEAD(sock->recv_list);
+
+	if (dev == NULL) {
+		goto finish;
+		return;
+	}
+
+	socket_log(sock, NULL, IOEVENT,
+		   isc_msgcat, ISC_MSGSET_SOCKET, ISC_MSG_INTERNALRECV,
+		   "internal_recv: event %p -> task %p", dev, dev->ev_sender);
+
+	/*
+	 * Try to do as much I/O as possible on this socket.  There are no
+	 * limits here, currently.
+	 */
+	while (dev != NULL) {
+		switch (doio_tls_recv(sock, dev)) {
+		case DOIO_SOFT:
+			goto finish;
+
+		case DOIO_EOF:
+			/*
+			 * read of 0 means the remote end was closed.
+			 * Run through the event queue and dispatch all
+			 * the events with an EOF result code.
+			 */
+			do {
+				dev->result = ISC_R_EOF;
+				send_recvdone_event(sock, &dev);
+				dev = ISC_LIST_HEAD(sock->recv_list);
+			} while (dev != NULL);
+			goto finish;
+
+		case DOIO_SUCCESS:
+		case DOIO_HARD:
+			send_recvdone_event(sock, &dev);
+			break;
+		}
+
+		dev = ISC_LIST_HEAD(sock->recv_list);
+	}
+
+ finish:
+	watch_unwatch(sock, wanted_read, wanted_write);
+	UNLOCK(&sock->lock);
+}
+
+static void
+internal_tls_send(isc__socket_t *sock) {
+	isc_socketevent_t *dev;
+
+	INSIST(VALID_SOCKET(sock));
+
+	LOCK(&sock->lock);
+	bool wanted_read = sock->tlsstate & (TLSSTATE_RWR | TLSSTATE_WWR);
+	bool wanted_write = sock->tlsstate & (TLSSTATE_RWW | TLSSTATE_WWW);
+	sock->tlsstate &= ~(TLSSTATE_WWR | TLSSTATE_WWW);
+	dev = ISC_LIST_HEAD(sock->send_list);
+	if (dev == NULL) {
+		goto finish;
+	}
+	socket_log(sock, NULL, EVENT, NULL, 0, 0,
+		   "internal_send:  event %p -> task %p",
+		   dev, dev->ev_sender);
+
+	/*
+	 * Try to do as much I/O as possible on this socket.  There are no
+	 * limits here, currently.
+	 */
+	while (dev != NULL) {
+		switch (doio_tls_send(sock, dev)) {
+		case DOIO_SOFT:
+			goto finish;
+
+		case DOIO_HARD:
+		case DOIO_SUCCESS:
+			send_senddone_event(sock, &dev);
+			break;
+		}
+
+		dev = ISC_LIST_HEAD(sock->send_list);
+	}
+
+ finish:
+	watch_unwatch(sock, wanted_read, wanted_write);
+	UNLOCK(&sock->lock);
+}
+
 /*
  * Process read/writes on each fd here.  Avoid locking
  * and unlocking twice if both reads and writes are possible.
@@ -3241,18 +3493,49 @@ process_fd(isc__socketthread_t *thread, int fd, bool readable,
 
 	isc_refcount_increment(&sock->references);
 
+	printf("process_fd sock->type %d readable %d writeable %d connecting %d\n", sock->type, readable, writeable, sock->connecting);
+	if (!sock->listener && !sock->connecting && sock->type == isc_sockettype_tls) {
+		if (readable) {
+			if (sock->tlsstate & TLSSTATE_RWR) {
+				if (sock->tlsaccepting) {
+					internal_tls_accept(sock);
+				} else {
+					internal_tls_recv(sock);
+				}
+			}
+			if (sock->tlsstate & TLSSTATE_WWR) {
+				if (sock->tlsconnecting) {
+					internal_tls_connect(sock);
+				} else {
+					internal_tls_send(sock);
+				}
+			}
+		}
+		if (writeable) {
+			if (sock->tlsstate & TLSSTATE_RWW) {
+				internal_tls_recv(sock);
+			}
+			if (sock->tlsstate & TLSSTATE_WWW) {
+				internal_tls_send(sock);
+			}
+		}
+		goto unlock_fd;
+	}
+
 	if (readable) {
-		if (sock->listener)
+		if (sock->listener) {
 			internal_accept(sock);
-		else
+		} else {
 			internal_recv(sock);
+		}
 	}
 
 	if (writeable) {
-		if (sock->connecting)
+		if (sock->connecting) {
 			internal_connect(sock);
-		else
+		} else {
 			internal_send(sock);
+		}
 	}
 
  unlock_fd:
@@ -4075,6 +4358,7 @@ static isc_result_t
 socket_recv(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 	    unsigned int flags)
 {
+	printf("socket recv\n");
 	int io_state;
 	bool have_lock = false;
 	isc_task_t *ntask = NULL;
@@ -4088,14 +4372,21 @@ socket_recv(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 		LOCK(&sock->lock);
 		have_lock = true;
 
-		if (ISC_LIST_EMPTY(sock->recv_list))
-			io_state = doio_recv(sock, dev);
-		else
+		if (ISC_LIST_EMPTY(sock->recv_list)) {
+			if (sock->type == isc_sockettype_tls) {
+				printf("Direct recv\n");
+				io_state = doio_tls_recv(sock, dev);
+			} else {
+				io_state = doio_recv(sock, dev);
+			}
+		} else {
 			io_state = DOIO_SOFT;
+		}
 	}
 
 	switch (io_state) {
 	case DOIO_SOFT:
+		printf("Soft\n");
 		/*
 		 * We couldn't read all or part of the request right now, so
 		 * queue it.
@@ -4114,11 +4405,18 @@ socket_recv(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 		 * Enqueue the request.  If the socket was previously not being
 		 * watched, poke the watcher to start paying attention to it.
 		 */
-		bool do_poke = ISC_LIST_EMPTY(sock->recv_list);
+		bool do_poke_read = sock->type == isc_sockettype_tls ?
+				    sock->tlsstate & (TLSSTATE_RWR | TLSSTATE_WWR)  :
+				    ISC_LIST_EMPTY(sock->recv_list);
+		bool do_poke_write = sock->tlsstate & (TLSSTATE_RWW | TLSSTATE_WWW);
 		ISC_LIST_ENQUEUE(sock->recv_list, dev, ev_link);
-		if (do_poke) {
+		if (do_poke_read) {
 			select_poke(sock->manager, sock->threadid, sock->fd,
 				    SELECT_POKE_READ);
+		}
+		if (do_poke_write) {
+			select_poke(sock->manager, sock->threadid, sock->fd,
+				    SELECT_POKE_WRITE);
 		}
 
 		socket_log(sock, NULL, EVENT, NULL, 0, 0,
@@ -4135,6 +4433,7 @@ socket_recv(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 
 	case DOIO_HARD:
 	case DOIO_SUCCESS:
+		printf("Succ\n");
 		if ((flags & ISC_SOCKFLAG_IMMEDIATE) == 0)
 			send_recvdone_event(sock, &dev);
 		break;
@@ -4232,16 +4531,21 @@ socket_send(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 		}
 	}
 
-	if (sock->type == isc_sockettype_udp)
+	if (sock->type == isc_sockettype_udp) {
 		io_state = doio_send(sock, dev);
-	else {
+	} else {
 		LOCK(&sock->lock);
 		have_lock = true;
 
-		if (ISC_LIST_EMPTY(sock->send_list))
-			io_state = doio_send(sock, dev);
-		else
+		if (ISC_LIST_EMPTY(sock->send_list)) {
+			if (sock->type == isc_sockettype_tls) {
+				io_state = doio_tls_send(sock, dev);
+			} else {
+				io_state = doio_send(sock, dev);
+			}
+		} else {
 			io_state = DOIO_SOFT;
+		}
 	}
 
 	switch (io_state) {
@@ -4263,13 +4567,25 @@ socket_send(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 			 * Enqueue the request.  If the socket was previously
 			 * not being watched, poke the watcher to start
 			 * paying attention to it.
+			 * For TLS sockets it's the TLS code that handles
+			 * poking, as we don't know whether TLS wants to read
+			 * or write.
 			 */
-			bool do_poke = ISC_LIST_EMPTY(sock->send_list);
+			bool do_poke_write = sock->type == isc_sockettype_tls ?
+					     sock->tlsstate & (TLSSTATE_RWW | TLSSTATE_WWW) :
+					     ISC_LIST_EMPTY(sock->send_list);
+			bool do_poke_read = sock->tlsstate & (TLSSTATE_WWR | TLSSTATE_RWR);
+
 			ISC_LIST_ENQUEUE(sock->send_list, dev, ev_link);
-			if (do_poke) {
+			if (do_poke_write) {
 				select_poke(sock->manager, sock->threadid,
 					    sock->fd,
 					    SELECT_POKE_WRITE);
+			}
+			if (do_poke_read) {
+				select_poke(sock->manager, sock->threadid,
+					    sock->fd,
+					    SELECT_POKE_READ);
 			}
 			socket_log(sock, NULL, EVENT, NULL, 0, 0,
 				   "socket_send: event %p -> task %p",
@@ -4743,7 +5059,8 @@ isc_socket_listen(isc_socket_t *sock0, unsigned int backlog) {
 	REQUIRE(!sock->listener);
 	REQUIRE(sock->bound);
 	REQUIRE(sock->type == isc_sockettype_tcp ||
-		sock->type == isc_sockettype_unix);
+		sock->type == isc_sockettype_unix ||
+		sock->type == isc_sockettype_tls);
 
 	if (backlog == 0)
 		backlog = SOMAXCONN;
@@ -4964,13 +5281,24 @@ isc_socket_connect(isc_socket_t *sock0, const isc_sockaddr_t *addr,
 	if (cc == 0) {
 		sock->connected = 1;
 		sock->bound = 1;
-		dev->result = ISC_R_SUCCESS;
-		isc_task_sendto(task, ISC_EVENT_PTR(&dev), sock->threadid);
+		/*
+		 * If socket is TLS we need to negiotate TLS before
+		 * returning the socket as connected
+		 */
+		if (sock->type == isc_sockettype_tls) {
+			isc_task_attach(task, &ntask);
+			dev->ev_sender = ntask;
+			ISC_LIST_ENQUEUE(sock->connect_list, dev, ev_link);
+			internal_tls_connect(sock);
+		} else {
+			dev->result = ISC_R_SUCCESS;
+			isc_task_sendto(task, ISC_EVENT_PTR(&dev), sock->threadid);
+		}
 
 		UNLOCK(&sock->lock);
-
 		inc_stats(sock->manager->stats,
 			  sock->statsindex[STATID_CONNECT]);
+
 
 		return (ISC_R_SUCCESS);
 	}
@@ -5024,6 +5352,8 @@ internal_connect(isc__socket_t *sock) {
 	dev = ISC_LIST_HEAD(sock->connect_list);
 	if (dev == NULL) {
 		INSIST(!sock->connecting);
+		unwatch_fd(&sock->manager->threads[sock->threadid], sock->fd,
+			   SELECT_POKE_CONNECT);
 		goto finish;
 	}
 
@@ -5047,8 +5377,7 @@ internal_connect(isc__socket_t *sock) {
 		 */
 		if (SOFT_ERROR(errno) || errno == EINPROGRESS) {
 			sock->connecting = 1;
-			UNLOCK(&sock->lock);
-			return;
+			goto finish;
 		}
 
 		inc_stats(sock->manager->stats,
@@ -5091,17 +5420,84 @@ internal_connect(isc__socket_t *sock) {
 		sock->bound = 1;
 	}
 
+	unwatch_fd(&sock->manager->threads[sock->threadid], sock->fd,
+		   SELECT_POKE_CONNECT);
+
+	if (sock->type == isc_sockettype_tls) {
+		internal_tls_connect(sock);
+	} else {
+		do {
+			dev->result = result;
+			send_connectdone_event(sock, &dev);
+			dev = ISC_LIST_HEAD(sock->connect_list);
+		} while (dev != NULL);
+	}
+
+ finish:
+	UNLOCK(&sock->lock);
+}
+
+static void
+internal_tls_connect(isc__socket_t *sock) {
+	isc_socket_connev_t *dev;
+	isc_result_t result;
+	sock->tlsconnecting = 1;
+	bool wanted_read = sock->tlsstate & (TLSSTATE_RWR | TLSSTATE_WWR);
+	bool wanted_write = sock->tlsstate & (TLSSTATE_RWW | TLSSTATE_WWW);
+	sock->tlsstate &= ~(TLSSTATE_RWR | TLSSTATE_RWW);
+
+	if (sock->ssl == NULL) {
+		const SSL_METHOD *meth;
+		SSL_CTX* ctx;
+		SSL_load_error_strings();
+		OpenSSL_add_ssl_algorithms();
+		meth = TLS_client_method();
+		ctx = SSL_CTX_new(meth);
+		sock->ssl = SSL_new(ctx);
+		SSL_set_fd(sock->ssl, sock->fd);
+		SSL_set_connect_state(sock->ssl);
+	}
+	dev = ISC_LIST_HEAD(sock->connect_list);
+	if (dev == NULL) {
+		abort();
+	}
+	int cc = SSL_connect(sock->ssl);
+	printf("SSL_Connect returned %d\n", cc);
+	if (cc < 0) {
+		int err = SSL_get_error(sock->ssl, cc);
+		if (err == SSL_ERROR_WANT_READ) {
+			printf("Want read\n");
+			if (!wanted_read) {
+				watch_fd(&sock->manager->threads[sock->threadid], sock->fd,
+					 SELECT_POKE_READ);
+			}
+			sock->tlsstate |= TLSSTATE_WWR;
+			goto finish;
+		} else if (err == SSL_ERROR_WANT_WRITE) {
+			printf("Want write\n");
+			if (!wanted_write) {
+				watch_fd(&sock->manager->threads[sock->threadid], sock->fd,
+					 SELECT_POKE_WRITE);
+			}
+			sock->tlsstate |= TLSSTATE_WWW;
+			goto finish;
+		} else {
+			printf("Other SSL error in connect %d %d\n", cc, err);
+			result = ISC_R_CONNECTIONRESET;
+		}
+	} else {
+		result = ISC_R_SUCCESS;
+	}
 	do {
+		printf("Send connectdone\n");
+		sock->tlsconnecting = 0;
 		dev->result = result;
 		send_connectdone_event(sock, &dev);
 		dev = ISC_LIST_HEAD(sock->connect_list);
 	} while (dev != NULL);
 
  finish:
-	unwatch_fd(&sock->manager->threads[sock->threadid], sock->fd,
-		   SELECT_POKE_CONNECT);
-
-	UNLOCK(&sock->lock);
+	watch_unwatch(sock, wanted_read, wanted_write);
 }
 
 isc_result_t
@@ -5715,3 +6111,40 @@ isc_socketmgr_createinctx(isc_mem_t *mctx, isc_appctx_t *actx,
 
 	return (result);
 }
+
+isc_result_t
+isc_socket_getsslhexdigest(isc_socket_t *sock0, char *dest, unsigned int len) {
+	isc__socket_t *sock = (isc__socket_t*) sock0;
+	isc_result_t result;
+	isc_region_t r;
+	isc_buffer_t buf;
+	unsigned char digest[EVP_MAX_MD_SIZE];
+	unsigned int dlen;
+	X509* x509;
+	if (sock->ssl == NULL) { 
+		return (ISC_R_UNSET);
+	}
+	x509 = SSL_get_peer_certificate(sock->ssl);
+	if (x509 == NULL) {
+		return (ISC_R_UNEXPECTED);
+	}
+	
+        if (X509_pubkey_digest(x509, EVP_sha256(), digest, &dlen) != 1) {
+        	return (ISC_R_UNEXPECTED);
+	}
+	
+	if (len < 2*dlen + 1) {
+		return (ISC_R_NOSPACE);
+	}
+	
+	r.base = digest;
+	r.length = dlen;
+	isc_buffer_init(&buf, dest, len);
+	result = isc_hex_totext(&r, 4096, "", &buf);
+	if (result != ISC_R_SUCCESS) {
+		return (result);
+	}
+	isc_buffer_putuint8(&buf, 0);
+	return (ISC_R_SUCCESS);
+}
+	
