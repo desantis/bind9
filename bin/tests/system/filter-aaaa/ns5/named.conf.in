@@ -23,17 +23,17 @@ options {
 	minimal-responses no;
 };
 
+plugin query "../../../../plugins/lib/filter-aaaa.so" {
+	filter-aaaa-on-v4 break-dnssec;
+	filter-aaaa { any; };
+};
+
 plugin query "../../../../plugins/lib/dns64.so" {
 	dns64 64:ff9b::/96 {
 		clients { any; };
 		exclude { any; };
 		mapped { any; };
 	};
-};
-
-plugin query "../../../../plugins/lib/filter-aaaa.so" {
-	filter-aaaa-on-v4 break-dnssec;
-	filter-aaaa { any; };
 };
 
 key rndc_key {

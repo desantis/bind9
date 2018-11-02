@@ -1842,6 +1842,17 @@ dns64_respond_begin(void *arg, void *cbdata, isc_result_t *resp) {
 			  qctx->rdataset, qctx->sigrdataset))
 	{
 		/*
+		 * If any previously-configured module has set up recursion
+		 * before we call ns_query_lookup(), we might assert. Just
+		 * return without doing anything in that case.
+		 */
+		if ((qctx->client->query.attributes &
+		     NS_QUERYATTR_RECURSING) != 0)
+		{
+			return (false);
+		}
+
+		/*
 		 * Look to see if there are A records for this name.
 		 */
 		client_state->ttl = qctx->rdataset->ttl;
@@ -1852,14 +1863,6 @@ dns64_respond_begin(void *arg, void *cbdata, isc_result_t *resp) {
 		qctx->type = qctx->qtype = dns_rdatatype_a;
 		client_state->dns64_exclude = client_state->dns64 = true;
 
-		/*
-		 * XXX: we are depending here on DNS64
-		 * being reached before any other modules that
-		 * might set up recursion. In particular if
-		 * the filter-aaaa module runs first, there'll
-		 * be an assertion failure. We need to make this
-		 * order-indeendent.
-		 */
 		*resp = ns_query_lookup(qctx);
 		return (NS_HOOK_RETURN);
 	}

@@ -826,7 +826,6 @@ filter_respond_begin(void *arg, void *cbdata, isc_result_t *resp) {
 		result = ns_query_done(qctx);
 
 		*resp = result;
-
 		return (NS_HOOK_RETURN);
 	}
 
