@@ -19,6 +19,26 @@ rm -f dig.out.*
 
 DIGOPTS="+tcp +noadd +nosea +nostat +nocmd -p ${PORT}"
 
+for conf in conf/good*.conf
+do
+	n=`expr $n + 1`
+	echo_i "checking that $conf is accepted ($n)"
+	ret=0
+	$CHECKCONF "$conf" || ret=1
+	if [ $ret != 0 ]; then echo_i "failed"; fi
+	status=`expr $status + $ret`
+done
+
+for conf in conf/bad*.conf
+do
+	n=`expr $n + 1`
+	echo_i "checking that $conf is rejected ($n)"
+	ret=0
+	$CHECKCONF "$conf" >/dev/null && ret=1
+	if [ $ret != 0 ]; then echo_i "failed"; fi
+	status=`expr $status + $ret`
+done
+
 # Check the example. domain
 
 echo_i "checking non-excluded AAAA lookup works ($n)"

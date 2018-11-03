@@ -413,7 +413,7 @@ cleanup:
 }
 
 static isc_result_t
-check_syntax(cfg_obj_t *dmap, const cfg_obj_t *cfg,
+check_syntax(cfg_obj_t *dmap, const void *cfg,
 	     isc_mem_t *mctx, isc_log_t *lctx, void *actx)
 {
 	isc_result_t result = ISC_R_SUCCESS;
@@ -530,8 +530,7 @@ parse_parameters(dns64_instance_t *inst, const char *parameters,
 	CHECK(cfg_parse_buffer(parser, &b, cfg_file, cfg_line,
 			       &cfg_type_parameters, 0, &param_obj));
 
-	CHECK(check_syntax(param_obj, (const cfg_obj_t *) cfg,
-			   mctx, lctx, actx));
+	CHECK(check_syntax(param_obj, cfg, mctx, lctx, actx));
 
 	CHECK(cfg_map_get(param_obj, "dns64", &dns64_obj));
 
@@ -1099,15 +1098,28 @@ plugin_check(const char *parameters,
 	     const void *cfg, const char *cfg_file, unsigned long cfg_line,
 	     isc_mem_t *mctx, isc_log_t *lctx, void *actx)
 {
-	UNUSED(parameters);
-	UNUSED(cfg_file);
-	UNUSED(cfg_line);
-	UNUSED(cfg);
-	UNUSED(mctx);
-	UNUSED(lctx);
-	UNUSED(actx);
+	isc_result_t result = ISC_R_SUCCESS;
+	cfg_parser_t *parser = NULL;
+	cfg_obj_t *param_obj = NULL;
+	isc_buffer_t b;
 
-	return (ISC_R_SUCCESS);
+	CHECK(cfg_parser_create(mctx, lctx, &parser));
+
+	isc_buffer_constinit(&b, parameters, strlen(parameters));
+	isc_buffer_add(&b, strlen(parameters));
+	CHECK(cfg_parse_buffer(parser, &b, cfg_file, cfg_line,
+			       &cfg_type_parameters, 0, &param_obj));
+
+	CHECK(check_syntax(param_obj, cfg, mctx, lctx, actx));
+
+ cleanup:
+	if (param_obj != NULL) {
+		cfg_obj_destroy(parser, &param_obj);
+	}
+	if (parser != NULL) {
+		cfg_parser_destroy(&parser);
+	}
+	return (result);
 }
 
 /*
