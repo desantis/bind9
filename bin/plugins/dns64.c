@@ -145,15 +145,21 @@ typedef struct dns64_instance {
 	 */
 	isc_ht_t *ht;
 
-	/*
-	 * SDB DNS64 database implementation.
-	 */
-	dns_sdbimplementation_t *dns64_impl;
-
 	dns_acl_t *dns64_mapped;
 	dns64list_t dns64list;
 	unsigned int dns64cnt;
 } dns64_instance_t;
+
+/*
+ * SDB DNS64 database implementation.
+ */
+dns_sdbimplementation_t *dns64_impl = NULL;
+
+/*
+ * Increment when registering, decrement when shutting down, so we
+ * can tear down the SDB implementation only on the last shutdown.
+ */
+static unsigned int registrations = 0;
 
 static isc_result_t
 dns64_createentry(isc_mem_t *mctx, const isc_netaddr_t *prefix,
@@ -407,8 +413,8 @@ cleanup:
 }
 
 static isc_result_t
-check_syntax(const cfg_obj_t *dmap, const cfg_obj_t *cfg,
-	     cfg_aclconfctx_t *actx, ns_hookctx_t *hctx)
+check_syntax(cfg_obj_t *dmap, const cfg_obj_t *cfg,
+	     isc_mem_t *mctx, isc_log_t *lctx, void *actx)
 {
 	isc_result_t result = ISC_R_SUCCESS;
 	static const unsigned char zeros[16];
@@ -436,7 +442,7 @@ check_syntax(const cfg_obj_t *dmap, const cfg_obj_t *cfg,
 
 		cfg_obj_asnetprefix(obj, &na, &prefixlen);
 		if (na.family != AF_INET6) {
-			cfg_obj_log(map, hctx->lctx, ISC_LOG_ERROR,
+			cfg_obj_log(map, lctx, ISC_LOG_ERROR,
 				    "dns64 requires an IPv6 prefix");
 			result = ISC_R_FAILURE;
 			continue;
@@ -445,7 +451,7 @@ check_syntax(const cfg_obj_t *dmap, const cfg_obj_t *cfg,
 		if (prefixlen != 32 && prefixlen != 40 && prefixlen != 48 &&
 		    prefixlen != 56 && prefixlen != 64 && prefixlen != 96)
 		{
-			cfg_obj_log(map, hctx->lctx, ISC_LOG_ERROR,
+			cfg_obj_log(map, lctx, ISC_LOG_ERROR,
 				    "bad prefix length %u [32/40/48/56/64/96]",
 				    prefixlen);
 			result = ISC_R_FAILURE;
@@ -460,8 +466,8 @@ check_syntax(const cfg_obj_t *dmap, const cfg_obj_t *cfg,
 				isc_result_t tresult;
 
 				tresult = cfg_acl_fromconfig(obj, cfg,
-							     hctx->lctx, actx,
-							     hctx->mctx, 0,
+							     lctx, actx,
+							     mctx, 0,
 							     &acl);
 				if (acl != NULL) {
 					dns_acl_detach(&acl);
@@ -477,7 +483,7 @@ check_syntax(const cfg_obj_t *dmap, const cfg_obj_t *cfg,
 		if (obj != NULL) {
 			isc_netaddr_fromsockaddr(&sa, cfg_obj_assockaddr(obj));
 			if (sa.family != AF_INET6) {
-				cfg_obj_log(map, hctx->lctx, ISC_LOG_ERROR,
+				cfg_obj_log(map, lctx, ISC_LOG_ERROR,
 					    "dns64 requires a IPv6 suffix");
 				result = ISC_R_FAILURE;
 				continue;
@@ -490,7 +496,7 @@ check_syntax(const cfg_obj_t *dmap, const cfg_obj_t *cfg,
 				char netaddrbuf[ISC_NETADDR_FORMATSIZE];
 				isc_netaddr_format(&sa, netaddrbuf,
 						   sizeof(netaddrbuf));
-				cfg_obj_log(obj, hctx->lctx, ISC_LOG_ERROR,
+				cfg_obj_log(obj, lctx, ISC_LOG_ERROR,
 					    "bad suffix '%s' leading "
 					    "%u octets not zeros",
 					    netaddrbuf, nbytes);
@@ -505,8 +511,8 @@ check_syntax(const cfg_obj_t *dmap, const cfg_obj_t *cfg,
 static isc_result_t
 parse_parameters(dns64_instance_t *inst, const char *parameters,
 		 const void *cfg, const char *cfg_file, unsigned long cfg_line,
-		 void *actx, isc_mem_t *mctx, isc_log_t *lctx,
-		 dns_view_t *view)
+		 isc_mem_t *mctx, isc_log_t *lctx, dns_view_t *view,
+		 void *actx)
 {
 	isc_result_t result = ISC_R_SUCCESS;
 	cfg_parser_t *parser = NULL;
@@ -524,7 +530,8 @@ parse_parameters(dns64_instance_t *inst, const char *parameters,
 	CHECK(cfg_parse_buffer(parser, &b, cfg_file, cfg_line,
 			       &cfg_type_parameters, 0, &param_obj));
 
-	CHECK(check_syntax(param_obj, (const cfg_obj_t *) cfg, actx, hctx));
+	CHECK(check_syntax(param_obj, (const cfg_obj_t *) cfg,
+			   mctx, lctx, actx));
 
 	CHECK(cfg_map_get(param_obj, "dns64", &dns64_obj));
 
@@ -1030,31 +1037,33 @@ plugin_register(const char *parameters,
 
 	isc_log_write(lctx, NS_LOGCATEGORY_GENERAL,
 		      NS_LOGMODULE_HOOKS, ISC_LOG_INFO,
-		      "registering 'dns64' "
+		      "configuring 'dns64' "
 		      "module from %s:%lu, %s parameters",
-		      cfg_file, cfg_line, parameters != NULL ? "with" : "no");
+		      cfg_file, cfg_line,
+		      parameters != NULL ? "with" : "no");
 
 	inst = isc_mem_get(mctx, sizeof(*inst));
 	memset(inst, 0, sizeof(*inst));
 	isc_mem_attach(mctx, &inst->mctx);
 
-	/*
-	 * Set up dns64 SDB implementation.
-	 */
-	RUNTIME_CHECK(dns_sdb_register("_dns64", &dns64_methods, NULL,
-				       DNS_SDBFLAG_RELATIVEOWNER |
-				       DNS_SDBFLAG_RELATIVERDATA |
-				       DNS_SDBFLAG_DNS64,
-				       mctx, &inst->dns64_impl)
-		      == ISC_R_SUCCESS);
+	if (registrations++ == 0) {
+		/*
+		 * Set up dns64 SDB implementation.
+		 */
+		RUNTIME_CHECK(dns_sdb_register("_dns64", &dns64_methods, NULL,
+					       DNS_SDBFLAG_RELATIVEOWNER |
+					       DNS_SDBFLAG_RELATIVERDATA |
+					       DNS_SDBFLAG_DNS64,
+					       mctx, &dns64_impl)
+			      == ISC_R_SUCCESS);
+	}
 
 	/*
 	 * Parse parameters.
 	 */
 	if (parameters != NULL) {
-		CHECK(parse_parameters(inst, parameters,
-				       cfg, cfg_file, cfg_line,
-				       actx, mctx, lctx, view));
+		CHECK(parse_parameters(inst, parameters, cfg, cfg_file,
+				       cfg_line, mctx, lctx, view, actx));
 	}
 
 	CHECK(isc_mempool_create(mctx, sizeof(dns64_data_t),
@@ -1110,8 +1119,6 @@ plugin_destroy(void **instp) {
 	dns64_instance_t *inst = (dns64_instance_t *) *instp;
 	dns64_t *dns64 = NULL;
 
-	dns_sdb_unregister(&inst->dns64_impl);
-
 	if (inst->ht != NULL) {
 		isc_ht_destroy(&inst->ht);
 	}
@@ -1134,6 +1141,13 @@ plugin_destroy(void **instp) {
 
 	isc_mem_putanddetach(&inst->mctx, inst, sizeof(*inst));
 	*instp = NULL;
+
+	/*
+	 * We only unregister the SDB on the final dlclose()
+	 */
+	if (--registrations == 0) {
+		dns_sdb_unregister(&dns64_impl);
+	}
 
 	return;
 }

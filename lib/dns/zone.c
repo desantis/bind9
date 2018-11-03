@@ -1131,12 +1131,6 @@ zone_free(dns_zone_t *zone) {
 	if (zone->loadtask != NULL) {
 		isc_task_detach(&zone->loadtask);
 	}
-	if (zone->view != NULL) {
-		dns_view_weakdetach(&zone->view);
-	}
-	if (zone->prev_view != NULL) {
-		dns_view_weakdetach(&zone->prev_view);
-	}
 
 	/* Unmanaged objects */
 	while (!ISC_LIST_EMPTY(zone->setnsec3param_queue)) {
@@ -1251,6 +1245,13 @@ zone_free(dns_zone_t *zone) {
 	}
 	if (zone->gluecachestats != NULL) {
 		isc_stats_detach(&zone->gluecachestats);
+	}
+
+	if (zone->view != NULL) {
+		dns_view_weakdetach(&zone->view);
+	}
+	if (zone->prev_view != NULL) {
+		dns_view_weakdetach(&zone->prev_view);
 	}
 
 	/* last stuff */

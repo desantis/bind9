@@ -1,0 +1,57 @@
+/*
+ * Copyright (C) Internet Systems Consortium, Inc. ("ISC")
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ * See the COPYRIGHT file distributed with this work for additional
+ * information regarding copyright ownership.
+ */
+
+// NS4
+
+controls { /* empty */ };
+
+options {
+	query-source address 10.53.0.4;
+	notify-source 10.53.0.4;
+	transfer-source 10.53.0.4;
+	port @PORT@;
+	pid-file "named.pid";
+	listen-on { 10.53.0.4; };
+	listen-on-v6 { none; };
+	dnssec-enable yes;
+	dnssec-validation yes;
+};
+
+view us {
+	match-clients { 10.53.0.1; };
+	recursion yes;
+
+	plugin query "../../../../plugins/lib/dns64.so" {
+		dns64 2001:cccc::/96 {
+			clients { any; };
+		};
+	};
+
+	zone "." {
+		type hint;
+		file "../../common/root.hint";
+	};
+};
+
+view them {
+	recursion no;
+
+	plugin query "../../../../plugins/lib/dns64.so" {
+		dns64 2001:dddd::/96 {
+			clients { any; };
+		};
+	};
+
+	zone "example" {
+		type master;
+		file "example.db";
+	};
+};

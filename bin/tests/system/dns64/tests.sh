@@ -1396,5 +1396,18 @@ n=`expr $n + 1`
 if [ $ret != 0 ]; then echo_i "failed"; fi
 status=`expr $status + $ret`
 
+echo_i "checking dns64 configured in separate views($n)"
+ret=0
+# recursive view
+$DIG $DIGOPTS aaaa a-only.example +rec @10.53.0.4 -b 10.53.0.1 > dig.out.ns4.test$n.1 || ret=1
+grep "flags:.* ra;" dig.out.ns4.test$n.1 > /dev/null || ret=1
+grep "2001:cccc::102:305" dig.out.ns4.test$n.1 > /dev/null || ret=1
+$DIG $DIGOPTS aaaa a-only.example +rec @10.53.0.4 -b 10.53.0.2 > dig.out.ns4.test$n.2 || ret=1
+grep "flags:.* rd;" dig.out.ns4.test$n.2 > /dev/null || ret=1
+grep "2001:dddd::102:304" dig.out.ns4.test$n.2 > /dev/null || ret=1
+n=`expr $n + 1`
+if [ $ret != 0 ]; then echo_i "failed"; fi
+status=`expr $status + $ret`
+
 echo_i "exit status: $status"
 [ $status -eq 0 ] || exit 1
