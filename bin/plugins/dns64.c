@@ -407,6 +407,102 @@ cleanup:
 }
 
 static isc_result_t
+check_syntax(const cfg_obj_t *dmap, const cfg_obj_t *cfg,
+	     cfg_aclconfctx_t *actx, ns_hookctx_t *hctx)
+{
+	isc_result_t result = ISC_R_SUCCESS;
+	static const unsigned char zeros[16];
+	const cfg_obj_t *dns64 = NULL;
+	const cfg_listelt_t *element;
+	const cfg_obj_t *map, *obj;
+	isc_netaddr_t na, sa;
+	unsigned int prefixlen;
+	int nbytes;
+	int i;
+
+	static const char *acls[] = { "clients", "exclude", "mapped", NULL};
+
+	cfg_map_get(dmap, "dns64", &dns64);
+	if (dns64 == NULL) {
+		return (ISC_R_SUCCESS);
+	}
+
+	for (element = cfg_list_first(dns64);
+	     element != NULL;
+	     element = cfg_list_next(element))
+	{
+		map = cfg_listelt_value(element);
+		obj = cfg_map_getname(map);
+
+		cfg_obj_asnetprefix(obj, &na, &prefixlen);
+		if (na.family != AF_INET6) {
+			cfg_obj_log(map, hctx->lctx, ISC_LOG_ERROR,
+				    "dns64 requires an IPv6 prefix");
+			result = ISC_R_FAILURE;
+			continue;
+		}
+
+		if (prefixlen != 32 && prefixlen != 40 && prefixlen != 48 &&
+		    prefixlen != 56 && prefixlen != 64 && prefixlen != 96)
+		{
+			cfg_obj_log(map, hctx->lctx, ISC_LOG_ERROR,
+				    "bad prefix length %u [32/40/48/56/64/96]",
+				    prefixlen);
+			result = ISC_R_FAILURE;
+			continue;
+		}
+
+		for (i = 0; acls[i] != NULL; i++) {
+			obj = NULL;
+			(void)cfg_map_get(map, acls[i], &obj);
+			if (obj != NULL) {
+				dns_acl_t *acl = NULL;
+				isc_result_t tresult;
+
+				tresult = cfg_acl_fromconfig(obj, cfg,
+							     hctx->lctx, actx,
+							     hctx->mctx, 0,
+							     &acl);
+				if (acl != NULL) {
+					dns_acl_detach(&acl);
+				}
+				if (tresult != ISC_R_SUCCESS) {
+					result = tresult;
+				}
+			}
+		}
+
+		obj = NULL;
+		(void)cfg_map_get(map, "suffix", &obj);
+		if (obj != NULL) {
+			isc_netaddr_fromsockaddr(&sa, cfg_obj_assockaddr(obj));
+			if (sa.family != AF_INET6) {
+				cfg_obj_log(map, hctx->lctx, ISC_LOG_ERROR,
+					    "dns64 requires a IPv6 suffix");
+				result = ISC_R_FAILURE;
+				continue;
+			}
+			nbytes = prefixlen / 8 + 4;
+			if (prefixlen >= 32 && prefixlen <= 64) {
+				nbytes++;
+			}
+			if (memcmp(sa.type.in6.s6_addr, zeros, nbytes) != 0) {
+				char netaddrbuf[ISC_NETADDR_FORMATSIZE];
+				isc_netaddr_format(&sa, netaddrbuf,
+						   sizeof(netaddrbuf));
+				cfg_obj_log(obj, hctx->lctx, ISC_LOG_ERROR,
+					    "bad suffix '%s' leading "
+					    "%u octets not zeros",
+					    netaddrbuf, nbytes);
+				result = ISC_R_FAILURE;
+			}
+		}
+	}
+
+	return (result);
+}
+
+static isc_result_t
 parse_parameters(dns64_instance_t *inst, const char *parameters,
 		 const void *cfg, const char *cfg_file, unsigned long cfg_line,
 		 void *actx, isc_mem_t *mctx, isc_log_t *lctx,
@@ -427,6 +523,8 @@ parse_parameters(dns64_instance_t *inst, const char *parameters,
 	isc_buffer_add(&b, strlen(parameters));
 	CHECK(cfg_parse_buffer(parser, &b, cfg_file, cfg_line,
 			       &cfg_type_parameters, 0, &param_obj));
+
+	CHECK(check_syntax(param_obj, (const cfg_obj_t *) cfg, actx, hctx));
 
 	CHECK(cfg_map_get(param_obj, "dns64", &dns64_obj));
 
