@@ -15,10 +15,8 @@ AC_PREREQ(2.60)
 #
 # Define PACKAGE_DESCRIPTION and PACKAGE_SRCID when generating configure
 #
-AC_DEFINE([PACKAGE_DESCRIPTION],
-	  [m4_ifnblank(bind_DESCRIPTION, [ ]bind_DESCRIPTION, [])],
-	  [An extra string to print after PACKAGE_STRING])
-AC_DEFINE([PACKAGE_SRCID], [bind_SRCID], [A short hash from git])
+AX_PACKAGE_DESCRIPTION
+AX_PACKAGE_SRCID
 
 bind_CONFIGARGS="${ac_configure_args:-default}"
 AC_DEFINE_UNQUOTED([PACKAGE_CONFIGARGS], ["$bind_CONFIGARGS"], [Either 'defaults' or used ./configure options])
