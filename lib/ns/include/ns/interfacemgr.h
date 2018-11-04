@@ -81,6 +81,8 @@ struct ns_interface {
 	int			ntcpcurrent;	/*%< Current ditto, locked */
 	int			nudpdispatch;	/*%< Number of UDP dispatches */
 	ns_clientmgr_t *	clientmgr;	/*%< Client manager. */
+	const char *		certpath;	/*%< TLS cert path. */
+	const char *		keypath;	/*%< TLS key path. */
 	ISC_LINK(ns_interface_t) link;
 };
 

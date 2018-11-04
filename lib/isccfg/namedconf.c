@@ -125,6 +125,8 @@ static cfg_type_t cfg_type_notifytype;
 static cfg_type_t cfg_type_optional_allow;
 static cfg_type_t cfg_type_optional_class;
 static cfg_type_t cfg_type_optional_dscp;
+static cfg_type_t cfg_type_optional_cert;
+static cfg_type_t cfg_type_optional_key;
 static cfg_type_t cfg_type_optional_facility;
 static cfg_type_t cfg_type_optional_keyref;
 static cfg_type_t cfg_type_optional_port;
@@ -168,6 +170,8 @@ static cfg_type_t cfg_type_tkey_dhkey = {
 static cfg_tuplefielddef_t listenon_fields[] = {
 	{ "port", &cfg_type_optional_port, 0 },
 	{ "dscp", &cfg_type_optional_dscp, 0 },
+	{ "cert", &cfg_type_optional_cert, 0 },
+	{ "key", &cfg_type_optional_key, 0 },
 	{ "acl", &cfg_type_bracketed_aml, 0 },
 	{ NULL, NULL, 0 }
 };
@@ -634,6 +638,20 @@ static keyword_type_t port_kw = { "port", &cfg_type_uint32 };
 static cfg_type_t cfg_type_optional_port = {
 	"optional_port", parse_optional_keyvalue, print_keyvalue,
 	doc_optional_keyvalue, &cfg_rep_uint32, &port_kw
+};
+
+static keyword_type_t tlskey_kw = { "key", &cfg_type_qstring };
+
+static cfg_type_t cfg_type_optional_key = {
+	"optional_key", parse_optional_keyvalue, print_keyvalue,
+	doc_optional_keyvalue, &cfg_rep_string, &tlskey_kw
+};
+
+static keyword_type_t tlscert_kw = { "cert", &cfg_type_qstring };
+
+static cfg_type_t cfg_type_optional_cert = {
+	"optional_cert", parse_optional_keyvalue, print_keyvalue,
+	doc_optional_keyvalue, &cfg_rep_string, &tlscert_kw
 };
 
 /*% A list of keys, as in the "key" clause of the controls statement. */

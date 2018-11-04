@@ -6423,7 +6423,8 @@ add_listenelt(isc_mem_t *mctx, ns_listenlist_t *list, isc_sockaddr_t *addr,
 			goto clean;
 
 		result = ns_listenelt_create(mctx, isc_sockaddr_getport(addr),
-					     dscp, src_acl, &lelt);
+					     dscp, src_acl, NULL, NULL,
+					     &lelt);
 		if (result != ISC_R_SUCCESS)
 			goto clean;
 		ISC_LIST_APPEND(list->elts, lelt, link);
@@ -10410,11 +10411,23 @@ ns_listenelt_fromconfig(const cfg_obj_t *listener, const cfg_obj_t *config,
 			uint16_t family, ns_listenelt_t **target)
 {
 	isc_result_t result;
-	const cfg_obj_t *portobj, *dscpobj;
+	const cfg_obj_t *portobj, *dscpobj, *keyobj, *certobj;
+	const char *cert = NULL, *key=NULL;
 	in_port_t port;
 	isc_dscp_t dscp = -1;
 	ns_listenelt_t *delt = NULL;
 	REQUIRE(target != NULL && *target == NULL);
+
+	keyobj = cfg_tuple_get(listener, "key");
+	if (cfg_obj_isstring(keyobj)) {
+		key = cfg_obj_asstring(keyobj);
+	}
+
+	certobj = cfg_tuple_get(listener, "cert");
+	if (cfg_obj_isstring(certobj)) {
+		cert = cfg_obj_asstring(certobj);
+	}
+
 
 	portobj = cfg_tuple_get(listener, "port");
 	if (!cfg_obj_isuint32(portobj)) {
@@ -10448,7 +10461,8 @@ ns_listenelt_fromconfig(const cfg_obj_t *listener, const cfg_obj_t *config,
 		dscp = (isc_dscp_t)cfg_obj_asuint32(dscpobj);
 	}
 
-	result = ns_listenelt_create(mctx, port, dscp, NULL, &delt);
+	printf("Cert %s key %s port %d\n", cert, key, port);
+	result = ns_listenelt_create(mctx, port, dscp, NULL, cert, key, &delt);
 	if (result != ISC_R_SUCCESS)
 		return (result);
 

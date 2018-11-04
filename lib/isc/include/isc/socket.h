@@ -1044,4 +1044,7 @@ ISC_LANG_ENDDECLS
 isc_result_t
 isc_socket_getsslhexdigest(isc_socket_t *sock0, char *dest, unsigned int len);
 
+isc_result_t
+isc_socket_maketls(isc_socket_t *sock0, const char* cert_path, const char* key_path);
+
 #endif /* ISC_SOCKET_H */

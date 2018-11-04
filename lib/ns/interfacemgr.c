@@ -385,7 +385,8 @@ ns_interfacemgr_shutdown(ns_interfacemgr_t *mgr) {
 
 static isc_result_t
 ns_interface_create(ns_interfacemgr_t *mgr, isc_sockaddr_t *addr,
-		    const char *name, ns_interface_t **ifpret)
+		    const char *name, const char *certpath,
+		    const char *keypath, ns_interface_t **ifpret)
 {
 	ns_interface_t *ifp;
 	isc_result_t result;
@@ -400,6 +401,8 @@ ns_interface_create(ns_interfacemgr_t *mgr, isc_sockaddr_t *addr,
 	ifp->mgr = NULL;
 	ifp->generation = mgr->generation;
 	ifp->addr = *addr;
+	ifp->certpath = certpath;
+	ifp->keypath = keypath;
 	ifp->flags = 0;
 	strlcpy(ifp->name, name, sizeof(ifp->name));
 	ifp->clientmgr = NULL;
@@ -559,7 +562,17 @@ ns_interface_accepttcp(ns_interface_t *ifp) {
 				 isc_result_totext(result));
 		goto tcp_listen_failure;
 	}
-
+	printf("XXX %s\n", ifp->certpath);
+	if (ifp->certpath != NULL) {
+		result = isc_socket_maketls(ifp->tcpsocket, ifp->certpath,
+					    ifp->keypath);
+		if (result != ISC_R_SUCCESS) {
+			isc_log_write(IFMGR_COMMON_LOGARGS, ISC_LOG_ERROR,
+				      "setting TLS on TCP socket: %s",
+				      isc_result_totext(result));
+			goto tcp_listen_failure;
+		}
+	}
 	/*
 	 * If/when there a multiple filters listen to the
 	 * result.
@@ -589,6 +602,7 @@ static isc_result_t
 ns_interface_setup(ns_interfacemgr_t *mgr, isc_sockaddr_t *addr,
 		   const char *name, ns_interface_t **ifpret,
 		   bool accept_tcp, isc_dscp_t dscp,
+		   const char *certpath, const char *keypath,
 		   bool *addr_in_use)
 {
 	isc_result_t result;
@@ -596,17 +610,18 @@ ns_interface_setup(ns_interfacemgr_t *mgr, isc_sockaddr_t *addr,
 	REQUIRE(ifpret != NULL && *ifpret == NULL);
 	REQUIRE(addr_in_use == NULL || *addr_in_use == false);
 
-	result = ns_interface_create(mgr, addr, name, &ifp);
+	result = ns_interface_create(mgr, addr, name, certpath, keypath, &ifp);
 	if (result != ISC_R_SUCCESS)
 		return (result);
 
 	ifp->dscp = dscp;
-
-	result = ns_interface_listenudp(ifp);
-	if (result != ISC_R_SUCCESS) {
-		if ((result == ISC_R_ADDRINUSE) && (addr_in_use != NULL))
-			*addr_in_use = true;
-		goto cleanup_interface;
+	if (certpath == NULL) {
+		result = ns_interface_listenudp(ifp);
+		if (result != ISC_R_SUCCESS) {
+			if ((result == ISC_R_ADDRINUSE) && (addr_in_use != NULL))
+				*addr_in_use = true;
+			goto cleanup_interface;
+		}
 	}
 
 	if (((mgr->sctx->options & NS_SERVER_NOTCP) == 0) &&
@@ -932,6 +947,8 @@ do_scan(ns_interfacemgr_t *mgr, ns_listenlist_t *ext_listen,
 							    "<any>", &ifp,
 							    true,
 							    le->dscp,
+							    le->certpath,
+							    le->keypath,
 							    NULL);
 				if (result == ISC_R_SUCCESS)
 					ifp->flags |= NS_INTERFACEFLAG_ANYADDR;
@@ -1154,6 +1171,8 @@ do_scan(ns_interfacemgr_t *mgr, ns_listenlist_t *ext_listen,
 						    (adjusting == true) ?
 						    false : true,
 						    le->dscp,
+						    le->certpath,
+						    le->keypath,
 						    &addr_in_use);
 
 				tried_listening = true;

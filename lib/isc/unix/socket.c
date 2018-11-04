@@ -32,6 +32,7 @@
 #endif
 
 #include <openssl/ssl.h>
+#include <openssl/err.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -346,6 +347,7 @@ typedef struct isc__socketthread isc__socketthread_t;
 #define TLSSTATE_RWW	0x0002	/* Read Wants to Write */
 #define TLSSTATE_WWR	0x0004	/* Write Wants to Read */
 #define TLSSTATE_WWW	0x0008	/* Write Wants to Write */
+#define TLSSTATE_DEAD	0x0010	/* Delayed error */
 
 
 struct isc__socket {
@@ -370,8 +372,6 @@ struct isc__socket {
 	ISC_LIST(isc_socket_newconnev_t)	accept_list;
 	ISC_LIST(isc_socket_connev_t)		connect_list;
 
-	SSL *			ssl;
-
 	isc_sockaddr_t		peer_address;      /* remote address */
 
 	unsigned int		listener : 1,      /* listener socket */
@@ -380,10 +380,14 @@ struct isc__socket {
 				bound : 1,         /* bound to local addr */
 				dupped : 1,
 				active : 1,        /* currently active */
-				pktdscp : 1,	   /* per packet dscp */
-				tlsconnecting : 1, /* waiting for TLS conn */
-				tlsaccepting : 1;  /* waiting for TLS accept */
+				pktdscp : 1;	   /* per packet dscp */
 
+
+	SSL			*ssl;
+	/* server ctx for accepting socket */
+	SSL_CTX			*ssl_ctx;
+	unsigned int		tlsconnecting : 1, /* waiting for TLS conn */
+				tlsaccepting : 1;  /* waiting for TLS accept */
 	int			tlsstate;
 
 #ifdef ISC_PLATFORM_RECVOVERFLOW
@@ -410,6 +414,9 @@ struct isc__socketmgr {
 	int			reserved;	/* unlocked */
 	isc_condition_t		shutdown_ok;
 	int			maxudp;
+
+	/* client ctx for created sockets */
+	SSL_CTX			*ssl_ctx;	/* XXXWPK TODO verify thread-safety of that (we're not modifying it, only creating clients) */
 };
 
 struct isc__socketthread {
@@ -2021,6 +2028,7 @@ allocate_socket(isc__socketmgr_t *manager, isc_sockettype_t type,
 	sock->tlsaccepting = 0;
 	sock->tlsstate = 0;
 	sock->ssl = NULL;
+	sock->ssl_ctx = NULL;
 
 	ISC_LINK_INIT(sock, link);
 
@@ -3230,11 +3238,27 @@ internal_accept(isc__socket_t *sock) {
 	/*
 	 * Fill in the done event details and send it off.
 	 */
-	dev->result = result;
-	task = dev->ev_sender;
-	dev->ev_sender = sock;
-
-	isc_task_sendtoanddetach(&task, ISC_EVENT_PTR(&dev), sock->threadid);
+	printf("Accept done %d %p\n", result, sock->ssl_ctx);
+	if (result == ISC_R_SUCCESS && sock->ssl_ctx != NULL) {
+		/*
+		 * This socket might be handled by different FD, we can't
+		 * launch internal_accept directly
+		 */
+		isc__socket_t *ns = NEWCONNSOCK(dev);
+		ns->ssl_ctx = sock->ssl_ctx;
+		ns->tlsstate = TLSSTATE_RWR;
+		ns->tlsaccepting = 1;
+		ns->type = isc_sockettype_tls;
+		printf("Pushing TLS ACCEPT to %p\n", ns);
+		ISC_LIST_APPEND(ns->accept_list, dev, ev_link);
+		select_poke(ns->manager, ns->threadid, ns->fd,
+			    SELECT_POKE_READ);
+	} else {
+		dev->result = result;
+		task = dev->ev_sender;
+		dev->ev_sender = sock;
+		isc_task_sendtoanddetach(&task, ISC_EVENT_PTR(&dev), sock->threadid);
+	}
 	return;
 
  soft_error:
@@ -3244,8 +3268,6 @@ internal_accept(isc__socket_t *sock) {
 	inc_stats(manager->stats, sock->statsindex[STATID_ACCEPTFAIL]);
 	return;
 }
-
-static void internal_tls_accept(isc__socket_t *sock) { UNUSED(sock); abort(); };
 
 static void
 internal_recv(isc__socket_t *sock) {
@@ -3493,7 +3515,7 @@ process_fd(isc__socketthread_t *thread, int fd, bool readable,
 
 	isc_refcount_increment(&sock->references);
 
-	printf("process_fd sock->type %d readable %d writeable %d connecting %d\n", sock->type, readable, writeable, sock->connecting);
+	printf("process_fd %d sock->type %d readable %d writeable %d connecting %d\n", sock->fd, sock->type, readable, writeable, sock->connecting);
 	if (!sock->listener && !sock->connecting && sock->type == isc_sockettype_tls) {
 		if (readable) {
 			if (sock->tlsstate & TLSSTATE_RWR) {
@@ -4230,6 +4252,11 @@ isc_socketmgr_create2(isc_mem_t *mctx, isc_socketmgr_t **managerp,
 		return (ISC_R_UNEXPECTED);
 	}
 
+	const SSL_METHOD *meth;
+	SSL_load_error_strings();
+	OpenSSL_add_ssl_algorithms();
+	meth = TLS_client_method();
+	manager->ssl_ctx = SSL_CTX_new(meth);
 
 	/*
 	 * Start up the select/poll thread.
@@ -4365,6 +4392,13 @@ socket_recv(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 	isc_result_t result = ISC_R_SUCCESS;
 
 	dev->ev_sender = task;
+
+	if ((sock->type == isc_sockettype_tls) && (sock->tlsstate & TLSSTATE_DEAD) == TLSSTATE_DEAD) {
+		dev->result = ISC_R_TLSERROR;
+		if ((flags & ISC_SOCKFLAG_IMMEDIATE) == 0)
+			send_recvdone_event(sock, &dev);
+		return (ISC_R_SUCCESS);
+	}
 
 	if (sock->type == isc_sockettype_udp) {
 		io_state = doio_recv(sock, dev);
@@ -4529,6 +4563,13 @@ socket_send(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 			 */
 			dev->pktinfo.ipi6_ifindex = 0;
 		}
+	}
+
+	if ((sock->type == isc_sockettype_tls) && (sock->tlsstate & TLSSTATE_DEAD) == TLSSTATE_DEAD) {
+		dev->result = ISC_R_TLSERROR;
+		if ((flags & ISC_SOCKFLAG_IMMEDIATE) == 0)
+			send_recvdone_event(sock, &dev);
+		return (ISC_R_SUCCESS);
 	}
 
 	if (sock->type == isc_sockettype_udp) {
@@ -5446,14 +5487,12 @@ internal_tls_connect(isc__socket_t *sock) {
 	bool wanted_write = sock->tlsstate & (TLSSTATE_RWW | TLSSTATE_WWW);
 	sock->tlsstate &= ~(TLSSTATE_RWR | TLSSTATE_RWW);
 
+	/*
+	 * internal_tls_connect can be called multiple times, if that's the
+	 * first time we need to create SSL object
+	 */
 	if (sock->ssl == NULL) {
-		const SSL_METHOD *meth;
-		SSL_CTX* ctx;
-		SSL_load_error_strings();
-		OpenSSL_add_ssl_algorithms();
-		meth = TLS_client_method();
-		ctx = SSL_CTX_new(meth);
-		sock->ssl = SSL_new(ctx);
+		sock->ssl = SSL_new(sock->manager->ssl_ctx);
 		SSL_set_fd(sock->ssl, sock->fd);
 		SSL_set_connect_state(sock->ssl);
 	}
@@ -5483,6 +5522,7 @@ internal_tls_connect(isc__socket_t *sock) {
 			goto finish;
 		} else {
 			printf("Other SSL error in connect %d %d\n", cc, err);
+			ERR_print_errors_fp(stderr);
 			result = ISC_R_CONNECTIONRESET;
 		}
 	} else {
@@ -5498,6 +5538,82 @@ internal_tls_connect(isc__socket_t *sock) {
 
  finish:
 	watch_unwatch(sock, wanted_read, wanted_write);
+}
+
+static void
+internal_tls_accept(isc__socket_t *sock) {
+	isc_socket_newconnev_t *dev;
+	isc_result_t result;
+	int threadid = sock->threadid;
+	sock->tlsaccepting = 1;
+	bool wanted_read = sock->tlsstate & (TLSSTATE_RWR | TLSSTATE_WWR);
+	bool wanted_write = sock->tlsstate & (TLSSTATE_RWW | TLSSTATE_WWW);
+	sock->tlsstate &= ~(TLSSTATE_WWR | TLSSTATE_WWW);
+
+	printf("TLS ACCEPT SOCK %p\n", sock);
+	dev = ISC_LIST_HEAD(sock->accept_list);
+	if (dev == NULL) {
+		abort();
+	}
+
+	/*
+	 * internal_tls_accept can be called multiple times, if that's the
+	 * first time we need to create SSL object
+	 */
+	if (sock->ssl == NULL) {
+		sock->ssl = SSL_new(sock->ssl_ctx);
+		SSL_set_fd(sock->ssl, sock->fd);
+		SSL_set_accept_state(sock->ssl);
+//		SSL_set_connect_state(sock->ssl);
+	}
+	int cc = SSL_accept(sock->ssl);
+	printf("SSL_Accept returned %d\n", cc);
+	if (cc <= 0) {
+		int err = SSL_get_error(sock->ssl, cc);
+		if (err == SSL_ERROR_WANT_READ) {
+			printf("Want read\n");
+			if (!wanted_read) {
+				watch_fd(&sock->manager->threads[sock->threadid], sock->fd,
+					 SELECT_POKE_READ);
+			}
+			sock->tlsstate |= TLSSTATE_RWR;
+			watch_unwatch(sock, wanted_read, wanted_write);
+			return;
+		} else if (err == SSL_ERROR_WANT_WRITE) {
+			printf("Want write\n");
+			if (!wanted_write) {
+				watch_fd(&sock->manager->threads[sock->threadid], sock->fd,
+					 SELECT_POKE_WRITE);
+			}
+			sock->tlsstate |= TLSSTATE_RWW;
+			watch_unwatch(sock, wanted_read, wanted_write);
+			return;
+		} else {
+			printf("Other SSL error in connect %d %d\n", cc, err);
+			result = ISC_R_CONNECTIONRESET;
+
+		}
+	} else {
+		result = ISC_R_SUCCESS;
+	}
+	/*
+	 * Since regular accept failures are odd, but SSL negotiation
+	 * failures are quite common, we delay the error to first read/write
+	 * happening on the socket - accept always return SUCCESS at this
+	 * stage.
+	 */
+	if (result != ISC_R_SUCCESS) {
+		sock->tlsstate |= TLSSTATE_DEAD;
+	}
+	dev->result = ISC_R_SUCCESS;
+	sock->tlsaccepting = 0;
+	isc_task_t *task = dev->ev_sender;
+	ISC_LIST_UNLINK(sock->accept_list, dev, ev_link);
+	watch_unwatch(sock, wanted_read, wanted_write);
+	dev->ev_sender = sock;
+	isc_task_sendtoanddetach(&task, ISC_EVENT_PTR(&dev), threadid);
+
+	INSIST(ISC_LIST_EMPTY(sock->accept_list));
 }
 
 isc_result_t
@@ -6121,22 +6237,22 @@ isc_socket_getsslhexdigest(isc_socket_t *sock0, char *dest, unsigned int len) {
 	unsigned char digest[EVP_MAX_MD_SIZE];
 	unsigned int dlen;
 	X509* x509;
-	if (sock->ssl == NULL) { 
+	if (sock->ssl == NULL) {
 		return (ISC_R_UNSET);
 	}
 	x509 = SSL_get_peer_certificate(sock->ssl);
 	if (x509 == NULL) {
 		return (ISC_R_UNEXPECTED);
 	}
-	
-        if (X509_pubkey_digest(x509, EVP_sha256(), digest, &dlen) != 1) {
-        	return (ISC_R_UNEXPECTED);
+
+	if (X509_pubkey_digest(x509, EVP_sha256(), digest, &dlen) != 1) {
+		return (ISC_R_UNEXPECTED);
 	}
-	
+
 	if (len < 2*dlen + 1) {
 		return (ISC_R_NOSPACE);
 	}
-	
+
 	r.base = digest;
 	r.length = dlen;
 	isc_buffer_init(&buf, dest, len);
@@ -6147,4 +6263,35 @@ isc_socket_getsslhexdigest(isc_socket_t *sock0, char *dest, unsigned int len) {
 	isc_buffer_putuint8(&buf, 0);
 	return (ISC_R_SUCCESS);
 }
-	
+
+isc_result_t
+isc_socket_maketls(isc_socket_t *sock0, const char* cert_path, const char* key_path) {
+	printf("Maketls\n");
+	isc__socket_t *sock = (isc__socket_t*) sock0;
+	const SSL_METHOD *meth;
+
+	REQUIRE(VALID_SOCKET(sock));
+	REQUIRE(!sock->connected);
+	REQUIRE(sock->listener);
+
+	REQUIRE(sock->ssl == NULL);
+	REQUIRE(sock->ssl_ctx == NULL);
+
+	SSL_load_error_strings();
+	OpenSSL_add_ssl_algorithms();
+	meth = TLS_server_method();
+	INSIST(meth != NULL);
+	sock->ssl_ctx = SSL_CTX_new(meth);
+	INSIST(sock->ssl_ctx != NULL);
+//	SSL_set_msg_callback(sock->ssl_ctx,SSL_trace); SSL_set_msg_callback_arg(sock->ssl_ctx,BIO_new_fp(stdout,0));
+	if (SSL_CTX_use_certificate_file(sock->ssl_ctx, cert_path, SSL_FILETYPE_PEM) <= 0) {
+		abort();
+	}
+	if (SSL_CTX_use_PrivateKey_file(sock->ssl_ctx, key_path, SSL_FILETYPE_PEM) <= 0) {
+		abort();
+	}
+
+	sock->type = isc_sockettype_tls;
+
+	return (ISC_R_SUCCESS);
+}

@@ -27,7 +27,8 @@ destroy(ns_listenlist_t *list);
 
 isc_result_t
 ns_listenelt_create(isc_mem_t *mctx, in_port_t port, isc_dscp_t dscp,
-		    dns_acl_t *acl, ns_listenelt_t **target)
+		    dns_acl_t *acl, const char *certpath,
+		    const char *keypath, ns_listenelt_t **target)
 {
 	ns_listenelt_t *elt = NULL;
 	REQUIRE(target != NULL && *target == NULL);
@@ -39,6 +40,9 @@ ns_listenelt_create(isc_mem_t *mctx, in_port_t port, isc_dscp_t dscp,
 	elt->port = port;
 	elt->dscp = dscp;
 	elt->acl = acl;
+	elt->certpath = certpath;
+	elt->keypath = keypath;
+	printf("LE create %d %s %s\n", port, certpath, keypath);
 	*target = elt;
 	return (ISC_R_SUCCESS);
 }
@@ -111,7 +115,7 @@ ns_listenlist_default(isc_mem_t *mctx, in_port_t port, isc_dscp_t dscp,
 	if (result != ISC_R_SUCCESS)
 		goto cleanup;
 
-	result = ns_listenelt_create(mctx, port, dscp, acl, &elt);
+	result = ns_listenelt_create(mctx, port, dscp, acl, NULL, NULL, &elt);
 	if (result != ISC_R_SUCCESS)
 		goto cleanup_acl;
 
