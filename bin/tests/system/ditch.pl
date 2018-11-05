@@ -12,7 +12,7 @@
 # This is a tool for sending queries via UDP to specified address and
 # port, then exiting without waiting for a response.
 #
-# Usage: ditch.pl [-s <address>] [-p <port>] [filename]
+# Usage: ditch.pl [-s <address>] [-p <port>] [-b <srcaddr>] [filename]
 #
 # Input (in filename, if specified, otherwise stdin) is a series of one
 # or more DNS names and types to send as queries, e.g.:
@@ -32,15 +32,17 @@ use IO::File;
 use IO::Socket;
 
 sub usage {
-    print ("Usage: ditch.pl [-s address] [-p port] [file]\n");
+    print ("Usage: ditch.pl [-s address] [-p port] [-b <srcaddr>] [file]\n");
     exit 1;
 }
 
 my %options={};
-getopts("s:p:t:", \%options);
+getopts("s:p:b:t:", \%options);
 
 my $addr = "127.0.0.1";
+my $srcaddr = "";
 $addr = $options{s} if defined $options{s};
+$srcaddr = $options{b} if defined $options{b};
 
 my $port = 53;
 $port = $options{p} if defined $options{p};
@@ -73,6 +75,7 @@ while (defined(my $line = <$file>) ) {
     $packet->push(question => $q);
 
     my $sock = IO::Socket::INET->new(PeerAddr => $addr, PeerPort => $port,
+                                     LocalAddr => $srcaddr,
                                      Proto => "udp",) or die "$!";
 
     my $bytes = $sock->send($packet->data);
