@@ -1,3 +1,8 @@
+5090.	[func]		Use multiple event loops in socket code, and
+			make network threads CPU-affinitive.  This
+			significantly improves performance on large
+			systems. [GL #666]
+
 5082.	[bug]		Fixed a race that could cause a crash in
 			dig/host/nslookup. [GL #650]
 
