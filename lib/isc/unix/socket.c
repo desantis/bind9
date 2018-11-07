@@ -1821,10 +1821,8 @@ doio_tls_recv(isc__socket_t *sock, isc_socketevent_t *dev) {
 	dev->address = sock->peer_address;
 
 	cc = SSL_read(sock->ssl, read_base, read_count);
-	printf("SSL read res %d\n", cc);
 	if (cc <= 0) {
 		int err = SSL_get_error(sock->ssl, cc);
-		printf("err %d\n", err);
 		if (err == SSL_ERROR_WANT_READ) {
 			sock->tlsstate |= TLSSTATE_RWR;
 			dev->result = ISC_R_WOULDBLOCK;
@@ -1834,7 +1832,6 @@ doio_tls_recv(isc__socket_t *sock, isc_socketevent_t *dev) {
 			dev->result = ISC_R_WOULDBLOCK;
 			return (DOIO_SOFT);
 		} else {
-			printf("Hard err in read %d\n", cc);
 			return (DOIO_HARD);
 		}
 	}
@@ -1881,10 +1878,8 @@ doio_tls_send(isc__socket_t *sock, isc_socketevent_t *dev) {
 	send_base = (void *) (dev->region.base + dev->n);
 
 	cc = SSL_write(sock->ssl, send_base, write_count);
-	printf("SSL write res %d\n", cc);
 	if (cc <= 0) {
 		int err = SSL_get_error(sock->ssl, cc);
-		printf("err %d\n", err);
 		if (err == SSL_ERROR_WANT_READ) {
 			sock->tlsstate |= TLSSTATE_WWR;
 			dev->result = ISC_R_WOULDBLOCK;
@@ -3238,7 +3233,6 @@ internal_accept(isc__socket_t *sock) {
 	/*
 	 * Fill in the done event details and send it off.
 	 */
-	printf("Accept done %d %p\n", result, sock->ssl_ctx);
 	if (result == ISC_R_SUCCESS && sock->ssl_ctx != NULL) {
 		/*
 		 * This socket might be handled by different FD, we can't
@@ -3249,7 +3243,6 @@ internal_accept(isc__socket_t *sock) {
 		ns->tlsstate = TLSSTATE_RWR;
 		ns->tlsaccepting = 1;
 		ns->type = isc_sockettype_tls;
-		printf("Pushing TLS ACCEPT to %p\n", ns);
 		ISC_LIST_APPEND(ns->accept_list, dev, ev_link);
 		select_poke(ns->manager, ns->threadid, ns->fd,
 			    SELECT_POKE_READ);
@@ -3515,7 +3508,6 @@ process_fd(isc__socketthread_t *thread, int fd, bool readable,
 
 	isc_refcount_increment(&sock->references);
 
-	printf("process_fd %d sock->type %d readable %d writeable %d connecting %d\n", sock->fd, sock->type, readable, writeable, sock->connecting);
 	if (!sock->listener && !sock->connecting && sock->type == isc_sockettype_tls) {
 		if (readable) {
 			if (sock->tlsstate & TLSSTATE_RWR) {
@@ -4385,7 +4377,6 @@ static isc_result_t
 socket_recv(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 	    unsigned int flags)
 {
-	printf("socket recv\n");
 	int io_state;
 	bool have_lock = false;
 	isc_task_t *ntask = NULL;
@@ -4408,7 +4399,6 @@ socket_recv(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 
 		if (ISC_LIST_EMPTY(sock->recv_list)) {
 			if (sock->type == isc_sockettype_tls) {
-				printf("Direct recv\n");
 				io_state = doio_tls_recv(sock, dev);
 			} else {
 				io_state = doio_recv(sock, dev);
@@ -4420,7 +4410,6 @@ socket_recv(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 
 	switch (io_state) {
 	case DOIO_SOFT:
-		printf("Soft\n");
 		/*
 		 * We couldn't read all or part of the request right now, so
 		 * queue it.
@@ -4467,7 +4456,6 @@ socket_recv(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 
 	case DOIO_HARD:
 	case DOIO_SUCCESS:
-		printf("Succ\n");
 		if ((flags & ISC_SOCKFLAG_IMMEDIATE) == 0)
 			send_recvdone_event(sock, &dev);
 		break;
@@ -5501,11 +5489,9 @@ internal_tls_connect(isc__socket_t *sock) {
 		abort();
 	}
 	int cc = SSL_connect(sock->ssl);
-	printf("SSL_Connect returned %d\n", cc);
 	if (cc < 0) {
 		int err = SSL_get_error(sock->ssl, cc);
 		if (err == SSL_ERROR_WANT_READ) {
-			printf("Want read\n");
 			if (!wanted_read) {
 				watch_fd(&sock->manager->threads[sock->threadid], sock->fd,
 					 SELECT_POKE_READ);
@@ -5513,7 +5499,6 @@ internal_tls_connect(isc__socket_t *sock) {
 			sock->tlsstate |= TLSSTATE_WWR;
 			goto finish;
 		} else if (err == SSL_ERROR_WANT_WRITE) {
-			printf("Want write\n");
 			if (!wanted_write) {
 				watch_fd(&sock->manager->threads[sock->threadid], sock->fd,
 					 SELECT_POKE_WRITE);
@@ -5529,7 +5514,6 @@ internal_tls_connect(isc__socket_t *sock) {
 		result = ISC_R_SUCCESS;
 	}
 	do {
-		printf("Send connectdone\n");
 		sock->tlsconnecting = 0;
 		dev->result = result;
 		send_connectdone_event(sock, &dev);
@@ -5550,7 +5534,6 @@ internal_tls_accept(isc__socket_t *sock) {
 	bool wanted_write = sock->tlsstate & (TLSSTATE_RWW | TLSSTATE_WWW);
 	sock->tlsstate &= ~(TLSSTATE_WWR | TLSSTATE_WWW);
 
-	printf("TLS ACCEPT SOCK %p\n", sock);
 	dev = ISC_LIST_HEAD(sock->accept_list);
 	if (dev == NULL) {
 		abort();
@@ -5564,14 +5547,11 @@ internal_tls_accept(isc__socket_t *sock) {
 		sock->ssl = SSL_new(sock->ssl_ctx);
 		SSL_set_fd(sock->ssl, sock->fd);
 		SSL_set_accept_state(sock->ssl);
-//		SSL_set_connect_state(sock->ssl);
 	}
 	int cc = SSL_accept(sock->ssl);
-	printf("SSL_Accept returned %d\n", cc);
 	if (cc <= 0) {
 		int err = SSL_get_error(sock->ssl, cc);
 		if (err == SSL_ERROR_WANT_READ) {
-			printf("Want read\n");
 			if (!wanted_read) {
 				watch_fd(&sock->manager->threads[sock->threadid], sock->fd,
 					 SELECT_POKE_READ);
@@ -5580,7 +5560,6 @@ internal_tls_accept(isc__socket_t *sock) {
 			watch_unwatch(sock, wanted_read, wanted_write);
 			return;
 		} else if (err == SSL_ERROR_WANT_WRITE) {
-			printf("Want write\n");
 			if (!wanted_write) {
 				watch_fd(&sock->manager->threads[sock->threadid], sock->fd,
 					 SELECT_POKE_WRITE);
@@ -5589,7 +5568,6 @@ internal_tls_accept(isc__socket_t *sock) {
 			watch_unwatch(sock, wanted_read, wanted_write);
 			return;
 		} else {
-			printf("Other SSL error in connect %d %d\n", cc, err);
 			result = ISC_R_CONNECTIONRESET;
 
 		}
@@ -6266,7 +6244,6 @@ isc_socket_getsslhexdigest(isc_socket_t *sock0, char *dest, unsigned int len) {
 
 isc_result_t
 isc_socket_maketls(isc_socket_t *sock0, const char* cert_path, const char* key_path) {
-	printf("Maketls\n");
 	isc__socket_t *sock = (isc__socket_t*) sock0;
 	const SSL_METHOD *meth;
 

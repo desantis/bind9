@@ -1552,8 +1552,9 @@ clear_query(dig_query_t *query) {
 
 	if (query->waiting_senddone) {
 		query->pending_free = true;
-	else
+	} else {
 		isc_mem_free(mctx, query);
+	}
 }
 
 /*%
