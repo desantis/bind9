@@ -1,3 +1,5 @@
+5084.	[placeholder]
+
 5083.	[func]		Add autoconf macro AX_POSIX_SHELL, so we
 			can use POSIX-compatible shell features
 			in the scripts.
