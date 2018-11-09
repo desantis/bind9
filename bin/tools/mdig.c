@@ -1935,7 +1935,7 @@ main(int argc, char *argv[]) {
 	preparse_args(argc, argv);
 
 	mctx = NULL;
-	RUNCHECK(isc_mem_create(0, 0, &mctx));
+	RUNCHECK(isc_mem_create(&mctx));
 
 	lctx = NULL;
 	lcfg = NULL;

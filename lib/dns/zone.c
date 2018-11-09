@@ -16442,7 +16442,7 @@ mctxinit(void **target, void *arg) {
 
 	REQUIRE(target != NULL && *target == NULL);
 
-	result = isc_mem_create(0, 0, &mctx);
+	result = isc_mem_create(&mctx);
 	if (result != ISC_R_SUCCESS)
 		return (result);
 	isc_mem_setname(mctx, "zonemgr-pool", NULL);

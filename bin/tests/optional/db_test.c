@@ -359,7 +359,6 @@ main(int argc, char *argv[]) {
 	dbinfo *dbi;
 	dns_dbversion_t *version;
 	const dns_name_t *origin;
-	size_t memory_quota = 0;
 	dns_trust_t trust = 0;
 	unsigned int addopts;
 	isc_log_t *lctx = NULL;
@@ -367,12 +366,12 @@ main(int argc, char *argv[]) {
 
 	dns_result_register();
 
-	RUNTIME_CHECK(isc_mem_create(0, 0, &mctx) == ISC_R_SUCCESS);
+	RUNTIME_CHECK(isc_mem_create(&mctx) == ISC_R_SUCCESS);
 	RUNTIME_CHECK(dns_dbtable_create(mctx, dns_rdataclass_in, &dbtable) ==
 		      ISC_R_SUCCESS);
 
 	snprintf(dbtype, sizeof(dbtype), "rbt");
-	while ((ch = isc_commandline_parse(argc, argv, "c:d:t:z:P:Q:glpqvT"))
+	while ((ch = isc_commandline_parse(argc, argv, "c:d:t:z:P:glpqvT"))
 	       != -1) {
 		switch (ch) {
 		case 'c':
@@ -410,10 +409,6 @@ main(int argc, char *argv[]) {
 			break;
 		case 'P':
 			pause_every = atoi(isc_commandline_argument);
-			break;
-		case 'Q':
-			memory_quota = atoi(isc_commandline_argument);
-			isc_mem_setquota(mctx, memory_quota);
 			break;
 		case 't':
 			type = atoi(isc_commandline_argument);

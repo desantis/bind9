@@ -115,7 +115,7 @@ set_key(dns_client_t *client, char *keynamestr, char *keystr,
 	isc_region_t r;
 	dns_secalg_t alg;
 
-	result = isc_mem_create(0, 0, mctxp);
+	result = isc_mem_create(mctxp);
 	if (result != ISC_R_SUCCESS) {
 		fprintf(stderr, "failed to create mctx\n");
 		exit(1);
@@ -369,7 +369,7 @@ main(int argc, char *argv[]) {
 		exit(1);
 	}
 
-	result = isc_mem_create(0, 0, &mctx);
+	result = isc_mem_create(&mctx);
 	if (result != ISC_R_SUCCESS) {
 		fprintf(stderr, "failed to crate mctx\n");
 		exit(1);

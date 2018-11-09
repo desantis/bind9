@@ -163,7 +163,7 @@ main(int argc, char *argv[])
     
     dns_result_register();
     
-    result = isc_mem_create(0, 0, &mctx);
+    result = isc_mem_create(&mctx);
     check_result(result, "isc_mem_create");
     
     isc_buffer_init(&b, porigin, strlen(porigin));

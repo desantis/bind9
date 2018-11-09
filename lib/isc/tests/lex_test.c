@@ -38,7 +38,7 @@ ATF_TC_BODY(lex_0xff, tc) {
 
 	UNUSED(tc);
 
-	result = isc_mem_create(0, 0, &mctx);
+	result = isc_mem_create(&mctx);
 	ATF_REQUIRE_EQ(result, ISC_R_SUCCESS);
 
 	result = isc_lex_create(mctx, 1024, &lex);
@@ -70,7 +70,7 @@ ATF_TC_BODY(lex_setline, tc) {
 
 	UNUSED(tc);
 
-	result = isc_mem_create(0, 0, &mctx);
+	result = isc_mem_create(&mctx);
 	ATF_REQUIRE_EQ(result, ISC_R_SUCCESS);
 
 	result = isc_lex_create(mctx, 1024, &lex);

@@ -49,7 +49,7 @@ ATF_TC_BODY(getoriginnode, tc) {
 	isc_mem_t *mymctx = NULL;
 	isc_result_t result;
 
-	result = isc_mem_create(0, 0, &mymctx);
+	result = isc_mem_create(&mymctx);
 	ATF_REQUIRE_EQ(result, ISC_R_SUCCESS);
 
 	result = dns_db_create(mymctx, "rbt", dns_rootname, dns_dbtype_zone,
@@ -79,7 +79,7 @@ ATF_TC_BODY(getsetservestalettl, tc) {
 	isc_result_t result;
 	dns_ttl_t ttl;
 
-	result = isc_mem_create(0, 0, &mymctx);
+	result = isc_mem_create(&mymctx);
 	ATF_REQUIRE_EQ(result, ISC_R_SUCCESS);
 
 	result = dns_db_create(mymctx, "rbt", dns_rootname, dns_dbtype_cache,
@@ -124,7 +124,7 @@ ATF_TC_BODY(dns_dbfind_staleok, tc) {
 	isc_result_t result;
 	unsigned char data[] = { 0x0a, 0x00, 0x00, 0x01 };
 
-	result = isc_mem_create(0, 0, &mymctx);
+	result = isc_mem_create(&mymctx);
 	ATF_REQUIRE_EQ(result, ISC_R_SUCCESS);
 
 	result = dns_db_create(mymctx, "rbt", dns_rootname, dns_dbtype_cache,

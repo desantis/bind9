@@ -167,7 +167,7 @@ dt_init(void) {
 		int ret;
 
 		if (dt_mctx == NULL)
-			result = isc_mem_create(0, 0, &dt_mctx);
+			result = isc_mem_create(&dt_mctx);
 		if (result != ISC_R_SUCCESS)
 			goto unlock;
 		isc_mem_setname(dt_mctx, "dt", NULL);
