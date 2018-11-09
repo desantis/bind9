@@ -112,8 +112,8 @@ typedef struct {
 } size_info;
 
 typedef struct stats {
-	unsigned long		gets;
-	unsigned long		totalgets;
+	atomic_int_fast64_t	gets;
+	atomic_int_fast64_t	totalgets;
 } stats_t;
 
 
@@ -142,11 +142,11 @@ struct isc__mem {
 	isc_refcount_t		references;
 	char			name[16];
 	void *			tag;
-	size_t			total;
-	size_t			inuse;
+	atomic_uint_fast64_t	total;
+	atomic_uint_fast64_t	inuse;
 	size_t			maxinuse;
-	size_t			malloced;
-	size_t			maxmalloced;
+	atomic_uint_fast64_t	malloced;
+	atomic_uint_fast64_t	maxmalloced;
 	size_t			hi_water;
 	size_t			lo_water;
 	bool			hi_called;
@@ -202,15 +202,19 @@ struct isc__mempool {
 #define TRACE_OR_RECORD (ISC_MEM_DEBUGTRACE|ISC_MEM_DEBUGRECORD)
 #define ADD_TRACE(a, b, c, d, e) \
 	do { \
+		MCTXLOCK(a, &a->lock); 				\
 		if (ISC_UNLIKELY((isc_mem_debugging & TRACE_OR_RECORD) != 0 && \
 				 b != NULL))				\
 			add_trace_entry(a, b, c, d, e);			\
+		MCTXUNLOCK(a, &a->lock); 				\
 	} while (0)
 #define DELETE_TRACE(a, b, c, d, e)					\
 	do {								\
+		MCTXLOCK(a, &a->lock); 				\
 		if (ISC_UNLIKELY((isc_mem_debugging & TRACE_OR_RECORD) != 0 && \
 				 b != NULL))				\
 			delete_trace_entry(a, b, c, d, e);		\
+		MCTXUNLOCK(a, &a->lock); 				\
 	} while(0)
 
 static void
@@ -343,8 +347,9 @@ mem_put(isc__mem_t *ctx, void *mem, size_t size) {
 static inline void
 mem_getstats(isc__mem_t *ctx, size_t size) {
 	int bucket;
-	ctx->total += size;
-	ctx->inuse += size;
+	atomic_uint_fast64_t malloced;
+	atomic_fetch_add_explicit(&ctx->total, size, memory_order_relaxed);
+	atomic_fetch_add_explicit(&ctx->inuse, size, memory_order_acquire);
 
 	bucket = size % STATS_BUCKET_SIZE;
 	if (bucket >= STATS_BUCKETS) {
@@ -354,13 +359,19 @@ mem_getstats(isc__mem_t *ctx, size_t size) {
 #if ISC_MEM_CHECKOVERRUN
 	size += 1;
 #endif
-	ctx->malloced += size;
-	if (ctx->malloced > ctx->maxmalloced) {
-		ctx->maxmalloced = ctx->malloced;
+	malloced = atomic_fetch_add_explicit(&ctx->malloced, size,
+					      memory_order_relaxed);
+	malloced += size;
+	if (malloced > atomic_load_explicit(&ctx->maxmalloced,
+		       memory_order_acquire)) {
+		atomic_store_explicit(&ctx->maxmalloced, malloced,
+				       memory_order_relaxed);
 	}
 
-	ctx->stats[bucket].gets++;
-	ctx->stats[bucket].totalgets++;
+	atomic_fetch_add_explicit(&ctx->stats[bucket].gets, 1,
+				  memory_order_relaxed);
+	atomic_fetch_add_explicit(&ctx->stats[bucket].totalgets, 1,
+				  memory_order_relaxed);
 }
 
 /*!
@@ -369,22 +380,25 @@ mem_getstats(isc__mem_t *ctx, size_t size) {
 static inline void
 mem_putstats(isc__mem_t *ctx, void *ptr, size_t size) {
 	int bucket;
+	atomic_uint_fast64_t inuse, gets;
 	UNUSED(ptr);
 
-	INSIST(ctx->inuse >= size);
-	ctx->inuse -= size;
+	inuse = atomic_fetch_sub_explicit(&ctx->inuse, size, memory_order_release);
+	INSIST(inuse >= size);
 
 	bucket = size % STATS_BUCKET_SIZE;
 	if (bucket >= STATS_BUCKETS) {
 		bucket = STATS_BUCKETS-1;
 	}
-	INSIST(ctx->stats[bucket].gets > 0);
-	ctx->stats[bucket].gets--;
+	gets = atomic_fetch_sub_explicit(&ctx->stats[bucket].gets, 1,
+					 memory_order_relaxed);
+	INSIST(gets > 0);
 
 #if ISC_MEM_CHECKOVERRUN
 	size += 1;
 #endif
-	ctx->malloced -= size;
+	atomic_fetch_sub_explicit(&ctx->malloced, size,
+				  memory_order_relaxed);
 }
 
 static void
@@ -510,12 +524,13 @@ destroy(isc__mem_t *ctx) {
 
 	if (ctx->checkfree) {
 		for (i = 0; i < STATS_BUCKETS; i++) {
-			if (ctx->stats[i].gets != 0U) {
+			uint64_t gets = atomic_load(&ctx->stats[i].gets);
+			if (gets != 0U) {
 				fprintf(stderr,
 					"Failing assertion due to probable "
 					"leaked memory in context %p (\"%s\") "
-					"(stats[%u].gets == %lu).\n",
-					ctx, ctx->name, i, ctx->stats[i].gets);
+					"(stats[%u].gets == %" PRIu64 ").\n",
+					ctx, ctx->name, i, gets);
 #if ISC_MEM_TRACKLINES
 				print_active(ctx, stderr);
 #endif
@@ -588,14 +603,11 @@ isc__mem_putanddetach(isc_mem_t **ctxp, void *ptr, size_t size FLARG) {
 		goto destroy;
 	}
 
-	MCTXLOCK(ctx, &ctx->lock);
-
-	DELETE_TRACE(ctx, ptr, size, file, line);
 
 	mem_putstats(ctx, ptr, size);
 	mem_put(ctx, ptr, size);
 
-	MCTXUNLOCK(ctx, &ctx->lock);
+	DELETE_TRACE(ctx, ptr, size, file, line);
 
 destroy:
 	if (isc_refcount_decrement(&ctx->references) == 1) {
@@ -643,13 +655,13 @@ isc__mem_get(isc_mem_t *ctx0, size_t size FLARG) {
 		return (isc__mem_allocate(ctx0, size FLARG_PASS));
 
 	ptr = mem_get(ctx, size);
-	MCTXLOCK(ctx, &ctx->lock);
 	if (ptr != NULL) {
 		mem_getstats(ctx, size);
 	}
 
 	ADD_TRACE(ctx, ptr, size, file, line);
 
+	MCTXLOCK(ctx, &ctx->lock);
 	if (ctx->hi_water != 0U && ctx->inuse > ctx->hi_water) {
 		ctx->is_overmem = true;
 		if (!ctx->hi_called)
@@ -694,10 +706,8 @@ isc__mem_put(isc_mem_t *ctx0, void *ptr, size_t size FLARG) {
 		return;
 	}
 
-	MCTXLOCK(ctx, &ctx->lock);
 
 	DELETE_TRACE(ctx, ptr, size, file, line);
-
 	mem_putstats(ctx, ptr, size);
 	mem_put(ctx, ptr, size);
 
@@ -706,6 +716,7 @@ isc__mem_put(isc_mem_t *ctx0, void *ptr, size_t size FLARG) {
 	 * when the context was pushed over hi_water but then had
 	 * isc_mem_setwater() called with 0 for hi_water and lo_water.
 	 */
+	MCTXLOCK(ctx, &ctx->lock);
 	if ((ctx->inuse < ctx->lo_water) || (ctx->lo_water == 0U)) {
 		ctx->is_overmem = false;
 		if (ctx->hi_called)
@@ -789,7 +800,7 @@ isc_mem_stats(isc_mem_t *ctx0, FILE *out) {
 
 		if (s->totalgets == 0U && s->gets == 0U)
 			continue;
-		fprintf(out, "%s%5lu: %11lu gets, %11lu rem",
+		fprintf(out, "%s%5lu: %11" PRIu64 " gets, %11" PRIu64 " rem",
 			(i == STATS_BUCKETS-1) ? ">=" : "  ",
 			(unsigned long) i, s->totalgets, s->gets);
 		fputc('\n', out);
@@ -881,12 +892,13 @@ isc__mem_allocate(isc_mem_t *ctx0, size_t size FLARG) {
 
 	REQUIRE(VALID_CONTEXT(ctx));
 
-	MCTXLOCK(ctx, &ctx->lock);
 	si = mem_allocateunlocked((isc_mem_t *)ctx, size);
 	if (si != NULL)
 		mem_getstats(ctx, si[-1].u.size);
 
 	ADD_TRACE(ctx, si, si[-1].u.size, file, line);
+
+	MCTXLOCK(ctx, &ctx->lock);
 	if (ctx->hi_water != 0U && ctx->inuse > ctx->hi_water &&
 	    !ctx->is_overmem) {
 		ctx->is_overmem = true;
@@ -973,7 +985,6 @@ isc__mem_free(isc_mem_t *ctx0, void *ptr FLARG) {
 		size = si->u.size;
 	}
 
-	MCTXLOCK(ctx, &ctx->lock);
 
 	DELETE_TRACE(ctx, ptr, size, file, line);
 
@@ -985,6 +996,7 @@ isc__mem_free(isc_mem_t *ctx0, void *ptr FLARG) {
 	 * when the context was pushed over hi_water but then had
 	 * isc_mem_setwater() called with 0 for hi_water and lo_water.
 	 */
+	MCTXLOCK(ctx, &ctx->lock);
 	if (ctx->is_overmem &&
 	    (ctx->inuse < ctx->lo_water || ctx->lo_water == 0U)) {
 		ctx->is_overmem = false;
@@ -1380,9 +1392,7 @@ isc__mempool_get(isc_mempool_t *mpctx0 FLARG) {
 	if (ISC_UNLIKELY(((isc_mem_debugging & TRACE_OR_RECORD) != 0) &&
 			 item != NULL))
 	{
-		MCTXLOCK(mctx, &mctx->lock);
 		ADD_TRACE(mctx, item, mpctx->size, file, line);
-		MCTXUNLOCK(mctx, &mctx->lock);
 	}
 #endif /* ISC_MEM_TRACKLINES */
 
@@ -1409,9 +1419,7 @@ isc__mempool_put(isc_mempool_t *mpctx0, void *mem FLARG) {
 
 #if ISC_MEM_TRACKLINES
 	if (ISC_UNLIKELY((isc_mem_debugging & TRACE_OR_RECORD) != 0)) {
-		MCTXLOCK(mctx, &mctx->lock);
 		DELETE_TRACE(mctx, mem, mpctx->size, file, line);
-		MCTXUNLOCK(mctx, &mctx->lock);
 	}
 #endif /* ISC_MEM_TRACKLINES */
 
@@ -1419,10 +1427,8 @@ isc__mempool_put(isc_mempool_t *mpctx0, void *mem FLARG) {
 	 * If our free list is full, return this to the mctx directly.
 	 */
 	if (mpctx->freecount >= mpctx->freemax) {
-		MCTXLOCK(mctx, &mctx->lock);
 		mem_putstats(mctx, mem, mpctx->size);
 		mem_put(mctx, mem, mpctx->size);
-		MCTXUNLOCK(mctx, &mctx->lock);
 		if (mpctx->lock != NULL)
 			UNLOCK(mpctx->lock);
 		return;
