@@ -670,7 +670,7 @@ open_lexer(void) {
 		return ISC_R_SUCCESS;
 
 	/* allocate memory for lexer, and verify it was allocated */
-	result = isc_mem_create(0, 0, &lex_mctx);
+	result = isc_mem_create(&lex_mctx);
 	if (result != ISC_R_SUCCESS) {
 		fprintf(stderr, "unexpected error creating lexer\n");
 		return result;

@@ -691,7 +691,7 @@ ATF_TC_BODY(manytasks, tc) {
 	result = isc_condition_init(&cv);
 	ATF_REQUIRE_EQ(result, ISC_R_SUCCESS);
 
-	result = isc_mem_create(0, 0, &mctx);
+	result = isc_mem_create(&mctx);
 	ATF_REQUIRE_EQ(result, ISC_R_SUCCESS);
 
 	result = isc_taskmgr_create(mctx, 4, 0, &taskmgr);

@@ -209,7 +209,7 @@ main(int argc, char *argv[]) {
 	RUNTIME_CHECK(isc_mutex_init(&lock) == ISC_R_SUCCESS);
 
 	mctx = NULL;
-	RUNTIME_CHECK(isc_mem_create(0, 0, &mctx) == ISC_R_SUCCESS);
+	RUNTIME_CHECK(isc_mem_create(&mctx) == ISC_R_SUCCESS);
 
 	while ((ch = isc_commandline_parse(argc, argv, "vp:")) != -1) {
 		switch (ch) {

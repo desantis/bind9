@@ -276,7 +276,7 @@ random_test(pvalue_func_t *func, isc_random_func test_func) {
 
 	tables_init();
 
-	result = isc_mem_create(0, 0, &mctx);
+	result = isc_mem_create(&mctx);
 	ATF_REQUIRE_EQ(result, ISC_R_SUCCESS);
 
 	m = 1000;

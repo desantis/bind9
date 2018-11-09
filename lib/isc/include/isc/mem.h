@@ -111,19 +111,6 @@ LIBISC_EXTERNAL_DATA extern unsigned int isc_mem_defaultflags;
 #define _ISC_MEM_FLARG
 #endif
 
-/*!
- * Define ISC_MEM_USE_INTERNAL_MALLOC=1 to use the internal malloc()
- * implementation in preference to the system one.  The internal malloc()
- * is very space-efficient, and quite fast on uniprocessor systems.  It
- * performs poorly on multiprocessor machines.
- * JT: we can overcome the performance issue on multiprocessor machines
- * by carefully separating memory contexts.
- */
-
-#ifndef ISC_MEM_USE_INTERNAL_MALLOC
-#define ISC_MEM_USE_INTERNAL_MALLOC 1
-#endif
-
 /*
  * Flags for isc_mem_createx() calls.
  */
@@ -131,11 +118,7 @@ LIBISC_EXTERNAL_DATA extern unsigned int isc_mem_defaultflags;
 #define ISC_MEMFLAG_INTERNAL	0x00000002	 /* use internal malloc */
 #define ISC_MEMFLAG_FILL	0x00000004	 /* fill with pattern after alloc and frees */
 
-#if !ISC_MEM_USE_INTERNAL_MALLOC
-#define ISC_MEMFLAG_DEFAULT 	0
-#else
-#define ISC_MEMFLAG_DEFAULT	ISC_MEMFLAG_INTERNAL|ISC_MEMFLAG_FILL
-#endif
+#define ISC_MEMFLAG_DEFAULT	ISC_MEMFLAG_FILL
 
 /*%
  * isc_mem_putanddetach() is a convenience function for use where you
@@ -236,12 +219,10 @@ struct isc_mempool {
 
 /*@{*/
 isc_result_t
-isc_mem_create(size_t max_size, size_t target_size,
-	       isc_mem_t **mctxp);
+isc_mem_create(isc_mem_t **mctxp);
 
 isc_result_t
-isc_mem_createx(size_t max_size, size_t target_size,
-		isc_mem_t **mctxp, unsigned int flags);
+isc_mem_createx(isc_mem_t **mctxp, unsigned int flags);
 
 /*!<
  * \brief Create a memory context.

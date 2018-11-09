@@ -91,7 +91,7 @@ main(int argc, char *argv[]) {
 		}
 	}
 
-	RUNTIME_CHECK(isc_mem_create(0, 0, &mctx) == ISC_R_SUCCESS);
+	RUNTIME_CHECK(isc_mem_create(&mctx) == ISC_R_SUCCESS);
 	RUNTIME_CHECK(isc_lex_create(mctx, 256, &lex) == ISC_R_SUCCESS);
 
 	if (masterfile) {

@@ -113,7 +113,7 @@ dns_test_begin(FILE *logfile, bool start_managers) {
 		CHECK(isc_app_start());
 	if (debug_mem_record)
 		isc_mem_debugging |= ISC_MEM_DEBUGRECORD;
-	CHECK(isc_mem_create(0, 0, &mctx));
+	CHECK(isc_mem_create(&mctx));
 
 	CHECK(dst_lib_init(mctx, NULL));
 	dst_active = true;

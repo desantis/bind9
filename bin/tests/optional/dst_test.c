@@ -232,7 +232,7 @@ main(void) {
 	dns_name_t *name;
 	isc_result_t result;
 
-	result = isc_mem_create(0, 0, &mctx);
+	result = isc_mem_create(&mctx);
 	if (result != ISC_R_SUCCESS)
 		return (1);
 

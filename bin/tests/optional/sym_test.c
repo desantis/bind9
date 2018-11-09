@@ -61,7 +61,7 @@ main(int argc, char *argv[]) {
 		}
 	}
 
-	RUNTIME_CHECK(isc_mem_create(0, 0, &mctx) == ISC_R_SUCCESS);
+	RUNTIME_CHECK(isc_mem_create(&mctx) == ISC_R_SUCCESS);
 	RUNTIME_CHECK(isc_symtab_create(mctx, 691, undefine_action, NULL,
 					case_sensitive, &st) == ISC_R_SUCCESS);
 

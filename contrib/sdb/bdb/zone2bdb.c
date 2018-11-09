@@ -127,7 +127,7 @@ main(int argc, char *argv[])
 
 	if (argc != 4) usage(*argv);
 
-	REQUIRE(isc_mem_create(0, 0, &mctx) == ISC_R_SUCCESS);
+	REQUIRE(isc_mem_create(&mctx) == ISC_R_SUCCESS);
 
 	n = strlen(argv[1]);
 	isc_buffer_init(&b, argv[1], n);

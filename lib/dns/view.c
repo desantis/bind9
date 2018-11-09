@@ -818,7 +818,7 @@ dns_view_createresolver(dns_view_t *view,
 	dns_resolver_whenshutdown(view->resolver, view->task, &event);
 	view->attributes &= ~DNS_VIEWATTR_RESSHUTDOWN;
 
-	result = isc_mem_create(0, 0, &mctx);
+	result = isc_mem_create(&mctx);
 	if (result != ISC_R_SUCCESS) {
 		dns_resolver_shutdown(view->resolver);
 		return (result);
