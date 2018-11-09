@@ -661,24 +661,28 @@ isc__mem_get(isc_mem_t *ctx0, size_t size FLARG) {
 
 	ADD_TRACE(ctx, ptr, size, file, line);
 
-	MCTXLOCK(ctx, &ctx->lock);
-	if (ctx->hi_water != 0U && ctx->inuse > ctx->hi_water) {
-		ctx->is_overmem = true;
-		if (!ctx->hi_called)
-			call_water = true;
-	}
-	if (ctx->inuse > ctx->maxinuse) {
-		ctx->maxinuse = ctx->inuse;
-		if (ctx->hi_water != 0U && ctx->inuse > ctx->hi_water &&
-		    (isc_mem_debugging & ISC_MEM_DEBUGUSAGE) != 0)
-			fprintf(stderr, "maxinuse = %lu\n",
-				(unsigned long)ctx->inuse);
-	}
-	MCTXUNLOCK(ctx, &ctx->lock);
+	if (ctx->water != NULL) {
+		MCTXLOCK(ctx, &ctx->lock);
+		if (ctx->hi_water != 0U && ctx->inuse > ctx->hi_water) {
+			ctx->is_overmem = true;
+			if (!ctx->hi_called) {
+				call_water = true;
+			}
+		}
+		if (ctx->inuse > ctx->maxinuse) {
+			ctx->maxinuse = ctx->inuse;
+			if (ctx->hi_water != 0U && ctx->inuse > ctx->hi_water &&
+			    (isc_mem_debugging & ISC_MEM_DEBUGUSAGE) != 0) {
+				fprintf(stderr, "maxinuse = %lu\n",
+					(unsigned long)ctx->inuse);
+			}
+		}
+		MCTXUNLOCK(ctx, &ctx->lock);
 
-	if (call_water && (ctx->water != NULL))
-		(ctx->water)(ctx->water_arg, ISC_MEM_HIWATER);
-
+		if (call_water && (ctx->water != NULL)) {
+			(ctx->water)(ctx->water_arg, ISC_MEM_HIWATER);
+		}
+	}
 	return (ptr);
 }
 
@@ -716,17 +720,20 @@ isc__mem_put(isc_mem_t *ctx0, void *ptr, size_t size FLARG) {
 	 * when the context was pushed over hi_water but then had
 	 * isc_mem_setwater() called with 0 for hi_water and lo_water.
 	 */
-	MCTXLOCK(ctx, &ctx->lock);
-	if ((ctx->inuse < ctx->lo_water) || (ctx->lo_water == 0U)) {
-		ctx->is_overmem = false;
-		if (ctx->hi_called)
-			call_water = true;
+	if (ctx->water != NULL) {
+		MCTXLOCK(ctx, &ctx->lock);
+		if ((ctx->inuse < ctx->lo_water) || (ctx->lo_water == 0U)) {
+			ctx->is_overmem = false;
+			if (ctx->hi_called) {
+				call_water = true;
+			}
+		}
+		MCTXUNLOCK(ctx, &ctx->lock);
+
+		if (call_water && (ctx->water != NULL)) {
+			(ctx->water)(ctx->water_arg, ISC_MEM_LOWATER);
+		}
 	}
-
-	MCTXUNLOCK(ctx, &ctx->lock);
-
-	if (call_water && (ctx->water != NULL))
-		(ctx->water)(ctx->water_arg, ISC_MEM_LOWATER);
 }
 
 void
@@ -898,30 +905,32 @@ isc__mem_allocate(isc_mem_t *ctx0, size_t size FLARG) {
 
 	ADD_TRACE(ctx, si, si[-1].u.size, file, line);
 
-	MCTXLOCK(ctx, &ctx->lock);
-	if (ctx->hi_water != 0U && ctx->inuse > ctx->hi_water &&
-	    !ctx->is_overmem) {
-		ctx->is_overmem = true;
-	}
+	if (ctx->water != NULL) {
+		MCTXLOCK(ctx, &ctx->lock);
+		if (ctx->hi_water != 0U && ctx->inuse > ctx->hi_water &&
+		    !ctx->is_overmem) {
+			ctx->is_overmem = true;
+		}
 
-	if (ctx->hi_water != 0U && !ctx->hi_called &&
-	    ctx->inuse > ctx->hi_water) {
-		ctx->hi_called = true;
-		call_water = true;
-	}
-	if (ctx->inuse > ctx->maxinuse) {
-		ctx->maxinuse = ctx->inuse;
-		if (ISC_UNLIKELY(ctx->hi_water != 0U &&
-				 ctx->inuse > ctx->hi_water &&
-				 (isc_mem_debugging & ISC_MEM_DEBUGUSAGE) != 0))
-			fprintf(stderr, "maxinuse = %lu\n",
+		if (ctx->hi_water != 0U && !ctx->hi_called &&
+		    ctx->inuse > ctx->hi_water) {
+			ctx->hi_called = true;
+			call_water = true;
+		}
+		if (ctx->inuse > ctx->maxinuse) {
+			ctx->maxinuse = ctx->inuse;
+			if (ISC_UNLIKELY(ctx->hi_water != 0U &&
+					 ctx->inuse > ctx->hi_water &&
+					 (isc_mem_debugging & ISC_MEM_DEBUGUSAGE) != 0))
+				fprintf(stderr, "maxinuse = %lu\n",
 				(unsigned long)ctx->inuse);
+			}
+		MCTXUNLOCK(ctx, &ctx->lock);
+
+		if (call_water) {
+			(ctx->water)(ctx->water_arg, ISC_MEM_HIWATER);
+		}
 	}
-	MCTXUNLOCK(ctx, &ctx->lock);
-
-	if (call_water)
-		(ctx->water)(ctx->water_arg, ISC_MEM_HIWATER);
-
 	return (si);
 }
 
@@ -996,23 +1005,27 @@ isc__mem_free(isc_mem_t *ctx0, void *ptr FLARG) {
 	 * when the context was pushed over hi_water but then had
 	 * isc_mem_setwater() called with 0 for hi_water and lo_water.
 	 */
-	MCTXLOCK(ctx, &ctx->lock);
-	if (ctx->is_overmem &&
-	    (ctx->inuse < ctx->lo_water || ctx->lo_water == 0U)) {
-		ctx->is_overmem = false;
+	if (ctx->water != NULL) {
+		MCTXLOCK(ctx, &ctx->lock);
+		if (ctx->is_overmem &&
+		    (ctx->inuse < ctx->lo_water || ctx->lo_water == 0U)) {
+			ctx->is_overmem = false;
+		}
+
+		if (ctx->hi_called &&
+		    (ctx->inuse < ctx->lo_water || ctx->lo_water == 0U)) {
+			ctx->hi_called = false;
+
+			if (ctx->water != NULL) {
+				call_water = true;
+			}
+		}
+		MCTXUNLOCK(ctx, &ctx->lock);
+
+		if (call_water) {
+			(ctx->water)(ctx->water_arg, ISC_MEM_LOWATER);
+		}
 	}
-
-	if (ctx->hi_called &&
-	    (ctx->inuse < ctx->lo_water || ctx->lo_water == 0U)) {
-		ctx->hi_called = false;
-
-		if (ctx->water != NULL)
-			call_water = true;
-	}
-	MCTXUNLOCK(ctx, &ctx->lock);
-
-	if (call_water)
-		(ctx->water)(ctx->water_arg, ISC_MEM_LOWATER);
 }
 
 
@@ -1073,31 +1086,17 @@ isc_mem_inuse(isc_mem_t *ctx0) {
 size_t
 isc_mem_maxinuse(isc_mem_t *ctx0) {
 	isc__mem_t *ctx = (isc__mem_t *)ctx0;
-	size_t maxinuse;
 
 	REQUIRE(VALID_CONTEXT(ctx));
-	MCTXLOCK(ctx, &ctx->lock);
-
-	maxinuse = ctx->maxinuse;
-
-	MCTXUNLOCK(ctx, &ctx->lock);
-
-	return (maxinuse);
+	return (atomic_load(&ctx->maxinuse));
 }
 
 size_t
 isc_mem_total(isc_mem_t *ctx0) {
 	isc__mem_t *ctx = (isc__mem_t *)ctx0;
-	size_t total;
 
 	REQUIRE(VALID_CONTEXT(ctx));
-	MCTXLOCK(ctx, &ctx->lock);
-
-	total = ctx->total;
-
-	MCTXUNLOCK(ctx, &ctx->lock);
-
-	return (total);
+	return (atomic_load(&ctx->total));
 }
 
 void
