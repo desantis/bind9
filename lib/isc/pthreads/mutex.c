@@ -284,10 +284,17 @@ isc__mutex_init(isc_mutex_t *mp, const char *file, unsigned int line) {
 #ifdef HAVE_PTHREAD_MUTEX_ADAPTIVE_NP
 	result = isc_once_do(&once_attr, initialize_attr);
 	RUNTIME_CHECK(result == ISC_R_SUCCESS);
-
+#ifdef ISC_MUTEX_STRUCT
+	err = pthread_mutex_init(&mp->mutex, &attr);
+#else
 	err = pthread_mutex_init(mp, &attr);
+#endif
 #else /* HAVE_PTHREAD_MUTEX_ADAPTIVE_NP */
+#ifdef ISC_MUTEX_STRUCT
+	err = pthread_mutex_init(&mp->mutex, ISC__MUTEX_ATTRS);
+#else
 	err = pthread_mutex_init(mp, ISC__MUTEX_ATTRS);
+#endif
 #endif /* HAVE_PTHREAD_MUTEX_ADAPTIVE_NP */
 
 	if (err == ENOMEM)

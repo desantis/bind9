@@ -53,7 +53,7 @@ isc_condition_waituntil(isc_condition_t *c, isc_mutex_t *m, isc_time_t *t) {
 	ts.tv_nsec = (long)isc_time_nanoseconds(t);
 
 	do {
-#if ISC_MUTEX_PROFILE
+#if ISC_MUTEX_STRUCT
 		presult = pthread_cond_timedwait(c, &m->mutex, &ts);
 #else
 		presult = pthread_cond_timedwait(c, m, &ts);

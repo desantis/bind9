@@ -38,6 +38,15 @@ extern pthread_mutexattr_t isc__mutex_attrs;
 /* XXX We could do fancier error handling... */
 
 /*!
+ * Define ISC_MUTEX_STRUCT to turn on padding of isc_mutex_t to cache
+ * line size, so that no two mutexes are ever in the same cache line.
+ * We assume that cache line is 64bytes here.
+ */
+#ifndef ISC_MUTEX_STRUCT
+#define ISC_MUTEX_STRUCT 1
+#endif
+#define ISC_MUTEX_STRUCT_PAD (64-sizeof(pthread_mutex_t)-sizeof(void*))
+/*!
  * Define ISC_MUTEX_PROFILE to turn on profiling of mutexes by line.  When
  * enabled, isc_mutex_stats() can be used to print a table showing the
  * number of times each type of mutex was locked and the amount of time
@@ -48,11 +57,16 @@ extern pthread_mutexattr_t isc__mutex_attrs;
 #endif
 
 #if ISC_MUTEX_PROFILE
+#define ISC_MUTEX_STRUCT 1
+#endif
+
+#if ISC_MUTEX_STRUCT
 typedef struct isc_mutexstats isc_mutexstats_t;
 
 typedef struct {
 	pthread_mutex_t		mutex;	/*%< The actual mutex. */
 	isc_mutexstats_t *	stats;	/*%< Mutex statistics. */
+	char pad[ISC_MUTEX_STRUCT_PAD];
 } isc_mutex_t;
 #else
 typedef pthread_mutex_t	isc_mutex_t;
@@ -76,6 +90,10 @@ isc_result_t isc__mutex_init(isc_mutex_t *mp, const char *file, unsigned int lin
 #if ISC_MUTEX_PROFILE
 #define isc_mutex_lock(mp) \
 	isc_mutex_lock_profile((mp), __FILE__, __LINE__)
+#elif ISC_MUTEX_STRUCT
+#define isc_mutex_lock(mp) \
+	((pthread_mutex_lock(&(mp)->mutex) == 0) ? \
+	 ISC_R_SUCCESS : ISC_R_UNEXPECTED)
 #else
 #define isc_mutex_lock(mp) \
 	((pthread_mutex_lock((mp)) == 0) ? \
@@ -85,13 +103,17 @@ isc_result_t isc__mutex_init(isc_mutex_t *mp, const char *file, unsigned int lin
 #if ISC_MUTEX_PROFILE
 #define isc_mutex_unlock(mp) \
 	isc_mutex_unlock_profile((mp), __FILE__, __LINE__)
+#elif ISC_MUTEX_STRUCT
+#define isc_mutex_unlock(mp) \
+	((pthread_mutex_unlock(&(mp)->mutex) == 0) ? \
+	 ISC_R_SUCCESS : ISC_R_UNEXPECTED)
 #else
 #define isc_mutex_unlock(mp) \
 	((pthread_mutex_unlock((mp)) == 0) ? \
 	 ISC_R_SUCCESS : ISC_R_UNEXPECTED)
 #endif
 
-#if ISC_MUTEX_PROFILE
+#if ISC_MUTEX_STRUCT
 #define isc_mutex_trylock(mp) \
 	((pthread_mutex_trylock((&(mp)->mutex)) == 0) ? \
 	 ISC_R_SUCCESS : ISC_R_LOCKBUSY)
@@ -101,7 +123,7 @@ isc_result_t isc__mutex_init(isc_mutex_t *mp, const char *file, unsigned int lin
 	 ISC_R_SUCCESS : ISC_R_LOCKBUSY)
 #endif
 
-#if ISC_MUTEX_PROFILE
+#if ISC_MUTEX_STRUCT
 #define isc_mutex_destroy(mp) \
 	((pthread_mutex_destroy((&(mp)->mutex)) == 0) ? \
 	 ISC_R_SUCCESS : ISC_R_UNEXPECTED)
