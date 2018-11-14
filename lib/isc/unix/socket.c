@@ -345,13 +345,13 @@ struct isc__socket {
 	int			fd;
 	int			pf;
 	int			threadid;
-	char				name[16];
-	void *				tag;
+	char			name[16];
+	void *			tag;
 
-	ISC_LIST(isc_socketevent_t)		send_list;
-	ISC_LIST(isc_socketevent_t)		recv_list;
-	ISC_LIST(isc_socket_newconnev_t)	accept_list;
-	ISC_LIST(isc_socket_connev_t)		connect_list;
+	isc_socketevent_t*	send_event;
+	isc_socketevent_t*	recv_event;
+	isc_socket_newconnev_t*	accept_event;
+	isc_socket_connev_t*	connect_event;
 
 	isc_sockaddr_t		peer_address;       /* remote address */
 
@@ -1866,10 +1866,10 @@ destroy(isc__socket_t **sockp) {
 	socket_log(sock, NULL, CREATION, isc_msgcat, ISC_MSGSET_SOCKET,
 		   ISC_MSG_DESTROYING, "destroying");
 
-	INSIST(ISC_LIST_EMPTY(sock->connect_list));
-	INSIST(ISC_LIST_EMPTY(sock->accept_list));
-	INSIST(ISC_LIST_EMPTY(sock->recv_list));
-	INSIST(ISC_LIST_EMPTY(sock->send_list));
+	INSIST(sock->connect_event == NULL);
+	INSIST(sock->accept_event == NULL);
+	INSIST(sock->recv_event == NULL);
+	INSIST(sock->recv_event == NULL);
 	INSIST(sock->fd >= -1 && sock->fd < (int)manager->maxsocks);
 
 	if (sock->fd >= 0) {
@@ -1922,10 +1922,10 @@ allocate_socket(isc__socketmgr_t *manager, isc_sockettype_t type,
 	/*
 	 * Set up list of readers and writers to be initially empty.
 	 */
-	ISC_LIST_INIT(sock->recv_list);
-	ISC_LIST_INIT(sock->send_list);
-	ISC_LIST_INIT(sock->accept_list);
-	ISC_LIST_INIT(sock->connect_list);
+	sock->recv_event = NULL;
+	sock->send_event = NULL;
+	sock->accept_event = NULL;
+	sock->connect_event = NULL;
 	sock->listener = 0;
 	sock->connected = 0;
 	sock->connecting = 0;
@@ -1958,10 +1958,10 @@ free_socket(isc__socket_t **socketp) {
 	INSIST(VALID_SOCKET(sock));
 	INSIST(isc_refcount_current(&sock->references) == 0);
 	INSIST(!sock->connecting);
-	INSIST(ISC_LIST_EMPTY(sock->recv_list));
-	INSIST(ISC_LIST_EMPTY(sock->send_list));
-	INSIST(ISC_LIST_EMPTY(sock->accept_list));
-	INSIST(ISC_LIST_EMPTY(sock->connect_list));
+	INSIST(sock->connect_event == NULL);
+	INSIST(sock->accept_event == NULL);
+	INSIST(sock->recv_event == NULL);
+	INSIST(sock->recv_event == NULL);
 	INSIST(!ISC_LINK_LINKED(sock, link));
 
 	sock->common.magic = 0;
@@ -2761,10 +2761,10 @@ isc_socket_close(isc_socket_t *sock0) {
 	REQUIRE(sock->fd >= 0 && sock->fd < (int)sock->manager->maxsocks);
 
 	INSIST(!sock->connecting);
-	INSIST(ISC_LIST_EMPTY(sock->recv_list));
-	INSIST(ISC_LIST_EMPTY(sock->send_list));
-	INSIST(ISC_LIST_EMPTY(sock->accept_list));
-	INSIST(ISC_LIST_EMPTY(sock->connect_list));
+	INSIST(sock->connect_event == NULL);
+	INSIST(sock->accept_event == NULL);
+	INSIST(sock->recv_event == NULL);
+	INSIST(sock->recv_event == NULL);
 
 	manager = sock->manager;
 	thread = &manager->threads[sock->threadid];
@@ -2806,8 +2806,8 @@ send_recvdone_event(isc__socket_t *sock, isc_socketevent_t **dev) {
 
 	(*dev)->ev_sender = sock;
 
-	if (ISC_LINK_LINKED(*dev, ev_link)) {
-		ISC_LIST_DEQUEUE(sock->recv_list, *dev, ev_link);
+	if (sock->recv_event == *dev) {
+		sock->recv_event = NULL;
 	}
 
 	if (((*dev)->attributes & ISC_SOCKEVENTATTR_ATTACHED) != 0) {
@@ -2832,8 +2832,9 @@ send_senddone_event(isc__socket_t *sock, isc_socketevent_t **dev) {
 	task = (*dev)->ev_sender;
 	(*dev)->ev_sender = sock;
 
-	if (ISC_LINK_LINKED(*dev, ev_link))
-		ISC_LIST_DEQUEUE(sock->send_list, *dev, ev_link);
+	if (sock->send_event == *dev) {
+		sock->send_event = NULL;
+	}
 
 	if (((*dev)->attributes & ISC_SOCKEVENTATTR_ATTACHED) != 0) {
 		isc_task_sendtoanddetach(&task, (isc_event_t **)dev,
@@ -2857,8 +2858,8 @@ send_connectdone_event(isc__socket_t *sock, isc_socket_connev_t **dev) {
 	task = (*dev)->ev_sender;
 	(*dev)->ev_sender = sock;
 
-	if (ISC_LINK_LINKED(*dev, ev_link)) {
-		ISC_LIST_DEQUEUE(sock->connect_list, *dev, ev_link);
+	if (sock->connect_event == *dev) {
+		sock->connect_event = NULL;
 	}
 
 	isc_task_sendtoanddetach(&task, (isc_event_t **)dev, sock->threadid);
@@ -2904,7 +2905,7 @@ internal_accept(isc__socket_t *sock) {
 	 * Get the first item off the accept list.
 	 * If it is empty, unlock the socket and return.
 	 */
-	dev = ISC_LIST_HEAD(sock->accept_list);
+	dev = sock->accept_event;
 	if (dev == NULL) {
 		unwatch_fd(thread, sock->fd, SELECT_POKE_ACCEPT);
 		UNLOCK(&sock->lock);
@@ -3027,14 +3028,13 @@ internal_accept(isc__socket_t *sock) {
 	/*
 	 * Pull off the done event.
 	 */
-	ISC_LIST_UNLINK(sock->accept_list, dev, ev_link);
+	sock->accept_event = NULL;
 
 	/*
 	 * Poke watcher if there are more pending accepts.
 	 */
-	if (ISC_LIST_EMPTY(sock->accept_list))
-		unwatch_fd(thread, sock->fd,
-			   SELECT_POKE_ACCEPT);
+	unwatch_fd(thread, sock->fd,
+		   SELECT_POKE_ACCEPT);
 
 	UNLOCK(&sock->lock);
 
@@ -3132,11 +3132,11 @@ internal_accept(isc__socket_t *sock) {
 static void
 internal_recv(isc__socket_t *sock) {
 	isc_socketevent_t *dev;
-
+	isc_result_t result;
 	INSIST(VALID_SOCKET(sock));
 
 	LOCK(&sock->lock);
-	dev = ISC_LIST_HEAD(sock->recv_list);
+	dev = sock->recv_event;
 	if (dev == NULL) {
 		goto finish;
 	}
@@ -3149,49 +3149,29 @@ internal_recv(isc__socket_t *sock) {
 	 * Try to do as much I/O as possible on this socket.  There are no
 	 * limits here, currently.
 	 */
-	while (dev != NULL) {
-		switch (doio_recv(sock, dev)) {
-		case DOIO_SOFT:
-			goto finish;
-
-		case DOIO_EOF:
-			/*
-			 * read of 0 means the remote end was closed.
-			 * Run through the event queue and dispatch all
-			 * the events with an EOF result code.
-			 */
-			do {
-				dev->result = ISC_R_EOF;
-				send_recvdone_event(sock, &dev);
-				dev = ISC_LIST_HEAD(sock->recv_list);
-			} while (dev != NULL);
-			goto finish;
-
-		case DOIO_SUCCESS:
-		case DOIO_HARD:
-			send_recvdone_event(sock, &dev);
-			break;
-		}
-
-		dev = ISC_LIST_HEAD(sock->recv_list);
+	result = doio_recv(sock, dev);
+	if (result == DOIO_EOF) {
+		dev->result = ISC_R_EOF;
+	}
+	if (result != DOIO_SOFT) {
+		send_recvdone_event(sock, &dev);
 	}
 
  finish:
-	if (ISC_LIST_EMPTY(sock->recv_list)) {
-		unwatch_fd(&sock->manager->threads[sock->threadid], sock->fd,
-			   SELECT_POKE_READ);
-	}
+	unwatch_fd(&sock->manager->threads[sock->threadid], sock->fd,
+		   SELECT_POKE_READ);
 	UNLOCK(&sock->lock);
 }
 
 static void
 internal_send(isc__socket_t *sock) {
 	isc_socketevent_t *dev;
+	isc_result_t result;
 
 	INSIST(VALID_SOCKET(sock));
 
 	LOCK(&sock->lock);
-	dev = ISC_LIST_HEAD(sock->send_list);
+	dev = sock->send_event;
 	if (dev == NULL) {
 		goto finish;
 	}
@@ -3203,25 +3183,15 @@ internal_send(isc__socket_t *sock) {
 	 * Try to do as much I/O as possible on this socket.  There are no
 	 * limits here, currently.
 	 */
-	while (dev != NULL) {
-		switch (doio_send(sock, dev)) {
-		case DOIO_SOFT:
-			goto finish;
 
-		case DOIO_HARD:
-		case DOIO_SUCCESS:
-			send_senddone_event(sock, &dev);
-			break;
-		}
-
-		dev = ISC_LIST_HEAD(sock->send_list);
+	result = doio_send(sock, dev);
+	if (result != DOIO_SOFT) {
+		send_senddone_event(sock, &dev);
 	}
 
  finish:
-	if (ISC_LIST_EMPTY(sock->send_list)) {
-		unwatch_fd(&sock->manager->threads[sock->threadid],
-			   sock->fd, SELECT_POKE_WRITE);
-	}
+	unwatch_fd(&sock->manager->threads[sock->threadid],
+		   sock->fd, SELECT_POKE_WRITE);
 	UNLOCK(&sock->lock);
 }
 
@@ -4067,6 +4037,9 @@ socket_recv(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 	isc_result_t result = ISC_R_SUCCESS;
 
 	dev->ev_sender = task;
+	LOCK(&sock->lock);
+	INSIST(sock->recv_event == NULL);
+	UNLOCK(&sock->lock);
 
 	if (sock->type == isc_sockettype_udp) {
 		io_state = doio_recv(sock, dev);
@@ -4074,11 +4047,7 @@ socket_recv(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 		LOCK(&sock->lock);
 		have_lock = true;
 
-		if (ISC_LIST_EMPTY(sock->recv_list)) {
-			io_state = doio_recv(sock, dev);
-		} else {
-			io_state = DOIO_SOFT;
-		}
+		io_state = doio_recv(sock, dev);
 	}
 
 	switch (io_state) {
@@ -4101,12 +4070,9 @@ socket_recv(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 		 * Enqueue the request.  If the socket was previously not being
 		 * watched, poke the watcher to start paying attention to it.
 		 */
-		bool do_poke = ISC_LIST_EMPTY(sock->recv_list);
-		ISC_LIST_ENQUEUE(sock->recv_list, dev, ev_link);
-		if (do_poke) {
-			select_poke(sock->manager, sock->threadid, sock->fd,
-				    SELECT_POKE_READ);
-		}
+		sock->recv_event = dev;
+		select_poke(sock->manager, sock->threadid, sock->fd,
+			    SELECT_POKE_READ);
 
 		socket_log(sock, NULL, EVENT, NULL, 0, 0,
 			   "socket_recv: event %p -> task %p",
@@ -4201,6 +4167,9 @@ socket_send(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 	isc_result_t result = ISC_R_SUCCESS;
 
 	dev->ev_sender = task;
+	LOCK(&sock->lock);
+	INSIST(sock->send_event == NULL);
+	UNLOCK(&sock->lock);
 
 	set_dev_address(address, sock, dev);
 	if (pktinfo != NULL) {
@@ -4227,12 +4196,7 @@ socket_send(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 	} else {
 		LOCK(&sock->lock);
 		have_lock = true;
-
-		if (ISC_LIST_EMPTY(sock->send_list)) {
-			io_state = doio_send(sock, dev);
-		} else {
-			io_state = DOIO_SOFT;
-		}
+		io_state = doio_send(sock, dev);
 	}
 
 	switch (io_state) {
@@ -4255,13 +4219,10 @@ socket_send(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 			 * not being watched, poke the watcher to start
 			 * paying attention to it.
 			 */
-			bool do_poke = ISC_LIST_EMPTY(sock->send_list);
-			ISC_LIST_ENQUEUE(sock->send_list, dev, ev_link);
-			if (do_poke) {
-				select_poke(sock->manager, sock->threadid,
-					    sock->fd,
-					    SELECT_POKE_WRITE);
-			}
+			sock->send_event = dev;
+			select_poke(sock->manager, sock->threadid,
+				    sock->fd,
+				    SELECT_POKE_WRITE);
 			socket_log(sock, NULL, EVENT, NULL, 0, 0,
 				   "socket_send: event %p -> task %p",
 				   dev, ntask);
@@ -4776,13 +4737,13 @@ isc_socket_accept(isc_socket_t *sock0,
 	isc_task_t *ntask = NULL;
 	isc__socket_t *nsock;
 	isc_result_t result;
-	bool do_poke = false;
 
 	REQUIRE(VALID_SOCKET(sock));
 	manager = sock->manager;
 	REQUIRE(VALID_MANAGER(manager));
 
 	LOCK(&sock->lock);
+	INSIST(sock->connect_event == NULL);
 
 	REQUIRE(sock->listener);
 
@@ -4829,12 +4790,9 @@ isc_socket_accept(isc_socket_t *sock0,
 	 * is no race condition.  We will keep the lock for such a short
 	 * bit of time waking it up now or later won't matter all that much.
 	 */
-	do_poke = ISC_LIST_EMPTY(sock->accept_list);
-	ISC_LIST_ENQUEUE(sock->accept_list, dev, ev_link);
-	if (do_poke) {
-		select_poke(manager, sock->threadid, sock->fd,
-			    SELECT_POKE_ACCEPT);
-	}
+	sock->accept_event = dev;
+	select_poke(manager, sock->threadid, sock->fd,
+		    SELECT_POKE_ACCEPT);
 	UNLOCK(&sock->lock);
 	return (ISC_R_SUCCESS);
 }
@@ -4864,6 +4822,7 @@ isc_socket_connect(isc_socket_t *sock0, const isc_sockaddr_t *addr,
 		return (ISC_R_MULTICAST);
 
 	LOCK(&sock->lock);
+	INSIST(sock->connect_event == NULL);
 
 	dev = (isc_socket_connev_t *)isc_event_allocate(manager->mctx, sock,
 							ISC_SOCKEVENT_CONNECT,
@@ -4987,9 +4946,8 @@ isc_socket_connect(isc_socket_t *sock0, const isc_sockaddr_t *addr,
 	 * is no race condition.  We will keep the lock for such a short
 	 * bit of time waking it up now or later won't matter all that much.
 	 */
-	bool do_poke = ISC_LIST_EMPTY(sock->connect_list);
-	ISC_LIST_ENQUEUE(sock->connect_list, dev, ev_link);
-	if (do_poke && !sock->connecting) {
+	sock->connect_event = dev;
+	if (!sock->connecting) {
 		sock->connecting = 1;
 		select_poke(manager, sock->threadid, sock->fd,
 			    SELECT_POKE_CONNECT);
@@ -5019,7 +4977,7 @@ internal_connect(isc__socket_t *sock) {
 	 * Get the first item off the connect list.
 	 * If it is empty, unlock the socket and return.
 	 */
-	dev = ISC_LIST_HEAD(sock->connect_list);
+	dev = sock->connect_event;
 	if (dev == NULL) {
 		INSIST(!sock->connecting);
 		goto finish;
@@ -5089,11 +5047,8 @@ internal_connect(isc__socket_t *sock) {
 		sock->bound = 1;
 	}
 
-	do {
-		dev->result = result;
-		send_connectdone_event(sock, &dev);
-		dev = ISC_LIST_HEAD(sock->connect_list);
-	} while (dev != NULL);
+	dev->result = result;
+	send_connectdone_event(sock, &dev);
 
  finish:
 	unwatch_fd(&sock->manager->threads[sock->threadid], sock->fd,
@@ -5189,94 +5144,70 @@ isc_socket_cancel(isc_socket_t *sock0, isc_task_t *task, unsigned int how) {
 	 *	o Reset any state needed.
 	 */
 	if (((how & ISC_SOCKCANCEL_RECV) != 0)
-	    && !ISC_LIST_EMPTY(sock->recv_list)) {
+	    && sock->recv_event != NULL) {
 		isc_socketevent_t      *dev;
-		isc_socketevent_t      *next;
 		isc_task_t	       *current_task;
 
-		dev = ISC_LIST_HEAD(sock->recv_list);
+		dev = sock->recv_event;
 
-		while (dev != NULL) {
-			current_task = dev->ev_sender;
-			next = ISC_LIST_NEXT(dev, ev_link);
-
-			if ((task == NULL) || (task == current_task)) {
-				dev->result = ISC_R_CANCELED;
-				send_recvdone_event(sock, &dev);
-			}
-			dev = next;
+		current_task = dev->ev_sender;
+		if ((task == NULL) || (task == current_task)) {
+			dev->result = ISC_R_CANCELED;
+			send_recvdone_event(sock, &dev);
 		}
 	}
 
 	if (((how & ISC_SOCKCANCEL_SEND) != 0)
-	    && !ISC_LIST_EMPTY(sock->send_list)) {
+	    && sock->send_event != NULL ) {
 		isc_socketevent_t      *dev;
-		isc_socketevent_t      *next;
 		isc_task_t	       *current_task;
 
-		dev = ISC_LIST_HEAD(sock->send_list);
+		dev = sock->send_event;;
 
-		while (dev != NULL) {
-			current_task = dev->ev_sender;
-			next = ISC_LIST_NEXT(dev, ev_link);
+		current_task = dev->ev_sender;
 
-			if ((task == NULL) || (task == current_task)) {
-				dev->result = ISC_R_CANCELED;
-				send_senddone_event(sock, &dev);
-			}
-			dev = next;
+		if ((task == NULL) || (task == current_task)) {
+			dev->result = ISC_R_CANCELED;
+			send_senddone_event(sock, &dev);
 		}
 	}
 
 	if (((how & ISC_SOCKCANCEL_ACCEPT) != 0)
-	    && !ISC_LIST_EMPTY(sock->accept_list)) {
+	    && sock->accept_event != NULL) {
 		isc_socket_newconnev_t *dev;
-		isc_socket_newconnev_t *next;
 		isc_task_t	       *current_task;
 
-		dev = ISC_LIST_HEAD(sock->accept_list);
-		while (dev != NULL) {
-			current_task = dev->ev_sender;
-			next = ISC_LIST_NEXT(dev, ev_link);
+		dev = sock->accept_event;
+		current_task = dev->ev_sender;
 
-			if ((task == NULL) || (task == current_task)) {
+		if ((task == NULL) || (task == current_task)) {
+			sock->accept_event = NULL;
 
-				ISC_LIST_UNLINK(sock->accept_list, dev,
-						ev_link);
+			NEWCONNSOCK(dev)->references--;
+			free_socket((isc__socket_t **)&dev->newsocket);
 
-				NEWCONNSOCK(dev)->references--;
-				free_socket((isc__socket_t **)&dev->newsocket);
-
-				dev->result = ISC_R_CANCELED;
-				dev->ev_sender = sock;
-				isc_task_sendtoanddetach(&current_task,
-						       ISC_EVENT_PTR(&dev), sock->threadid);
-			}
-
-			dev = next;
+			dev->result = ISC_R_CANCELED;
+			dev->ev_sender = sock;
+			isc_task_sendtoanddetach(&current_task,
+					       ISC_EVENT_PTR(&dev), sock->threadid);
 		}
 	}
 
 	if (((how & ISC_SOCKCANCEL_CONNECT) != 0)
-	    && !ISC_LIST_EMPTY(sock->connect_list)) {
+	    && sock->connect_event != NULL) {
 		isc_socket_connev_t    *dev;
-		isc_socket_connev_t    *next;
 		isc_task_t	       *current_task;
 
 		INSIST(sock->connecting);
 		sock->connecting = 0;
 
-		dev = ISC_LIST_HEAD(sock->connect_list);
+		dev = sock->connect_event;
 
-		while (dev != NULL) {
-			current_task = dev->ev_sender;
-			next = ISC_LIST_NEXT(dev, ev_link);
+		current_task = dev->ev_sender;
 
-			if ((task == NULL) || (task == current_task)) {
-				dev->result = ISC_R_CANCELED;
-				send_connectdone_event(sock, &dev);
-			}
-			dev = next;
+		if ((task == NULL) || (task == current_task)) {
+			dev->result = ISC_R_CANCELED;
+			send_connectdone_event(sock, &dev);
 		}
 	}
 
