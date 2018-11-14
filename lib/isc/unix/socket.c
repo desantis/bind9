@@ -3157,8 +3157,10 @@ internal_recv(isc__socket_t *sock) {
 	}
 
  finish:
-	unwatch_fd(&sock->manager->threads[sock->threadid], sock->fd,
-		   SELECT_POKE_READ);
+	if (sock->recv_event == NULL) {
+		unwatch_fd(&sock->manager->threads[sock->threadid], sock->fd,
+			   SELECT_POKE_READ);
+	}
 	UNLOCK(&sock->lock);
 }
 
@@ -4036,80 +4038,6 @@ isc_socketmgr_destroy(isc_socketmgr_t **managerp) {
 
 }
 
-static isc_result_t
-socket_recv(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
-	    unsigned int flags)
-{
-	int io_state;
-	bool have_lock = false;
-	isc_task_t *ntask = NULL;
-	isc_result_t result = ISC_R_SUCCESS;
-
-	dev->ev_sender = task;
-	LOCK(&sock->lock);
-	INSIST(sock->recv_event == NULL);
-	UNLOCK(&sock->lock);
-
-	if (sock->type == isc_sockettype_udp) {
-		io_state = doio_recv(sock, dev);
-	} else {
-		LOCK(&sock->lock);
-		have_lock = true;
-
-		io_state = doio_recv(sock, dev);
-	}
-
-	switch (io_state) {
-	case DOIO_SOFT:
-		/*
-		 * We couldn't read all or part of the request right now, so
-		 * queue it.
-		 *
-		 * Attach to socket and to task
-		 */
-		isc_task_attach(task, &ntask);
-		dev->attributes |= ISC_SOCKEVENTATTR_ATTACHED;
-
-		if (!have_lock) {
-			LOCK(&sock->lock);
-			have_lock = true;
-		}
-
-		/*
-		 * Enqueue the request.  If the socket was previously not being
-		 * watched, poke the watcher to start paying attention to it.
-		 */
-		sock->recv_event = dev;
-		select_poke(sock->manager, sock->threadid, sock->fd,
-			    SELECT_POKE_READ);
-
-		socket_log(sock, NULL, EVENT, NULL, 0, 0,
-			   "socket_recv: event %p -> task %p",
-			   dev, ntask);
-
-		if ((flags & ISC_SOCKFLAG_IMMEDIATE) != 0) {
-			result = ISC_R_INPROGRESS;
-		}
-		break;
-
-	case DOIO_EOF:
-		dev->result = ISC_R_EOF;
-		/* fallthrough */
-
-	case DOIO_HARD:
-	case DOIO_SUCCESS:
-		if ((flags & ISC_SOCKFLAG_IMMEDIATE) == 0) {
-			send_recvdone_event(sock, &dev);
-		}
-		break;
-	}
-
-	if (have_lock) {
-		UNLOCK(&sock->lock);
-	}
-
-	return (result);
-}
 
 isc_result_t
 isc_socket_recv(isc_socket_t *sock0, isc_region_t *region,
@@ -4162,7 +4090,31 @@ isc_socket_recv2(isc_socket_t *sock0, isc_region_t *region,
 			event->minimum = minimum;
 	}
 
-	return (socket_recv(sock, event, task, flags));
+	isc_task_t *ntask = NULL;
+	isc_result_t result = ISC_R_SUCCESS;
+
+	event->ev_sender = task;
+	LOCK(&sock->lock);
+	INSIST(sock->recv_event == NULL);
+	sock->recv_event = event;
+	UNLOCK(&sock->lock);
+
+	isc_task_attach(task, &ntask);
+	event->attributes |= ISC_SOCKEVENTATTR_ATTACHED;
+
+	select_poke(sock->manager, sock->threadid, sock->fd,
+		    SELECT_POKE_READ);
+
+	socket_log(sock, NULL, EVENT, NULL, 0, 0,
+		   "socket_recv: event %p -> task %p",
+		   event, ntask);
+
+	if ((flags & ISC_SOCKFLAG_IMMEDIATE) != 0) {
+		result = ISC_R_INPROGRESS;
+	}
+
+
+	return (result);
 }
 
 static isc_result_t
