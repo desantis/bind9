@@ -3136,6 +3136,15 @@ internal_recv(isc__socket_t *sock) {
 
 	LOCK(&sock->lock);
 	dev = sock->recv_event;
+	if (dev == NULL && sock->recv_subscriber != NULL) {
+		result = sock->recv_subscriber(sock->recv_subscriber_arg,
+					       &sock->recv_event);
+		if (result == ISC_R_QUOTA) {
+			// Unsubscribe
+			sock->recv_subscriber = NULL;
+		}
+	}
+	dev = sock->recv_event;
 	if (dev == NULL) {
 		goto finish;
 	}
@@ -3144,10 +3153,6 @@ internal_recv(isc__socket_t *sock) {
 		   isc_msgcat, ISC_MSGSET_SOCKET, ISC_MSG_INTERNALRECV,
 		   "internal_recv: event %p -> task %p", dev, dev->ev_sender);
 
-	/*
-	 * Try to do as much I/O as possible on this socket.  There are no
-	 * limits here, currently.
-	 */
 	result = doio_recv(sock, dev);
 	if (result == DOIO_EOF) {
 		dev->result = ISC_R_EOF;
@@ -3157,7 +3162,7 @@ internal_recv(isc__socket_t *sock) {
 	}
 
  finish:
-	if (sock->recv_event == NULL) {
+	if (sock->recv_event == NULL && sock->recv_subscriber == NULL) {
 		unwatch_fd(&sock->manager->threads[sock->threadid], sock->fd,
 			   SELECT_POKE_READ);
 	}
