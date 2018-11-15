@@ -156,6 +156,12 @@ struct ns_clientmgr {
 #define MANAGER_MAGIC			ISC_MAGIC('N', 'S', 'C', 'm')
 #define VALID_MANAGER(m)		ISC_MAGIC_VALID(m, MANAGER_MAGIC)
 
+typedef struct create_udp_socketevent_arg {
+	ns_clientmgr_t *manager;
+	isc_socket_t   *socket;
+	ns_interface_t *interface;
+} create_udp_socketevent_arg_t;
+
 /*!
  * Client object states.  Ordering is significant: higher-numbered
  * states are generally "more active", meaning that the client can
@@ -247,6 +253,8 @@ static isc_result_t get_worker(ns_clientmgr_t *manager, ns_interface_t *ifp,
 static void compute_cookie(ns_client_t *client, uint32_t when,
 			   uint32_t nonce, const unsigned char *secret,
 			   isc_buffer_t *buf);
+static isc_result_t
+ns__create_udp_socketevent(void* argp, isc_socketevent_t **sockevp);
 
 void
 ns_client_recursing(ns_client_t *client) {
@@ -532,7 +540,14 @@ exit_check(ns_client_t *client) {
 		INSIST(client->recursionquota == NULL);
 		if (client->tcplistener != NULL)
 			isc_socket_detach(&client->tcplistener);
-
+		
+		if (client->udpinflightquota != NULL) {
+			if (isc_quota_detach_verbose(&client->udpinflightquota) == ISC_R_SUCCESS) {
+				/* We are back 'in quota', can reenable subscribtion to socket */
+				isc_socket_udpsubscription_toggle(client->udpsocket, true);
+			}
+		}
+		
 		if (client->udpsocket != NULL)
 			isc_socket_detach(&client->udpsocket);
 
@@ -772,7 +787,7 @@ ns_client_endrequest(ns_client_t *client) {
 		ns_stats_decrement(client->sctx->nsstats,
 				   ns_statscounter_recursclients);
 	}
-
+	
 	/*
 	 * Clear all client attributes that are specific to
 	 * the request; that's all except the TCP flag.
@@ -3045,6 +3060,7 @@ client_create(ns_clientmgr_t *manager, ns_client_t **clientp) {
 	client->recursionquota = NULL;
 	client->interface = NULL;
 	client->peeraddr_valid = false;
+	client->udpinflightquota = NULL;
 	dns_ecs_init(&client->ecs);
 	client->filter_aaaa = dns_aaaa_ok;
 	client->needshutdown = (client->sctx->options & NS_SERVER_CLIENTTEST);
@@ -3710,6 +3726,25 @@ ns_clientmgr_createclients(ns_clientmgr_t *manager, unsigned int n,
 	return (result);
 }
 
+isc_result_t
+ns_clientmgr_subscribe_clients(ns_clientmgr_t *manager, unsigned int n, ns_interface_t *ifp) {
+	isc_result_t result = ISC_R_SUCCESS;
+	unsigned int disp;
+	create_udp_socketevent_arg_t *arg;
+	for (disp = 0; disp < n; disp++) {
+		arg = malloc(sizeof(*arg));
+		arg->manager = manager;
+		arg->socket = dns_dispatch_getsocket(ifp->udpdispatch[disp]);
+		arg->interface = ifp;
+		result = isc_socket_udpsubscribe(arg->socket, &ns__create_udp_socketevent, arg);
+		if (result != ISC_R_SUCCESS) {
+			break;
+		}
+	}
+	return (result);
+}
+
+
 isc_sockaddr_t *
 ns_client_getsockaddr(ns_client_t *client) {
 	return (&client->peeraddr);
@@ -3996,4 +4031,85 @@ ns_client_sourceip(dns_clientinfo_t *ci, isc_sockaddr_t **addrp) {
 
 	*addrp = &client->peeraddr;
 	return (ISC_R_SUCCESS);
+}
+
+static isc_result_t
+ns__create_udp_socketevent(void* argp, isc_socketevent_t **sockevp) {
+	create_udp_socketevent_arg_t *arg = (create_udp_socketevent_arg_t*)argp;
+	ns_clientmgr_t *manager = arg->manager;
+	isc_socket_t *sock = arg->socket;
+	isc_socketevent_t *sev;
+	ns_client_t *client;
+	isc_result_t result;
+	isc_quota_t* inflightquota = NULL;
+	MTRACE("create_udp_socketevent");
+
+	REQUIRE(manager != NULL);
+
+	if (manager->exiting) {
+		return (ISC_R_FAILURE);
+	}
+	result = isc_quota_attach(&arg->interface->udpinflightquota, &inflightquota);
+	if (result == ISC_R_QUOTA) {
+		return (ISC_R_QUOTA);
+	}
+	
+	/*
+	* Allocate a client.  First try to get a recycled one;
+	* if that fails, make a new one.
+	*/
+	client = NULL;
+	if ((manager->sctx->options & NS_SERVER_CLIENTTEST) == 0)
+		ISC_QUEUE_POP(manager->inactive, ilink, client);
+
+	if (client != NULL) {
+		MTRACE("recycle");
+	} else {
+		MTRACE("create new");
+		LOCK(&manager->lock);
+		result = client_create(manager, &client);
+		UNLOCK(&manager->lock);
+		if (result != ISC_R_SUCCESS) {
+			return (result);
+		}
+
+		LOCK(&manager->listlock);
+		ISC_LIST_APPEND(manager->clients, client, link);
+		UNLOCK(&manager->listlock);
+	}
+
+	ns_interface_attach(arg->interface, &client->interface);
+	client->manager = manager;
+	client->mortal = true;
+	client->state = NS_CLIENTSTATE_READY;
+	client->sctx = manager->sctx;
+	
+	INSIST(client->udpinflightquota == NULL);
+	INSIST(client->recursionquota == NULL);
+
+	client->dscp = arg->interface->dscp;
+	client->mortal = true;
+	client->udpinflightquota = inflightquota;
+
+	isc_socket_attach(sock, &client->udpsocket);
+
+	INSIST(client->nctls == 0);
+
+	if (exit_check(client)) {
+		return (ISC_R_FAILURE);
+	}
+	sev = client->recvevent;
+	sev->ev_sender = client->task;
+	sev->ev_arg = client;
+	sev->result = ISC_R_UNSET;
+	sev->n = 0;
+	sev->offset = 0;
+	sev->attributes = 0;
+
+	sev->region.base = client->recvbuf;
+	sev->region.length = RECV_BUFFER_SIZE;
+	sev->minimum = 1;
+	client->nrecvs++;
+	*sockevp = sev;
+	return (result);
 }

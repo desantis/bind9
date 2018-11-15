@@ -90,6 +90,12 @@ isc_quota_release(isc_quota_t *quota);
  */
 
 isc_result_t
+isc_quota_release_verbose(isc_quota_t *quota);
+/*%<
+ * Release one unit of quota and return the result.
+ */
+
+isc_result_t
 isc_quota_attach(isc_quota_t *quota, isc_quota_t **p);
 /*%<
  * Like isc_quota_reserve, and also attaches '*p' to the
@@ -102,6 +108,9 @@ isc_quota_detach(isc_quota_t **p);
  * Like isc_quota_release, and also detaches '*p' from the
  * quota.
  */
+
+isc_result_t
+isc_quota_detach_verbose(isc_quota_t **p);
 
 ISC_LANG_ENDDECLS
 

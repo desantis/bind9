@@ -55,13 +55,15 @@ isc_quota_reserve(isc_quota_t *quota) {
 	isc_result_t result;
 	LOCK(&quota->lock);
 	if (quota->max == 0 || quota->used < quota->max) {
-		if (quota->soft == 0 || quota->used < quota->soft)
+		if (quota->soft == 0 || quota->used < quota->soft) {
 			result = ISC_R_SUCCESS;
-		else
+		} else {
 			result = ISC_R_SOFTQUOTA;
+		}
 		quota->used++;
-	} else
+	} else {
 		result = ISC_R_QUOTA;
+	}
 	UNLOCK(&quota->lock);
 	return (result);
 }
@@ -75,13 +77,33 @@ isc_quota_release(isc_quota_t *quota) {
 }
 
 isc_result_t
+isc_quota_release_verbose(isc_quota_t *quota) {
+	isc_result_t result;
+	LOCK(&quota->lock);
+	INSIST(quota->used > 0);
+	quota->used--;
+	if (quota->max == 0 || quota->used <= quota->max) {
+		if (quota->soft == 0 || quota->used <= quota->soft) {
+			result = ISC_R_SUCCESS;
+		} else {
+			result = ISC_R_SOFTQUOTA;
+		}
+	} else {
+		result = ISC_R_QUOTA;
+	}
+	UNLOCK(&quota->lock);
+	return (result);
+}
+
+isc_result_t
 isc_quota_attach(isc_quota_t *quota, isc_quota_t **p)
 {
 	isc_result_t result;
 	INSIST(p != NULL && *p == NULL);
 	result = isc_quota_reserve(quota);
-	if (result == ISC_R_SUCCESS || result == ISC_R_SOFTQUOTA)
+	if (result == ISC_R_SUCCESS || result == ISC_R_SOFTQUOTA) {
 		*p = quota;
+	}
 	return (result);
 }
 
@@ -91,4 +113,14 @@ isc_quota_detach(isc_quota_t **p)
 	INSIST(p != NULL && *p != NULL);
 	isc_quota_release(*p);
 	*p = NULL;
+}
+
+isc_result_t
+isc_quota_detach_verbose(isc_quota_t **p)
+{
+	isc_result_t result;
+	INSIST(p != NULL && *p != NULL);
+	result = isc_quota_release_verbose(*p);
+	*p = NULL;
+	return (result);
 }

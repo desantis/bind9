@@ -348,6 +348,9 @@ struct isc__socket {
 	char			name[16];
 	void *			tag;
 
+	bool			recv_subscribed;
+	isc_socketevent_factory_t		recv_subscriber;
+	void 					*recv_subscriber_arg;
 	ISC_LIST(isc_socketevent_t)		send_list;
 	isc_socketevent_t*	recv_event;
 	isc_socket_newconnev_t*	accept_event;
@@ -1920,12 +1923,14 @@ allocate_socket(isc__socketmgr_t *manager, isc_sockettype_t type,
 	sock->tag = NULL;
 
 	/*
-	 * Set up list of readers and writers to be initially empty.
+	 * Set up readers and writers to be initially empty.
 	 */
 	ISC_LIST_INIT(sock->send_list);
 	sock->recv_event = NULL;
 	sock->accept_event = NULL;
 	sock->connect_event = NULL;
+	sock->recv_subscribed = false;
+	sock->recv_subscriber = NULL;
 	sock->listener = 0;
 	sock->connected = 0;
 	sock->connecting = 0;
@@ -3136,13 +3141,13 @@ internal_recv(isc__socket_t *sock) {
 
 	LOCK(&sock->lock);
 	dev = sock->recv_event;
-	if (dev == NULL && sock->recv_subscriber != NULL) {
+	if (dev == NULL && sock->recv_subscribed) {
 		result = sock->recv_subscriber(sock->recv_subscriber_arg,
 					       &sock->recv_event);
-		if (result == ISC_R_QUOTA) {
+		if (result == ISC_R_SOFTQUOTA || result == ISC_R_QUOTA) {
 			// Unsubscribe
-			sock->recv_subscriber = NULL;
-		}
+			sock->recv_subscribed = false;
+		} /* XXXWPK TODO log outher failures? */
 	}
 	dev = sock->recv_event;
 	if (dev == NULL) {
@@ -3162,7 +3167,7 @@ internal_recv(isc__socket_t *sock) {
 	}
 
  finish:
-	if (sock->recv_event == NULL && sock->recv_subscriber == NULL) {
+	if (sock->recv_event == NULL && !sock->recv_subscriber) {
 		unwatch_fd(&sock->manager->threads[sock->threadid], sock->fd,
 			   SELECT_POKE_READ);
 	}
@@ -5626,4 +5631,28 @@ isc_socketmgr_createinctx(isc_mem_t *mctx, isc_appctx_t *actx,
 		isc_appctx_setsocketmgr(actx, *managerp);
 
 	return (result);
+}
+
+isc_result_t
+isc_socket_udpsubscribe(isc_socket_t *usock, isc_socketevent_factory_t evf, void* arg) {
+	isc__socket_t *sock = (isc__socket_t*) usock;
+	REQUIRE(sock->recv_subscriber == NULL);
+	REQUIRE(sock->recv_event == NULL);
+	sock->recv_subscriber = evf;
+	sock->recv_subscriber_arg = arg;
+	sock->recv_subscribed = true;
+	select_poke(sock->manager, sock->threadid, sock->fd,
+		    SELECT_POKE_READ);
+	return (ISC_R_SUCCESS);  
+}
+
+void
+isc_socket_udpsubscription_toggle(isc_socket_t *usock, bool on) {
+	isc__socket_t *sock = (isc__socket_t*) usock;
+	REQUIRE(sock->recv_subscriber != NULL);
+	sock->recv_subscribed = on;
+	if (on) {
+		select_poke(sock->manager, sock->threadid, sock->fd,
+			    SELECT_POKE_READ);
+	}
 }

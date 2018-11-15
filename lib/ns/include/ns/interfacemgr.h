@@ -44,6 +44,7 @@
 
 #include <isc/magic.h>
 #include <isc/mem.h>
+#include <isc/quota.h>
 #include <isc/socket.h>
 
 #include <dns/geoip.h>
@@ -82,6 +83,7 @@ struct ns_interface {
 	int			nudpdispatch;	/*%< Number of UDP dispatches */
 	ns_clientmgr_t *	clientmgr;	/*%< Client manager. */
 	ISC_LINK(ns_interface_t) link;
+	isc_quota_t		udpinflightquota; /*%< Number of UDP clients in flight. */
 };
 
 /***

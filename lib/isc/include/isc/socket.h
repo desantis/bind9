@@ -1040,9 +1040,12 @@ typedef isc_result_t
 
 typedef isc_result_t
 (*isc_socketevent_factory_t)(void* arg, isc_socketevent_t **ret);
- 
+
 isc_result_t
 isc_socket_udpsubscribe(isc_socket_t *sock, isc_socketevent_factory_t evf, void* arg);
+
+void
+isc_socket_udpsubscription_toggle(isc_socket_t *usock, bool on);
 
 ISC_LANG_ENDDECLS
 

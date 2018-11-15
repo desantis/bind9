@@ -220,6 +220,7 @@ ns_interfacemgr_create(isc_mem_t *mctx,
 
 	ISC_LIST_INIT(mgr->interfaces);
 	ISC_LIST_INIT(mgr->listenon);
+	
 
 	/*
 	 * The listen-on lists are initially empty.
@@ -429,6 +430,10 @@ ns_interface_create(ns_interfacemgr_t *mgr, isc_sockaddr_t *addr,
 	ifp->ntcpcurrent = 0;
 	ifp->nudpdispatch = 0;
 
+	/* XXXWPK TODO */
+	isc_quota_init(&ifp->udpinflightquota, 60);
+	isc_quota_soft(&ifp->udpinflightquota, 40);
+
 	ifp->dscp = -1;
 
 	ISC_LINK_INIT(ifp, link);
@@ -491,8 +496,9 @@ ns_interface_listenudp(ns_interface_t *ifp) {
 
 	}
 
-	result = ns_clientmgr_createclients(ifp->clientmgr, ifp->nudpdispatch,
-					    ifp, false);
+	result = ns_clientmgr_subscribe_clients(ifp->clientmgr,
+						ifp->nudpdispatch,
+						ifp);
 	if (result != ISC_R_SUCCESS) {
 		UNEXPECTED_ERROR(__FILE__, __LINE__,
 				 "UDP ns_clientmgr_createclients(): %s",
