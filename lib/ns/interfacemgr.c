@@ -431,8 +431,10 @@ ns_interface_create(ns_interfacemgr_t *mgr, isc_sockaddr_t *addr,
 	ifp->nudpdispatch = 0;
 
 	/* XXXWPK TODO */
-	isc_quota_init(&ifp->udpinflightquota, 60);
-	isc_quota_soft(&ifp->udpinflightquota, 40);
+	for (int i=0; i<100; i++) {
+		isc_quota_init(&ifp->udpinflightquota[i], 60);
+		isc_quota_soft(&ifp->udpinflightquota[i], 40);
+	}
 
 	ifp->dscp = -1;
 

@@ -83,7 +83,7 @@ struct ns_interface {
 	int			nudpdispatch;	/*%< Number of UDP dispatches */
 	ns_clientmgr_t *	clientmgr;	/*%< Client manager. */
 	ISC_LINK(ns_interface_t) link;
-	isc_quota_t		udpinflightquota; /*%< Number of UDP clients in flight. */
+	isc_quota_t		udpinflightquota[100]; /*%< Number of UDP clients in flight. */
 };
 
 /***

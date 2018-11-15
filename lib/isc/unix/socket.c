@@ -688,6 +688,7 @@ dec_stats(isc_stats_t *stats, isc_statscounter_t counterid) {
 static inline isc_result_t
 watch_fd(isc__socketthread_t *thread, int fd, int msg) {
 	isc_result_t result = ISC_R_SUCCESS;
+	//printf("WATCH %d\n", fd);
 
 #ifdef USE_KQUEUE
 	struct kevent evchange;
@@ -774,7 +775,7 @@ watch_fd(isc__socketthread_t *thread, int fd, int msg) {
 static inline isc_result_t
 unwatch_fd(isc__socketthread_t *thread, int fd, int msg) {
 	isc_result_t result = ISC_R_SUCCESS;
-
+	//printf("UNWATCH %d\n", fd);
 #ifdef USE_KQUEUE
 	struct kevent evchange;
 
@@ -1666,8 +1667,10 @@ doio_recv(isc__socket_t *sock, isc_socketevent_t *dev) {
 	 * If we read less than we expected, update counters,
 	 * and let the upper layer poke the descriptor.
 	 */
-	if (((size_t)cc != read_count) && (dev->n < dev->minimum))
+	if (((size_t)cc != read_count) && (dev->n < dev->minimum)) {
+		//printf("Incomplete read\n");
 		return (DOIO_SOFT);
+	}
 
 	/*
 	 * Full reads are posted, or partials if partials are ok.
@@ -2821,6 +2824,7 @@ send_recvdone_event(isc__socket_t *sock, isc_socketevent_t **dev) {
 	} else {
 		isc_task_sendto(task, (isc_event_t **)dev, sock->threadid);
 	}
+	*dev = NULL;
 }
 
 /*
@@ -3141,13 +3145,16 @@ internal_recv(isc__socket_t *sock) {
 
 	LOCK(&sock->lock);
 	dev = sock->recv_event;
+	//printf("sock %p dev %p subscribed %d\n", sock, dev, sock->recv_subscribed);
 	if (dev == NULL && sock->recv_subscribed) {
 		result = sock->recv_subscriber(sock->recv_subscriber_arg,
 					       &sock->recv_event);
-		if (result == ISC_R_SOFTQUOTA || result == ISC_R_QUOTA) {
+		if (result == ISC_R_QUOTA) {
 			// Unsubscribe
+			//printf("Unsubscribing %p because of %s\n", sock, isc_result_totext(result));
 			sock->recv_subscribed = false;
 		} /* XXXWPK TODO log outher failures? */
+		//printf("new %p\n", sock->recv_event);
 	}
 	dev = sock->recv_event;
 	if (dev == NULL) {
@@ -3157,17 +3164,36 @@ internal_recv(isc__socket_t *sock) {
 	socket_log(sock, NULL, IOEVENT,
 		   isc_msgcat, ISC_MSGSET_SOCKET, ISC_MSG_INTERNALRECV,
 		   "internal_recv: event %p -> task %p", dev, dev->ev_sender);
-
-	result = doio_recv(sock, dev);
-	if (result == DOIO_EOF) {
-		dev->result = ISC_R_EOF;
-	}
-	if (result != DOIO_SOFT) {
-		send_recvdone_event(sock, &dev);
+	while (dev != NULL) {
+		//printf("Receiving...\n");
+		result = doio_recv(sock, dev);
+		if (result == DOIO_EOF) {
+			dev->result = ISC_R_EOF;
+		}
+		if (result != DOIO_SOFT) {
+			//printf("recv succ %p %s\n", sock, isc_result_totext(dev->result));
+			send_recvdone_event(sock, &dev);
+		} else {
+			//printf("Soft err\n");
+			goto finish;
+		}
+		if (dev == NULL && sock->recv_subscribed) {
+			//printf("RETRY RETRY\n");
+			result = sock->recv_subscriber(sock->recv_subscriber_arg,
+						       &sock->recv_event);
+			if (result == ISC_R_QUOTA) {
+				// Unsubscribe
+				//printf("Unsubscribing %p because of %s\n", sock, isc_result_totext(result));
+				sock->recv_subscribed = false;
+			} /* XXXWPK TODO log outher failures? */
+			//printf("new %p %d\n", sock->recv_event, result);
+		}
+		dev = sock->recv_event;
 	}
 
  finish:
-	if (sock->recv_event == NULL && !sock->recv_subscriber) {
+	if (sock->recv_event == NULL && !sock->recv_subscribed) {
+		//printf("Unwatching\n");
 		unwatch_fd(&sock->manager->threads[sock->threadid], sock->fd,
 			   SELECT_POKE_READ);
 	}
@@ -3185,6 +3211,7 @@ internal_send(isc__socket_t *sock) {
 	if (dev == NULL) {
 		goto finish;
 	}
+	//printf("internal send %p\n", sock);
 	socket_log(sock, NULL, EVENT, NULL, 0, 0,
 		   "internal_send:  event %p -> task %p",
 		   dev, dev->ev_sender);
@@ -3224,6 +3251,7 @@ static void
 process_fd(isc__socketthread_t *thread, int fd, bool readable,
 	   bool writeable)
 {
+	//printf("Process fd %d\n", fd);
 	isc__socket_t *sock;
 	int lockid = FDLOCK_ID(fd);
 
@@ -4212,6 +4240,7 @@ socket_send(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 
 	case DOIO_HARD:
 	case DOIO_SUCCESS:
+		//printf("send immediate %p\n", sock);
 		if ((flags & ISC_SOCKFLAG_IMMEDIATE) == 0) {
 			send_senddone_event(sock, &dev);
 		}
@@ -5638,9 +5667,11 @@ isc_socket_udpsubscribe(isc_socket_t *usock, isc_socketevent_factory_t evf, void
 	isc__socket_t *sock = (isc__socket_t*) usock;
 	REQUIRE(sock->recv_subscriber == NULL);
 	REQUIRE(sock->recv_event == NULL);
+	LOCK(&sock->lock);
 	sock->recv_subscriber = evf;
 	sock->recv_subscriber_arg = arg;
 	sock->recv_subscribed = true;
+	UNLOCK(&sock->lock);
 	select_poke(sock->manager, sock->threadid, sock->fd,
 		    SELECT_POKE_READ);
 	return (ISC_R_SUCCESS);  
@@ -5649,9 +5680,14 @@ isc_socket_udpsubscribe(isc_socket_t *usock, isc_socketevent_factory_t evf, void
 void
 isc_socket_udpsubscription_toggle(isc_socket_t *usock, bool on) {
 	isc__socket_t *sock = (isc__socket_t*) usock;
+	bool old;
+	LOCK(&sock->lock);
 	REQUIRE(sock->recv_subscriber != NULL);
+	old = sock->recv_subscribed;
 	sock->recv_subscribed = on;
-	if (on) {
+	UNLOCK(&sock->lock);
+	if (!old && on) {
+		//printf("Re-subscribing %p\n", sock);
 		select_poke(sock->manager, sock->threadid, sock->fd,
 			    SELECT_POKE_READ);
 	}

@@ -160,6 +160,7 @@ typedef struct create_udp_socketevent_arg {
 	ns_clientmgr_t *manager;
 	isc_socket_t   *socket;
 	ns_interface_t *interface;
+	int		disp;
 } create_udp_socketevent_arg_t;
 
 /*!
@@ -532,6 +533,14 @@ exit_check(ns_client_t *client) {
 		if (client->nctls > 0)
 			return (true);
 
+		/* We need to do it before detaching interface */
+		if (client->udpinflightquota != NULL) {
+			if (isc_quota_detach_verbose(&client->udpinflightquota) == ISC_R_SUCCESS) {
+				/* We are back 'in quota', can reenable subscribtion to socket */
+				isc_socket_udpsubscription_toggle(client->udpsocket, true);
+			}
+		}
+
 		/* Deactivate the client. */
 		if (client->interface)
 			ns_interface_detach(&client->interface);
@@ -541,12 +550,6 @@ exit_check(ns_client_t *client) {
 		if (client->tcplistener != NULL)
 			isc_socket_detach(&client->tcplistener);
 		
-		if (client->udpinflightquota != NULL) {
-			if (isc_quota_detach_verbose(&client->udpinflightquota) == ISC_R_SUCCESS) {
-				/* We are back 'in quota', can reenable subscribtion to socket */
-				isc_socket_udpsubscription_toggle(client->udpsocket, true);
-			}
-		}
 		
 		if (client->udpsocket != NULL)
 			isc_socket_detach(&client->udpsocket);
@@ -3736,6 +3739,7 @@ ns_clientmgr_subscribe_clients(ns_clientmgr_t *manager, unsigned int n, ns_inter
 		arg->manager = manager;
 		arg->socket = dns_dispatch_getsocket(ifp->udpdispatch[disp]);
 		arg->interface = ifp;
+		arg->disp = disp;
 		result = isc_socket_udpsubscribe(arg->socket, &ns__create_udp_socketevent, arg);
 		if (result != ISC_R_SUCCESS) {
 			break;
@@ -4049,7 +4053,7 @@ ns__create_udp_socketevent(void* argp, isc_socketevent_t **sockevp) {
 	if (manager->exiting) {
 		return (ISC_R_FAILURE);
 	}
-	result = isc_quota_attach(&arg->interface->udpinflightquota, &inflightquota);
+	result = isc_quota_attach(&arg->interface->udpinflightquota[arg->disp], &inflightquota);
 	if (result == ISC_R_QUOTA) {
 		return (ISC_R_QUOTA);
 	}
@@ -4070,6 +4074,7 @@ ns__create_udp_socketevent(void* argp, isc_socketevent_t **sockevp) {
 		result = client_create(manager, &client);
 		UNLOCK(&manager->lock);
 		if (result != ISC_R_SUCCESS) {
+			printf("Cant create client %s\n", isc_result_totext(result));
 			return (result);
 		}
 
@@ -4096,6 +4101,8 @@ ns__create_udp_socketevent(void* argp, isc_socketevent_t **sockevp) {
 	INSIST(client->nctls == 0);
 
 	if (exit_check(client)) {
+		printf("exit _check\n");
+
 		return (ISC_R_FAILURE);
 	}
 	sev = client->recvevent;
