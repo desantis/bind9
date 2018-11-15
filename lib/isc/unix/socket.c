@@ -348,7 +348,7 @@ struct isc__socket {
 	char			name[16];
 	void *			tag;
 
-	isc_socketevent_t*	send_event;
+	ISC_LIST(isc_socketevent_t)		send_list;
 	isc_socketevent_t*	recv_event;
 	isc_socket_newconnev_t*	accept_event;
 	isc_socket_connev_t*	connect_event;
@@ -1922,8 +1922,8 @@ allocate_socket(isc__socketmgr_t *manager, isc_sockettype_t type,
 	/*
 	 * Set up list of readers and writers to be initially empty.
 	 */
+	ISC_LIST_INIT(sock->send_list);
 	sock->recv_event = NULL;
-	sock->send_event = NULL;
 	sock->accept_event = NULL;
 	sock->connect_event = NULL;
 	sock->listener = 0;
@@ -2832,9 +2832,8 @@ send_senddone_event(isc__socket_t *sock, isc_socketevent_t **dev) {
 	task = (*dev)->ev_sender;
 	(*dev)->ev_sender = sock;
 
-	if (sock->send_event == *dev) {
-		sock->send_event = NULL;
-	}
+	if (ISC_LINK_LINKED(*dev, ev_link))
+		ISC_LIST_DEQUEUE(sock->send_list, *dev, ev_link);
 
 	if (((*dev)->attributes & ISC_SOCKEVENTATTR_ATTACHED) != 0) {
 		isc_task_sendtoanddetach(&task, (isc_event_t **)dev,
@@ -3166,12 +3165,11 @@ internal_recv(isc__socket_t *sock) {
 static void
 internal_send(isc__socket_t *sock) {
 	isc_socketevent_t *dev;
-	isc_result_t result;
 
 	INSIST(VALID_SOCKET(sock));
 
 	LOCK(&sock->lock);
-	dev = sock->send_event;
+	dev = ISC_LIST_HEAD(sock->send_list);
 	if (dev == NULL) {
 		goto finish;
 	}
@@ -3184,14 +3182,25 @@ internal_send(isc__socket_t *sock) {
 	 * limits here, currently.
 	 */
 
-	result = doio_send(sock, dev);
-	if (result != DOIO_SOFT) {
-		send_senddone_event(sock, &dev);
+	while (dev != NULL) {
+		switch (doio_send(sock, dev)) {
+		case DOIO_SOFT:
+			goto finish;
+
+		case DOIO_HARD:
+		case DOIO_SUCCESS:
+			send_senddone_event(sock, &dev);
+			break;
+		}
+
+		dev = ISC_LIST_HEAD(sock->send_list);
 	}
 
  finish:
-	unwatch_fd(&sock->manager->threads[sock->threadid],
-		   sock->fd, SELECT_POKE_WRITE);
+	if (ISC_LIST_EMPTY(sock->send_list)) {
+		unwatch_fd(&sock->manager->threads[sock->threadid],
+			   sock->fd, SELECT_POKE_WRITE);
+	}
 	UNLOCK(&sock->lock);
 }
 
@@ -4167,9 +4176,6 @@ socket_send(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 	isc_result_t result = ISC_R_SUCCESS;
 
 	dev->ev_sender = task;
-	LOCK(&sock->lock);
-	INSIST(sock->send_event == NULL);
-	UNLOCK(&sock->lock);
 
 	set_dev_address(address, sock, dev);
 	if (pktinfo != NULL) {
@@ -4196,7 +4202,11 @@ socket_send(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 	} else {
 		LOCK(&sock->lock);
 		have_lock = true;
-		io_state = doio_send(sock, dev);
+		if (ISC_LIST_EMPTY(sock->send_list)) {
+			io_state = doio_send(sock, dev);
+		} else {
+			io_state = DOIO_SOFT;
+		}
 	}
 
 	switch (io_state) {
@@ -4219,10 +4229,13 @@ socket_send(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 			 * not being watched, poke the watcher to start
 			 * paying attention to it.
 			 */
-			sock->send_event = dev;
-			select_poke(sock->manager, sock->threadid,
-				    sock->fd,
-				    SELECT_POKE_WRITE);
+			bool do_poke = ISC_LIST_EMPTY(sock->send_list);
+			ISC_LIST_ENQUEUE(sock->send_list, dev, ev_link);
+			if (do_poke) {
+				select_poke(sock->manager, sock->threadid,
+					    sock->fd,
+					    SELECT_POKE_WRITE);
+			}
 			socket_log(sock, NULL, EVENT, NULL, 0, 0,
 				   "socket_send: event %p -> task %p",
 				   dev, ntask);
@@ -5158,17 +5171,21 @@ isc_socket_cancel(isc_socket_t *sock0, isc_task_t *task, unsigned int how) {
 	}
 
 	if (((how & ISC_SOCKCANCEL_SEND) != 0)
-	    && sock->send_event != NULL ) {
+	    && !ISC_LIST_EMPTY(sock->send_list)) {
 		isc_socketevent_t      *dev;
+		isc_socketevent_t      *next;
 		isc_task_t	       *current_task;
 
-		dev = sock->send_event;;
+		dev = ISC_LIST_HEAD(sock->send_list);
 
-		current_task = dev->ev_sender;
-
-		if ((task == NULL) || (task == current_task)) {
-			dev->result = ISC_R_CANCELED;
-			send_senddone_event(sock, &dev);
+		while (dev != NULL) {
+			current_task = dev->ev_sender;
+			next = ISC_LIST_NEXT(dev, ev_link);
+			if ((task == NULL) || (task == current_task)) {
+				dev->result = ISC_R_CANCELED;
+				send_senddone_event(sock, &dev);
+			}
+			dev = next;
 		}
 	}
 
