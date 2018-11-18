@@ -21,6 +21,7 @@
 #include <stddef.h>
 #include <limits.h>
 
+#include <isc/atomic.h>
 #include <isc/bind9.h>
 #include <isc/hash.h>
 #include <isc/json.h>
@@ -95,8 +96,8 @@ typedef struct {
 } size_info;
 
 struct stats {
-	unsigned long		gets;
-	unsigned long		totalgets;
+	atomic_uint_fast64_t		gets;
+	atomic_uint_fast64_t		totalgets;
 };
 
 #define MEM_MAGIC		ISC_MAGIC('M', 'e', 'm', 'C')
@@ -122,20 +123,21 @@ struct isc__mem {
 	isc_memalloc_t		memalloc;
 	isc_memfree_t		memfree;
 	void *			arg;
-	bool			checkfree;
+	atomic_bool		checkfree;
 	struct stats		stats;
 	isc_refcount_t		references;
 	char			name[16];
 	void *			tag;
-	size_t			total;
-	size_t			inuse;
-	size_t			maxinuse;
-	size_t			malloced;
-	size_t			maxmalloced;
-	size_t			hi_water;
-	size_t			lo_water;
-	bool			hi_called;
-	bool			is_overmem;
+
+	atomic_size_t		total;
+	atomic_size_t		inuse;
+	atomic_size_t		maxinuse;
+	atomic_size_t		malloced;
+	atomic_size_t		maxmalloced;
+	atomic_size_t		hi_water;
+	atomic_size_t		lo_water;
+	atomic_bool		hi_called;
+	atomic_bool		is_overmem;
 	isc_mem_water_t		water;
 	void *			water_arg;
 	ISC_LIST(isc__mempool_t) pools;
@@ -189,13 +191,21 @@ struct isc__mempool {
 	do { \
 		if (ISC_UNLIKELY((isc_mem_debugging & TRACE_OR_RECORD) != 0 && \
 				 b != NULL))				\
+		{							\
+			MCTXLOCK(a, &a->lock);				\
 			add_trace_entry(a, b, c, d, e);			\
+			MCTXUNLOCK(a, &a->lock);			\
+		}							\
 	} while (0)
 #define DELETE_TRACE(a, b, c, d, e)					\
 	do {								\
 		if (ISC_UNLIKELY((isc_mem_debugging & TRACE_OR_RECORD) != 0 && \
 				 b != NULL))				\
+		{							\
+			MCTXLOCK(a, &a->lock);				\
 			delete_trace_entry(a, b, c, d, e);		\
+			MCTXUNLOCK(a, &a->lock);			\
+		}							\
 	} while(0)
 
 static void
@@ -304,23 +314,35 @@ delete_trace_entry(isc__mem_t *mctx, const void *ptr, size_t size,
 }
 #endif /* ISC_MEM_TRACKLINES */
 
+#define _atomic_add(obj, arg) \
+	atomic_fetch_add_explicit(obj, arg, memory_order_relaxed)
+#define _atomic_sub(obj, arg) \
+	atomic_fetch_sub_explicit(obj, arg, memory_order_release)
+#define _atomic_load(obj) \
+	atomic_load_explicit(obj, memory_order_acquire)
+#define _atomic_store(obj, desired) \
+	atomic_store_explicit(obj, desired, memory_order_release)
+
 static inline void *
 mem_getunlocked(isc__mem_t *ctx, size_t size) {
 	void *ret;
+	size_t malloced, maxmalloced;
 
 	ret = (ctx->memalloc)(ctx->arg, size);
 	RUNTIME_CHECK(ret != NULL);
-	ctx->total += size;
-	ctx->inuse += size;
-	ctx->stats.gets++;
-	ctx->stats.totalgets++;
-	ctx->malloced += size;
-	if (ctx->malloced > ctx->maxmalloced) {
-		ctx->maxmalloced = ctx->malloced;
-	}
-
 	if (ISC_UNLIKELY((ctx->flags & ISC_MEMFLAG_FILL) != 0)) {
 		memset(ret, 0xbe, size); /* Mnemonic for "beef". */
+	}
+
+	_atomic_add(&ctx->total, size);
+	_atomic_add(&ctx->inuse, size);
+	_atomic_add(&ctx->stats.gets, 1);
+	_atomic_add(&ctx->stats.totalgets, 1);
+	malloced = _atomic_add(&ctx->malloced, size);
+	maxmalloced = _atomic_load(&ctx->maxmalloced);
+
+	if (malloced + size > maxmalloced) {
+		_atomic_store(&ctx->maxmalloced, malloced + size);
 	}
 
 	return (ret);
@@ -332,13 +354,11 @@ mem_putunlocked(isc__mem_t *ctx, void *mem, size_t size) {
 	if (ISC_UNLIKELY((ctx->flags & ISC_MEMFLAG_FILL) != 0)) {
 		memset(mem, 0xde, size); /* Mnemonic for "dead". */
 	}
-
 	(ctx->memfree)(ctx->arg, mem);
-	INSIST(ctx->stats.gets != 0U);
-	ctx->stats.gets--;
-	INSIST(size <= ctx->inuse);
-	ctx->inuse -= size;
-	ctx->malloced -= size;
+
+	INSIST(_atomic_sub(&ctx->stats.gets, 1) > 0);
+	INSIST(_atomic_sub(&ctx->inuse, size) >= size);
+	INSIST(_atomic_sub(&ctx->malloced, size) >= size);
 }
 
 /*
@@ -508,7 +528,7 @@ destroy(isc__mem_t *ctx) {
 			fprintf(stderr,
 				"Failing assertion due to probable "
 				"leaked memory in context %p (\"%s\") "
-				"(stats.gets == %lu).\n",
+				"(stats.gets == %" PRIu64 ").\n",
 				ctx, ctx->name, ctx->stats.gets);
 #if ISC_MEM_TRACKLINES
 			print_active(ctx, stderr);
@@ -581,12 +601,9 @@ isc___mem_putanddetach(isc_mem_t **ctxp, void *ptr, size_t size FLARG) {
 		goto destroy;
 	}
 
-	MCTXLOCK(ctx, &ctx->lock);
-
 	DELETE_TRACE(ctx, ptr, size, file, line);
 
 	mem_putunlocked(ctx, ptr, size);
-	MCTXUNLOCK(ctx, &ctx->lock);
 
 destroy:
 	if (isc_refcount_decrement(&ctx->references) == 1) {
@@ -625,7 +642,7 @@ void *
 isc___mem_get(isc_mem_t *ctx0, size_t size FLARG) {
 	isc__mem_t *ctx = (isc__mem_t *)ctx0;
 	void *ptr;
-	bool call_water = false;
+	size_t inuse, hi_water;
 
 	REQUIRE(VALID_CONTEXT(ctx));
 
@@ -633,27 +650,28 @@ isc___mem_get(isc_mem_t *ctx0, size_t size FLARG) {
 			  (ISC_MEM_DEBUGSIZE|ISC_MEM_DEBUGCTX)) != 0))
 		return (isc__mem_allocate(ctx0, size FLARG_PASS));
 
-	MCTXLOCK(ctx, &ctx->lock);
 	ptr = mem_getunlocked(ctx, size);
 
 	ADD_TRACE(ctx, ptr, size, file, line);
 
-	if (ctx->hi_water != 0U && ctx->inuse > ctx->hi_water) {
-		ctx->is_overmem = true;
-		if (!ctx->hi_called)
-			call_water = true;
-	}
-	if (ctx->inuse > ctx->maxinuse) {
-		ctx->maxinuse = ctx->inuse;
-		if (ctx->hi_water != 0U && ctx->inuse > ctx->hi_water &&
-		    (isc_mem_debugging & ISC_MEM_DEBUGUSAGE) != 0)
-			fprintf(stderr, "maxinuse = %lu\n",
-				(unsigned long)ctx->inuse);
-	}
-	MCTXUNLOCK(ctx, &ctx->lock);
+	inuse = _atomic_load(&ctx->inuse);
+	hi_water = _atomic_load(&ctx->hi_water);
 
-	if (call_water && (ctx->water != NULL))
-		(ctx->water)(ctx->water_arg, ISC_MEM_HIWATER);
+	if (hi_water != 0U && inuse > hi_water) {
+		_atomic_store(&ctx->is_overmem, true);
+		if (!_atomic_load(&ctx->hi_called) && ctx->water != NULL) {
+			(ctx->water)(ctx->water_arg, ISC_MEM_HIWATER);
+		}
+	}
+
+	if (inuse > _atomic_load(&ctx->maxinuse)) {
+		_atomic_store(&ctx->maxinuse, inuse);
+		if (ISC_UNLIKELY((isc_mem_debugging & ISC_MEM_DEBUGUSAGE) != 0) &&
+		    hi_water != 0U && inuse > hi_water)
+		{
+			fprintf(stderr, "maxinuse = %zu\n", inuse);
+		}
+	}
 
 	return (ptr);
 }
@@ -661,9 +679,9 @@ isc___mem_get(isc_mem_t *ctx0, size_t size FLARG) {
 void
 isc___mem_put(isc_mem_t *ctx0, void *ptr, size_t size FLARG) {
 	isc__mem_t *ctx = (isc__mem_t *)ctx0;
-	bool call_water = false;
 	size_info *si;
 	size_t oldsize;
+	size_t inuse, lo_water;
 
 	REQUIRE(VALID_CONTEXT(ctx));
 	REQUIRE(ptr != NULL);
@@ -682,8 +700,6 @@ isc___mem_put(isc_mem_t *ctx0, void *ptr, size_t size FLARG) {
 		return;
 	}
 
-	MCTXLOCK(ctx, &ctx->lock);
-
 	DELETE_TRACE(ctx, ptr, size, file, line);
 
 	mem_putunlocked(ctx, ptr, size);
@@ -693,16 +709,15 @@ isc___mem_put(isc_mem_t *ctx0, void *ptr, size_t size FLARG) {
 	 * when the context was pushed over hi_water but then had
 	 * isc_mem_setwater() called with 0 for hi_water and lo_water.
 	 */
-	if ((ctx->inuse < ctx->lo_water) || (ctx->lo_water == 0U)) {
-		ctx->is_overmem = false;
-		if (ctx->hi_called)
-			call_water = true;
+	inuse = _atomic_load(&ctx->inuse);
+	lo_water = _atomic_load(&ctx->lo_water);
+
+	if ((inuse < lo_water) || (lo_water == 0U)) {
+		_atomic_store(&ctx->is_overmem, false);
+		if (_atomic_load(&ctx->hi_called) && ctx->water != NULL) {
+			(ctx->water)(ctx->water_arg, ISC_MEM_LOWATER);
+		}
 	}
-
-	MCTXUNLOCK(ctx, &ctx->lock);
-
-	if (call_water && (ctx->water != NULL))
-		(ctx->water)(ctx->water_arg, ISC_MEM_LOWATER);
 }
 
 void
@@ -711,12 +726,11 @@ isc_mem_waterack(isc_mem_t *ctx0, int flag) {
 
 	REQUIRE(VALID_CONTEXT(ctx));
 
-	MCTXLOCK(ctx, &ctx->lock);
-	if (flag == ISC_MEM_LOWATER)
-		ctx->hi_called = false;
-	else if (flag == ISC_MEM_HIWATER)
-		ctx->hi_called = true;
-	MCTXUNLOCK(ctx, &ctx->lock);
+	if (flag == ISC_MEM_LOWATER) {
+		_atomic_store(&ctx->hi_called, false);
+	} else if (flag == ISC_MEM_HIWATER) {
+		_atomic_store(&ctx->hi_called, true);
+	}
 }
 
 #if ISC_MEM_TRACKLINES
@@ -763,13 +777,12 @@ isc_mem_stats(isc_mem_t *ctx0, FILE *out) {
 	const isc__mempool_t *pool;
 
 	REQUIRE(VALID_CONTEXT(ctx));
+
+	fprintf(out, "[Memory statistics]\n%11" PRIu64 " gets, %11" PRIu64 " rem\n",
+		_atomic_load(&ctx->stats.totalgets),
+		_atomic_load(&ctx->stats.gets));
+
 	MCTXLOCK(ctx, &ctx->lock);
-
-	if (ctx->stats.totalgets != 0U || ctx->stats.gets != 0U) {
-		fprintf(out, "[Memory statistics]\n%11lu gets, %11lu rem\n",
-			ctx->stats.totalgets, ctx->stats.gets);
-	}
-
 	/*
 	 * Note that since a pool can be locked now, these stats might be
 	 * somewhat off if the pool is in active use at the time the stats
@@ -835,36 +848,39 @@ void *
 isc___mem_allocate(isc_mem_t *ctx0, size_t size FLARG) {
 	isc__mem_t *ctx = (isc__mem_t *)ctx0;
 	size_info *si;
-	bool call_water = false;
+	size_t inuse, maxinuse, hi_water;
 
 	REQUIRE(VALID_CONTEXT(ctx));
 
-	MCTXLOCK(ctx, &ctx->lock);
 	si = mem_allocateunlocked((isc_mem_t *)ctx, size);
 
 	ADD_TRACE(ctx, si, si[-1].u.size, file, line);
-	if (ctx->hi_water != 0U && ctx->inuse > ctx->hi_water &&
-	    !ctx->is_overmem) {
-		ctx->is_overmem = true;
+
+	inuse = _atomic_load(&ctx->inuse);
+	maxinuse = _atomic_load(&ctx->maxinuse);
+	hi_water = _atomic_load(&ctx->hi_water);
+
+	if (hi_water != 0U) {
+		bool exp_f = false;
+		if (inuse > hi_water) {
+			_atomic_store(&ctx->is_overmem, true);
+		}
+		if (atomic_compare_exchange_weak(&ctx->hi_called, &exp_f, true) &&
+		    (ctx->water != NULL))
+		{
+			(ctx->water)(ctx->water_arg, ISC_MEM_HIWATER);
+		}
 	}
 
-	if (ctx->hi_water != 0U && !ctx->hi_called &&
-	    ctx->inuse > ctx->hi_water) {
-		ctx->hi_called = true;
-		call_water = true;
+	if (inuse > maxinuse) {
+		_atomic_store(&ctx->maxinuse, inuse);
+		if (ISC_UNLIKELY(isc_mem_debugging & ISC_MEM_DEBUGUSAGE) != 0) {
+			if (hi_water != 0U && inuse > hi_water) {
+				fprintf(stderr, "maxinuse = %lu\n",
+					(unsigned long)inuse);
+			}
+		}
 	}
-	if (ctx->inuse > ctx->maxinuse) {
-		ctx->maxinuse = ctx->inuse;
-		if (ISC_UNLIKELY(ctx->hi_water != 0U &&
-				 ctx->inuse > ctx->hi_water &&
-				 (isc_mem_debugging & ISC_MEM_DEBUGUSAGE) != 0))
-			fprintf(stderr, "maxinuse = %lu\n",
-				(unsigned long)ctx->inuse);
-	}
-	MCTXUNLOCK(ctx, &ctx->lock);
-
-	if (call_water)
-		(ctx->water)(ctx->water_arg, ISC_MEM_HIWATER);
 
 	return (si);
 }
@@ -904,8 +920,9 @@ isc___mem_reallocate(isc_mem_t *ctx0, void *ptr, size_t size FLARG) {
 			memmove(new_ptr, ptr, copysize);
 			isc__mem_free(ctx0, ptr FLARG_PASS);
 		}
-	} else if (ptr != NULL)
+	} else if (ptr != NULL) {
 		isc__mem_free(ctx0, ptr FLARG_PASS);
+	}
 
 	return (new_ptr);
 }
@@ -915,7 +932,7 @@ isc___mem_free(isc_mem_t *ctx0, void *ptr FLARG) {
 	isc__mem_t *ctx = (isc__mem_t *)ctx0;
 	size_info *si;
 	size_t size;
-	bool call_water= false;
+	size_t inuse, lo_water;
 
 	REQUIRE(VALID_CONTEXT(ctx));
 	REQUIRE(ptr != NULL);
@@ -929,8 +946,6 @@ isc___mem_free(isc_mem_t *ctx0, void *ptr FLARG) {
 		size = si->u.size;
 	}
 
-	MCTXLOCK(ctx, &ctx->lock);
-
 	DELETE_TRACE(ctx, ptr, size, file, line);
 
 	mem_putunlocked(ctx, si, size);
@@ -940,22 +955,18 @@ isc___mem_free(isc_mem_t *ctx0, void *ptr FLARG) {
 	 * when the context was pushed over hi_water but then had
 	 * isc_mem_setwater() called with 0 for hi_water and lo_water.
 	 */
-	if (ctx->is_overmem &&
-	    (ctx->inuse < ctx->lo_water || ctx->lo_water == 0U)) {
-		ctx->is_overmem = false;
+	inuse = _atomic_load(&ctx->inuse);
+	lo_water = _atomic_load(&ctx->lo_water);
+
+	if (inuse < lo_water || lo_water == 0U) {
+		bool exp_t = true;
+		_atomic_store(&ctx->is_overmem, false);
+		if (atomic_compare_exchange_weak(&ctx->hi_called, &exp_t, false)
+		    && ctx->water != NULL)
+		{
+			(ctx->water)(ctx->water_arg, ISC_MEM_LOWATER);
+		}
 	}
-
-	if (ctx->hi_called &&
-	    (ctx->inuse < ctx->lo_water || ctx->lo_water == 0U)) {
-		ctx->hi_called = false;
-
-		if (ctx->water != NULL)
-			call_water = true;
-	}
-	MCTXUNLOCK(ctx, &ctx->lock);
-
-	if (call_water)
-		(ctx->water)(ctx->water_arg, ISC_MEM_LOWATER);
 }
 
 
@@ -987,56 +998,35 @@ isc_mem_setdestroycheck(isc_mem_t *ctx0, bool flag) {
 	isc__mem_t *ctx = (isc__mem_t *)ctx0;
 
 	REQUIRE(VALID_CONTEXT(ctx));
-	MCTXLOCK(ctx, &ctx->lock);
 
-	ctx->checkfree = flag;
-
-	MCTXUNLOCK(ctx, &ctx->lock);
+	_atomic_store(&ctx->checkfree, flag);
 }
 
 size_t
 isc_mem_inuse(isc_mem_t *ctx0) {
 	isc__mem_t *ctx = (isc__mem_t *)ctx0;
-	size_t inuse;
 
 	REQUIRE(VALID_CONTEXT(ctx));
-	MCTXLOCK(ctx, &ctx->lock);
 
-	inuse = ctx->inuse;
-
-	MCTXUNLOCK(ctx, &ctx->lock);
-
-	return (inuse);
+	return (_atomic_load(&ctx->inuse));
 }
 
 size_t
 isc_mem_maxinuse(isc_mem_t *ctx0) {
 	isc__mem_t *ctx = (isc__mem_t *)ctx0;
-	size_t maxinuse;
 
 	REQUIRE(VALID_CONTEXT(ctx));
-	MCTXLOCK(ctx, &ctx->lock);
 
-	maxinuse = ctx->maxinuse;
-
-	MCTXUNLOCK(ctx, &ctx->lock);
-
-	return (maxinuse);
+	return (_atomic_load(&ctx->maxinuse));
 }
 
 size_t
 isc_mem_total(isc_mem_t *ctx0) {
 	isc__mem_t *ctx = (isc__mem_t *)ctx0;
-	size_t total;
 
 	REQUIRE(VALID_CONTEXT(ctx));
-	MCTXLOCK(ctx, &ctx->lock);
 
-	total = ctx->total;
-
-	MCTXUNLOCK(ctx, &ctx->lock);
-
-	return (total);
+	return (_atomic_load(&ctx->total));
 }
 
 void
@@ -1051,17 +1041,20 @@ isc_mem_setwater(isc_mem_t *ctx0, isc_mem_water_t water, void *water_arg,
 	REQUIRE(VALID_CONTEXT(ctx));
 	REQUIRE(hiwater >= lowater);
 
+	/* XXXOND: ctx->water could be changed to atomic_uintptr_t
+	 * for lockless operations
+	 */
 	MCTXLOCK(ctx, &ctx->lock);
 	oldwater = ctx->water;
 	oldwater_arg = ctx->water_arg;
 	if (water == NULL) {
-		callwater = ctx->hi_called;
+		callwater = _atomic_load(&ctx->hi_called);
 		ctx->water = NULL;
 		ctx->water_arg = NULL;
 		ctx->hi_water = 0;
 		ctx->lo_water = 0;
 	} else {
-		if (ctx->hi_called &&
+		if (_atomic_load(&ctx->hi_called) &&
 		    (ctx->water != water || ctx->water_arg != water_arg ||
 		     ctx->inuse < lowater || lowater == 0U))
 			callwater = true;
@@ -1072,8 +1065,9 @@ isc_mem_setwater(isc_mem_t *ctx0, isc_mem_water_t water, void *water_arg,
 	}
 	MCTXUNLOCK(ctx, &ctx->lock);
 
-	if (callwater && oldwater != NULL)
+	if (callwater && oldwater != NULL) {
 		(oldwater)(oldwater_arg, ISC_MEM_LOWATER);
+	}
 }
 
 bool
@@ -1082,12 +1076,7 @@ isc_mem_isovermem(isc_mem_t *ctx0) {
 
 	REQUIRE(VALID_CONTEXT(ctx));
 
-	/*
-	 * We don't bother to lock the context because 100% accuracy isn't
-	 * necessary (and even if we locked the context the returned value
-	 * could be different from the actual state when it's used anyway)
-	 */
-	return (ctx->is_overmem);
+	return (_atomic_load(&ctx->is_overmem));
 }
 
 void
@@ -1323,12 +1312,8 @@ isc__mempool_get(isc_mempool_t *mpctx0 FLARG) {
 		UNLOCK(mpctx->lock);
 
 #if ISC_MEM_TRACKLINES
-	if (ISC_UNLIKELY(((isc_mem_debugging & TRACE_OR_RECORD) != 0) &&
-			 item != NULL))
-	{
-		MCTXLOCK(mctx, &mctx->lock);
+	if (item != NULL) {
 		ADD_TRACE(mctx, item, mpctx->size, file, line);
-		MCTXUNLOCK(mctx, &mctx->lock);
 	}
 #endif /* ISC_MEM_TRACKLINES */
 
@@ -1354,11 +1339,7 @@ isc__mempool_put(isc_mempool_t *mpctx0, void *mem FLARG) {
 	mpctx->allocated--;
 
 #if ISC_MEM_TRACKLINES
-	if (ISC_UNLIKELY((isc_mem_debugging & TRACE_OR_RECORD) != 0)) {
-		MCTXLOCK(mctx, &mctx->lock);
-		DELETE_TRACE(mctx, mem, mpctx->size, file, line);
-		MCTXUNLOCK(mctx, &mctx->lock);
-	}
+	DELETE_TRACE(mctx, mem, mpctx->size, file, line);
 #endif /* ISC_MEM_TRACKLINES */
 
 	/*
