@@ -138,7 +138,7 @@ main(int argc, char *argv[]) {
 	}
 	isc_commandline_reset = true;
 
-	RUNTIME_CHECK(isc_mem_create(0, 0, &mctx) == ISC_R_SUCCESS);
+	RUNTIME_CHECK(isc_mem_create(&mctx) == ISC_R_SUCCESS);
 
 	while ((ch = isc_commandline_parse(argc, argv, CMDLINE_FLAGS)) != -1) {
 		switch (ch) {

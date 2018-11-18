@@ -291,7 +291,7 @@ main(int argc, char *argv[]) {
 	 * EVERYTHING needs a memory context.
 	 */
 	mctx = NULL;
-	RUNTIME_CHECK(isc_mem_create(0, 0, &mctx) == ISC_R_SUCCESS);
+	RUNTIME_CHECK(isc_mem_create(&mctx) == ISC_R_SUCCESS);
 
 	/*
 	 * The task manager is independent (other than memory context)

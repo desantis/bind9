@@ -37,7 +37,7 @@ static void
 setup_test() {
 	isc_result_t result;
 
-	result = isc_mem_create(0, 0, &mctx);
+	result = isc_mem_create(&mctx);
 	assert_int_equal(result, ISC_R_SUCCESS);
 
 	/*

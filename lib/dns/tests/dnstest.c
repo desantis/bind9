@@ -135,7 +135,7 @@ dns_test_begin(FILE *logfile, bool start_managers) {
 	}
 
 	INSIST(mctx == NULL);
-	CHECK(isc_mem_create(0, 0, &mctx));
+	CHECK(isc_mem_create(&mctx));
 
 	/* Don't check the memory leaks as they hide the assertions */
 	isc_mem_setdestroycheck(mctx, false);

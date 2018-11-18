@@ -209,7 +209,7 @@ main (int argc, char **argv)
   if (debug)
     printf ("Initializing ISC Routines, parsing zone file\n");
 
-  result = isc_mem_create (0, 0, &mctx);
+  result = isc_mem_create (0, &mctx);
   isc_result_check (result, "isc_mem_create");
 
   isc_buffer_init (&buff, argzone, strlen (argzone));

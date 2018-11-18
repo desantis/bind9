@@ -405,7 +405,6 @@ static struct flag_def {
 	{ "mctx", ISC_MEM_DEBUGCTX, false },
 	{ NULL, 0, false }
 }, mem_context_flags[] = {
-	{ "external", ISC_MEMFLAG_INTERNAL, true },
 	{ "fill", ISC_MEMFLAG_FILL, false },
 	{ "nofill", ISC_MEMFLAG_FILL, true },
 	{ NULL, 0, false }
@@ -1388,7 +1387,7 @@ main(int argc, char *argv[]) {
 						named_g_chrootdir);
 	}
 
-	result = isc_mem_create(0, 0, &named_g_mctx);
+	result = isc_mem_create(&named_g_mctx);
 	if (result != ISC_R_SUCCESS)
 		named_main_earlyfatal("isc_mem_create() failed: %s",
 				   isc_result_totext(result));

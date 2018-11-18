@@ -70,7 +70,7 @@ main(int argc, char **argv) {
 	char *filename = NULL;
 	unsigned int zonetype = 0;
 
-	RUNTIME_CHECK(isc_mem_create(0, 0, &mctx) == ISC_R_SUCCESS);
+	RUNTIME_CHECK(isc_mem_create(&mctx) == ISC_R_SUCCESS);
 
 	result = isc_log_create(mctx, &lctx, &lcfg);
 	check_result(result, "isc_log_create()");
