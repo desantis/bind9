@@ -31,7 +31,7 @@ main(int argc, char **argv) {
 	UNUSED(argc);
 	UNUSED(argv);
 
-	RUNTIME_CHECK(isc_mem_create(0, 0, &mctx) == ISC_R_SUCCESS);
+	RUNTIME_CHECK(isc_mem_create(&mctx) == ISC_R_SUCCESS);
 	result = isc_interfaceiter_create(mctx, &iter);
 	if (result != ISC_R_SUCCESS)
 		goto cleanup;

@@ -114,7 +114,7 @@ state_key_init(void) {
 			int ret;
 
 			if (state_mctx == NULL)
-				result = isc_mem_create(0, 0, &state_mctx);
+				result = isc_mem_create(&state_mctx);
 			if (result != ISC_R_SUCCESS)
 				goto unlock;
 			isc_mem_setname(state_mctx, "geoip_state", NULL);

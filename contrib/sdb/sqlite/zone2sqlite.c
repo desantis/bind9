@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2007, 2016  Internet Systems Consortium, Inc. ("ISC")
- * 
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -100,22 +100,22 @@ addrdata(dns_name_t *name, dns_ttl_t ttl, dns_rdata_t *rdata)
     char *sql;
     char *errmsg = NULL;
     int res;
-    
+
     isc_buffer_init(&b, namearray, sizeof(namearray) - 1);
     result = dns_name_totext(name, true, &b);
     check_result(result, "dns_name_totext");
     namearray[isc_buffer_usedlength(&b)] = 0;
-    
+
     isc_buffer_init(&b, typearray, sizeof(typearray) - 1);
     result = dns_rdatatype_totext(rdata->type, &b);
     check_result(result, "dns_rdatatype_totext");
     typearray[isc_buffer_usedlength(&b)] = 0;
-    
+
     isc_buffer_init(&b, dataarray, sizeof(dataarray) - 1);
     result = dns_rdata_totext(rdata, NULL, &b);
     check_result(result, "dns_rdata_totext");
     dataarray[isc_buffer_usedlength(&b)] = 0;
-    
+
     sql = sqlite3_mprintf(
 	"INSERT INTO %Q (NAME, TTL, RDTYPE, RDATA)"
 	" VALUES ('%q', %d, '%q', '%q') ",
@@ -154,42 +154,42 @@ main(int argc, char *argv[])
 	printf("usage: %s <zone> <zonefile> <dbfile> <dbtable>\n", argv[0]);
 	exit(1);
     }
-    
+
     porigin  = argv[1];
     zonefile = argv[2];
 
     dbi.filename = argv[3];
     dbi.table    = argv[4];
-    
+
     dns_result_register();
-    
-    result = isc_mem_create(0, 0, &mctx);
+
+    result = isc_mem_create(&mctx);
     check_result(result, "isc_mem_create");
-    
+
     isc_buffer_init(&b, porigin, strlen(porigin));
     isc_buffer_add(&b, strlen(porigin));
     origin = dns_fixedname_initname(&forigin);
     result = dns_name_fromtext(origin, &b, dns_rootname, 0, NULL);
     check_result(result, "dns_name_fromtext");
-    
+
     db = NULL;
     result = dns_db_create(mctx, "rbt", origin, dns_dbtype_zone,
 			   dns_rdataclass_in, 0, NULL, &db);
     check_result(result, "dns_db_create");
-    
+
     result = dns_db_load(db, zonefile, dns_masterformat_text, 0);
     if (result == DNS_R_SEENINCLUDE)
 	result = ISC_R_SUCCESS;
     check_result(result, "dns_db_load");
 
     printf("Connecting to '%s'\n", dbi.filename);
-    
+
     if ((result = db_connect(&dbi)) != ISC_R_SUCCESS) {
 	fprintf(stderr, "Connection to database '%s' failed\n",
 		dbi.filename);
 	closeandexit(1);
     }
-    
+
     sql = sqlite3_mprintf("DROP TABLE %Q ", dbi.table);
     printf("%s\n", sql);
     res = sqlite3_exec(dbi.db, sql, NULL, NULL, &errmsg);
@@ -201,7 +201,7 @@ main(int argc, char *argv[])
     }
 #endif
 
-#if 0    
+#if 0
     sql = sqlite3_mprintf(sql, "BEGIN TRANSACTION");
     printf("%s\n", sql);
     res = sqlite3_exec(dbi.db, sql, NULL, NULL, &errmsg);
@@ -211,7 +211,7 @@ main(int argc, char *argv[])
 	closeandexit(1);
     }
 #endif
-    
+
     sql = sqlite3_mprintf(
 	"CREATE TABLE %Q "
 	"(NAME TEXT, TTL INTEGER, RDTYPE TEXT, RDATA TEXT) ",
@@ -224,25 +224,25 @@ main(int argc, char *argv[])
 		dbi.table, errmsg);
 	closeandexit(1);
     }
-    
+
     dbiter = NULL;
     result = dns_db_createiterator(db, 0, &dbiter);
     check_result(result, "dns_db_createiterator()");
-    
+
     result = dns_dbiterator_first(dbiter);
     check_result(result, "dns_dbiterator_first");
-    
+
     name = dns_fixedname_initname(&fname);
     dns_rdataset_init(&rdataset);
     dns_rdata_init(&rdata);
-    
+
     while (result == ISC_R_SUCCESS) {
 	node = NULL;
 	result = dns_dbiterator_current(dbiter, &node, name);
 	if (result == ISC_R_NOMORE)
 	    break;
 	check_result(result, "dns_dbiterator_current");
-	
+
 	rdsiter = NULL;
 	result = dns_db_allrdatasets(db, node, NULL, 0, &rdsiter);
 	check_result(result, "dns_db_allrdatasets");
@@ -277,7 +277,7 @@ main(int argc, char *argv[])
 	closeandexit(1);
     }
 #endif
-    
+
     dns_dbiterator_destroy(&dbiter);
     dns_db_detach(&db);
     isc_mem_destroy(&mctx);

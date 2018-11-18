@@ -191,7 +191,7 @@ main(int argc, char *argv[]) {
 	qmessage = NULL;
 	rmessage = NULL;
 
-	result = isc_mem_create(0, 0, &mctx);
+	result = isc_mem_create(&mctx);
 	if (result != ISC_R_SUCCESS) {
 		fprintf(stderr, "failed to create a memory context\n");
 		exit(1);

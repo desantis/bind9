@@ -4251,9 +4251,9 @@ configure_view(dns_view_t *view, dns_viewlist_t *viewlist,
 			 * cache, for the main cache memory and the heap
 			 * memory.
 			 */
-			CHECK(isc_mem_create(0, 0, &cmctx));
+			CHECK(isc_mem_create(&cmctx));
 			isc_mem_setname(cmctx, "cache", NULL);
-			CHECK(isc_mem_create(0, 0, &hmctx));
+			CHECK(isc_mem_create(&hmctx));
 			isc_mem_setname(hmctx, "cache_heap", NULL);
 			CHECK(dns_cache_create(cmctx, hmctx, named_g_taskmgr,
 					       named_g_timermgr, view->rdclass,

@@ -33,7 +33,7 @@ main(int argc, char *argv[]) {
 	isc_mutex_init(&lock);
 
 	mctx = NULL;
-	RUNTIME_CHECK(isc_mem_create(0, 0, &mctx) == ISC_R_SUCCESS);
+	RUNTIME_CHECK(isc_mem_create(&mctx) == ISC_R_SUCCESS);
 
 	mp1 = NULL;
 	RUNTIME_CHECK(isc_mempool_create(mctx, 24, &mp1) == ISC_R_SUCCESS);

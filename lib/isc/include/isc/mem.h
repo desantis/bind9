@@ -42,21 +42,6 @@ typedef void (*isc_memfree_t)(void *, void *);
 #endif
 
 /*%
- * Define ISC_MEM_CHECKOVERRUN=1 to turn on checks for using memory outside
- * the requested space.  This will increase the size of each allocation.
- *
- * If we are performing a Coverity static analysis then ISC_MEM_CHECKOVERRUN
- * can hide bugs that would otherwise discovered so force to zero.
- */
-#ifdef __COVERITY__
-#undef ISC_MEM_CHECKOVERRUN
-#define ISC_MEM_CHECKOVERRUN 0
-#endif
-#ifndef ISC_MEM_CHECKOVERRUN
-#define ISC_MEM_CHECKOVERRUN 1
-#endif
-
-/*%
  * Define ISC_MEMPOOL_NAMES=1 to make memory pools store a symbolic
  * name so that the leaking pool can be more readily identified in
  * case of a memory leak.
@@ -111,30 +96,17 @@ LIBISC_EXTERNAL_DATA extern unsigned int isc_mem_defaultflags;
 #define _ISC_MEM_FLARG
 #endif
 
-/*!
- * Define ISC_MEM_USE_INTERNAL_MALLOC=1 to use the internal malloc()
- * implementation in preference to the system one.  The internal malloc()
- * is very space-efficient, and quite fast on uniprocessor systems.  It
- * performs poorly on multiprocessor machines.
- * JT: we can overcome the performance issue on multiprocessor machines
- * by carefully separating memory contexts.
- */
-
-#ifndef ISC_MEM_USE_INTERNAL_MALLOC
-#define ISC_MEM_USE_INTERNAL_MALLOC 1
-#endif
-
 /*
  * Flags for isc_mem_createx() calls.
  */
-#define ISC_MEMFLAG_NOLOCK	0x00000001	 /* no lock is necessary */
-#define ISC_MEMFLAG_INTERNAL	0x00000002	 /* use internal malloc */
-#define ISC_MEMFLAG_FILL	0x00000004	 /* fill with pattern after alloc and frees */
+#define ISC_MEMFLAG_NOOP_1		0x00000001	 /* obsolete, noop */
+#define ISC_MEMFLAG_NOOP_2		0x00000002	 /* obsolete, noop */ */
+#define ISC_MEMFLAG_FILL		0x00000004	 /* fill with pattern after alloc and frees */
 
-#if !ISC_MEM_USE_INTERNAL_MALLOC
-#define ISC_MEMFLAG_DEFAULT 	0
+#ifndef NDEBUG
+#define ISC_MEMFLAG_DEFAULT 	ISC_MEMFLAG_FILL
 #else
-#define ISC_MEMFLAG_DEFAULT	ISC_MEMFLAG_INTERNAL|ISC_MEMFLAG_FILL
+#define ISC_MEMFLAG_DEFAULT	0
 #endif
 
 /*%
@@ -255,40 +227,20 @@ struct isc_mempool {
 
 /*@{*/
 isc_result_t
-isc_mem_create(size_t max_size, size_t target_size,
-	       isc_mem_t **mctxp);
+isc_mem_create(isc_mem_t **mctxp);
 
 isc_result_t
-isc_mem_createx(size_t max_size, size_t target_size,
-		isc_memalloc_t memalloc, isc_memfree_t memfree,
+isc_mem_createx(isc_memalloc_t memalloc, isc_memfree_t memfree,
 		void *arg, isc_mem_t **mctxp, unsigned int flags);
 
 /*!<
  * \brief Create a memory context.
- *
- * 'max_size' and 'target_size' are tuning parameters.  When
- * ISC_MEMFLAG_INTERNAL is set, allocations smaller than 'max_size'
- * will be satisfied by getting blocks of size 'target_size' from the
- * system allocator and breaking them up into pieces; larger allocations
- * will use the system allocator directly. If 'max_size' and/or
- * 'target_size' are zero, default values will be * used.  When
- * ISC_MEMFLAG_INTERNAL is not set, 'target_size' is ignored.
- *
- * 'max_size' is also used to size the statistics arrays and the array
- * used to record active memory when ISC_MEM_DEBUGRECORD is set.  Setting
- * 'max_size' too low can have detrimental effects on performance.
  *
  * A memory context created using isc_mem_createx() will obtain
  * memory from the system by calling 'memalloc' and 'memfree',
  * passing them the argument 'arg'.  A memory context created
  * using isc_mem_create() will use the standard library malloc()
  * and free().
- *
- * If ISC_MEMFLAG_NOLOCK is set in 'flags', the corresponding memory context
- * will be accessed without locking.  The user who creates the context must
- * ensure there be no race.  Since this can be a source of bug, it is generally
- * inadvisable to use this flag unless the user is very sure about the race
- * condition and the access to the object is highly performance sensitive.
  *
  * Requires:
  * mctxp != NULL && *mctxp == NULL */

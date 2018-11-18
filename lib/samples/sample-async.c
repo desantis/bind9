@@ -100,7 +100,7 @@ ctxs_init(isc_mem_t **mctxp, isc_appctx_t **actxp,
 {
 	isc_result_t result;
 
-	result = isc_mem_create(0, 0, mctxp);
+	result = isc_mem_create(mctxp);
 	if (result != ISC_R_SUCCESS)
 		goto fail;
 

@@ -2903,7 +2903,7 @@ get_clientmctx(ns_clientmgr_t *manager, isc_mem_t **mctxp) {
 	 * Caller must be holding the manager lock.
 	 */
 	if ((manager->sctx->options & NS_SERVER_CLIENTTEST) != 0) {
-		result = isc_mem_create(0, 0, mctxp);
+		result = isc_mem_create(mctxp);
 		if (result == ISC_R_SUCCESS)
 			isc_mem_setname(*mctxp, "client", NULL);
 		return (result);
@@ -2917,7 +2917,7 @@ get_clientmctx(ns_clientmgr_t *manager, isc_mem_t **mctxp) {
 
 	clientmctx = manager->mctxpool[nextmctx];
 	if (clientmctx == NULL) {
-		result = isc_mem_create(0, 0, &clientmctx);
+		result = isc_mem_create(&clientmctx);
 		if (result != ISC_R_SUCCESS)
 			return (result);
 		isc_mem_setname(clientmctx, "client", NULL);

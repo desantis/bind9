@@ -1347,7 +1347,7 @@ setup_libs(void) {
 	if (!have_ipv6 && !have_ipv4)
 		fatal("can't find either v4 or v6 networking");
 
-	result = isc_mem_create(0, 0, &mctx);
+	result = isc_mem_create(&mctx);
 	check_result(result, "isc_mem_create");
 	isc_mem_setname(mctx, "dig", NULL);
 

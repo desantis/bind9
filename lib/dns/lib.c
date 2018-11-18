@@ -79,7 +79,7 @@ initialize(void) {
 
 	REQUIRE(initialize_done == false);
 
-	result = isc_mem_create(0, 0, &dns_g_mctx);
+	result = isc_mem_create(&dns_g_mctx);
 	if (result != ISC_R_SUCCESS)
 		return;
 	dns_result_register();

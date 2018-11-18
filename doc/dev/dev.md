@@ -404,7 +404,7 @@ for the ISC library are in `lib/isc/include/isc/result.h`.
 
 ISC library result codes (many of which are generically useful elsewhere)
 begin with `ISC_R`: examples inclue `ISC_R_SUCCESS`, `ISC_R_FAILURE`,
-`ISC_R_NOMEMORY`, etc. 
+`ISC_R_NOMEMORY`, etc.
 
 DNS library result codes begin with `DNS_R`: `DNS_R_SERVFAIL`, `DNS_R_NXRRSET`,
 etc).  Other sets of result codes are defined for crypto functions (`DST_R`
@@ -430,7 +430,7 @@ into 'consumed' and 'remaining'.
 
 When parsing a message, the message to be parsed in in the 'used'
 part of the buffer.  As the message is parsed, the 'consumed'
-subregion grows and the 'remaining' subregion shrinks. 
+subregion grows and the 'remaining' subregion shrinks.
 
 When creating a message, data is written into the 'available'
 subregion, which then becomes part of 'used'.
@@ -504,7 +504,7 @@ memory has not been freed when BIND shuts down.
 To create a basic memory context, use:
 
         isc_mem_t *mctx = NULL;
-        result = isc_mem_create(0, 0, &mctx);
+        result = isc_mem_create(&mctx);
 
 (The zeroes are tuning parameters, `max_size` and `target_size`: Any
 allocations smaller than `max_size` will be satisfied by getting
@@ -538,7 +538,7 @@ memory context is freed before all references have been cleaned up.
                 /* Populate other isc_foo members here */
 
                 foo->magic = ISC_FOO_MAGIC;
-                
+
                 *foop = foo;
                 return (ISC_R_SUCCESS);
         }
@@ -645,7 +645,7 @@ More macros are provided for iterating the list:
 
         isc_foo_t *foo;
         for (foo = ISC_LIST_HEAD(foolist);
-             foo != NULL; 
+             foo != NULL;
              foo = ISC_LIST_NEXT(foo, link))
         {
                 /* do things */
@@ -795,7 +795,7 @@ The return value may be:
 * `dns_name_commonancestor`: name1 and name2 share some labels
 * `dns_name_equal`: name1 and name2 are the same
 
-Some simpler comparison functions are provided for convenience when 
+Some simpler comparison functions are provided for convenience when
 not all of this information is required:
 
 * `dns_name_compare()`: returns the sort order of two names but
@@ -866,7 +866,7 @@ sets have been defined:
 
 Each of these has a `first()`, `next()` and `current()` function; for
 example, `dns_rdataset_first()`, `dns_rdataset_next()`, and
-`dns_rdataset_current()`. 
+`dns_rdataset_current()`.
 
 The `first()` and `next()` functions move the iterator's cursor and so that
 the data at a new location can be retrieved.  (Most of these can only step
@@ -1015,7 +1015,7 @@ messages up to the current debugging level are written to the channel.
 
 These objects -- the category, module, and channel -- direct hessages
 to desired destinations.  Each category/module pair can be associated
-with a specific channel, and the correct destination will be used 
+with a specific channel, and the correct destination will be used
 when a message is logged by `isc_log_write()`.
 
 In `isc_log_write()`, the logging system first looks up a list that
@@ -1073,7 +1073,7 @@ the following steps need to be taken to initialize it.
         isc_log_t *lctx;
         isc_logconfig_t *lcfg;
 
-        if (isc_mem_create(0, 0, &mctx) != ISC_R_SUCCESS) ||
+        if (isc_mem_create(&mctx) != ISC_R_SUCCESS) ||
             isc_log_create(mctx, &lctx, &lcfg) != ISC_R_SUCCESS))
                 oops_it_didnt_work();
 
@@ -1157,7 +1157,7 @@ to control the closing of log files.
 
         void isc_log_setdebuglevel(isc_log_t *lctx, unsigned int level);
         unsigned int isc_log_getdebuglevel(isc_log_t *lctx);
-        
+
 These set and retrieve the current debugging level of the program.
 `isc_log_getdebuglevel()` can be used so that you need not keep track of
 the level yourself in another variable.
@@ -1428,7 +1428,7 @@ be triggered at that time.
          result = isc_timer_create(timermgr, isc_timertype_once, NULL,
                                    interval, task, timeout, arg, &timer);
 
-An event can also be explicitly triggered via `isc_task_send()`.  
+An event can also be explicitly triggered via `isc_task_send()`.
 
         static void
         do_things(isc_task_t *task, isc_event_t *event) {
@@ -1438,7 +1438,7 @@ An event can also be explicitly triggered via `isc_task_send()`.
         ...
 
         /*
-         * Allocate an event that calls 'do_things' with a 
+         * Allocate an event that calls 'do_things' with a
          * NULL argument, using 'myself' as ev_sender.
          *
          * DNS_EVENT_DOTHINGS must be defined in <dns/events.h>.

@@ -227,7 +227,7 @@ dlopen_dlz_create(const char *dlzname, unsigned int argc, char *argv[],
 		return (ISC_R_FAILURE);
 	}
 
-	isc_mem_create(0, 0, &mctx);
+	isc_mem_create(&mctx);
 
 	cd = isc_mem_get(mctx, sizeof(*cd));
 	if (cd == NULL) {

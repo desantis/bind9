@@ -709,7 +709,7 @@ manytasks(void **state) {
 	isc_condition_init(&cv);
 
 	isc_mem_debugging = ISC_MEM_DEBUGRECORD;
-	result = isc_mem_create(0, 0, &mctx);
+	result = isc_mem_create(&mctx);
 	assert_int_equal(result, ISC_R_SUCCESS);
 
 	result = isc_taskmgr_create(mctx, 4, 0, &taskmgr);
