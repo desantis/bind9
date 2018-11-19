@@ -10563,7 +10563,7 @@ dns_resolver_createfetch(dns_resolver_t *res, const dns_name_t *name,
 				       DNS_EVENT_FETCHCONTROL,
 				       fctx_start, fctx, NULL,
 				       NULL, NULL);
-			isc_task_send(res->buckets[bucketnum].task, &event);
+			isc_task_sendto(res->buckets[bucketnum].task, &event, bucketnum);
 		} else {
 			/*
 			 * We don't care about the result of fctx_unlink()
