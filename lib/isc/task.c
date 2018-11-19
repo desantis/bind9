@@ -497,6 +497,7 @@ isc_task_sendto(isc_task_t *task0, isc_event_t **eventp, int c) {
 	if (c < 0) {
 		c = atomic_fetch_add_explicit(&task->manager->curq, 1,
 					      memory_order_relaxed);
+		c+=12;
 	}
 	c %= task->manager->workers;
 
