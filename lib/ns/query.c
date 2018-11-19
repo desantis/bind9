@@ -5776,7 +5776,6 @@ query_recurse(ns_client_t *client, dns_rdatatype_t qtype, dns_name_t *qname,
 					      client->recursionquota->soft,
 					      client->recursionquota->max);
 			}
-			ns_client_killoldestquery(client);
 			result = ISC_R_SUCCESS;
 		} else if (result == ISC_R_QUOTA) {
 			static isc_stdtime_t last = 0;
@@ -5794,7 +5793,6 @@ query_recurse(ns_client_t *client, dns_rdatatype_t qtype, dns_name_t *qname,
 					      client->sctx->recursionquota.max,
 					      isc_result_totext(result));
 			}
-			ns_client_killoldestquery(client);
 		}
 		if (result == ISC_R_SUCCESS && !client->mortal &&
 		    !TCP(client)) {
