@@ -18983,11 +18983,33 @@ setnsec3param(isc_task_t *task, isc_event_t *event) {
 		for (result = dns_rdataset_first(&prdataset);
 		     result == ISC_R_SUCCESS;
 		     result = dns_rdataset_next(&prdataset)) {
+			unsigned char flags1, flags2;
 			dns_rdata_init(&rdata);
 			dns_rdataset_current(&prdataset, &rdata);
 
-			if (np->length == rdata.length &&
-			    memcmp(rdata.data, np->data, np->length) == 0) {
+			if (np->length == rdata.length && np->length == 0) {
+				exists = true;
+				break;
+			}
+
+			if (rdata.length < 3U || np->length != rdata.length) {
+				continue;
+			}
+
+			/*
+			 * Make _CREATE and _INITIAL need to be ignored for
+			 * this comparision so set both the same way.
+			 */
+			flags1 = rdata.data[2];
+			flags1 |= DNS_NSEC3FLAG_CREATE | DNS_NSEC3FLAG_INITIAL;
+			flags2 = np->data[2];
+			flags2 |= DNS_NSEC3FLAG_CREATE | DNS_NSEC3FLAG_INITIAL;
+
+			if (memcmp(rdata.data, np->data, 2) == 0 &&
+			    flags1 == flags2 &&
+			    memcmp(rdata.data, np->data + 3,
+				   np->length - 3) == 0)
+			{
 				exists = true;
 				break;
 			}
