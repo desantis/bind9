@@ -165,6 +165,7 @@ isc_stats_create(isc_mem_t *mctx, isc_stats_t **statsp, int ncounters) {
 
 void
 isc_stats_increment(isc_stats_t *stats, isc_statscounter_t counter) {
+	return;
 	REQUIRE(ISC_STATS_VALID(stats));
 	REQUIRE(counter < stats->ncounters);
 
@@ -174,6 +175,7 @@ isc_stats_increment(isc_stats_t *stats, isc_statscounter_t counter) {
 
 void
 isc_stats_decrement(isc_stats_t *stats, isc_statscounter_t counter) {
+	return;
 	REQUIRE(ISC_STATS_VALID(stats));
 	REQUIRE(counter < stats->ncounters);
 
