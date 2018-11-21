@@ -104,6 +104,7 @@ struct isc__task {
 	char				name[16];
 	void *				tag;
 	unsigned int			threadid;
+	bool				bound;
 	/* Locked by task manager lock. */
 	LINK(isc__task_t)		link;
 	LINK(isc__task_t)		ready_link;
@@ -243,7 +244,14 @@ task_finished(isc__task_t *task) {
 
 isc_result_t
 isc_task_create(isc_taskmgr_t *manager0, unsigned int quantum,
-		 isc_task_t **taskp)
+		isc_task_t **taskp)
+{
+	return (isc_task_create_bound(manager0, quantum, taskp, -1));
+}
+
+isc_result_t
+isc_task_create_bound(isc_taskmgr_t *manager0, unsigned int quantum,
+		      isc_task_t **taskp, int threadid)
 {
 	isc__taskmgr_t *manager = (isc__taskmgr_t *)manager0;
 	isc__task_t *task;
@@ -258,9 +266,15 @@ isc_task_create(isc_taskmgr_t *manager0, unsigned int quantum,
 		return (ISC_R_NOMEMORY);
 	XTRACE("isc_task_create");
 	task->manager = manager;
-	task->threadid = atomic_fetch_add_explicit(&manager->curq, 1,
-						   memory_order_relaxed)
-						   % manager->workers;
+	if (threadid == -1) {
+		task->bound = false;
+		task->threadid = atomic_fetch_add_explicit(&manager->curq, 1,
+							   memory_order_relaxed)
+							   % manager->workers;
+	} else {
+		task->bound = true;
+		task->threadid = threadid % manager->workers;
+	}
 	result = isc_mutex_init(&task->lock);
 	if (result != ISC_R_SUCCESS) {
 		isc_mem_put(manager->mctx, task, sizeof(*task));
@@ -494,7 +508,9 @@ isc_task_sendto(isc_task_t *task0, isc_event_t **eventp, int c) {
 	REQUIRE(VALID_TASK(task));
 	XTRACE("isc_task_send");
 
-	if (c < 0) {
+	if (task->bound) {
+		c = task->threadid;
+	} else if (c < 0) {
 		c = atomic_fetch_add_explicit(&task->manager->curq, 1,
 					      memory_order_relaxed);
 	}
@@ -544,7 +560,9 @@ isc_task_sendtoanddetach(isc_task_t **taskp, isc_event_t **eventp, int c) {
 	REQUIRE(VALID_TASK(task));
 	XTRACE("isc_task_sendanddetach");
 
-	if (c < 0) {
+	if (task->bound) {
+		c = task->threadid;
+	} else if (c < 0) {
 		c = atomic_fetch_add_explicit(&task->manager->curq, 1,
 					      memory_order_relaxed);
 	}
