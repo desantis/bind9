@@ -4382,8 +4382,8 @@ fctx_shutdown(fetchctx_t *fctx) {
 	 */
 	if (fctx->state != fetchstate_init) {
 		cevent = &fctx->control_event;
-		isc_task_send(fctx->res->buckets[fctx->bucketnum].task,
-			      &cevent);
+		isc_task_sendto(fctx->res->buckets[fctx->bucketnum].task,
+			        &cevent, fctx->bucketnum);
 	}
 }
 
@@ -9925,7 +9925,7 @@ dns_resolver_create(dns_view_t *view,
 		if (result != ISC_R_SUCCESS)
 			goto cleanup_buckets;
 		res->buckets[i].task = NULL;
-		result = isc_task_create(taskmgr, 0, &res->buckets[i].task);
+		result = isc_task_create_bound(taskmgr, 0, &res->buckets[i].task, i);
 		if (result != ISC_R_SUCCESS) {
 			DESTROYLOCK(&res->buckets[i].lock);
 			goto cleanup_buckets;
