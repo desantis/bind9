@@ -934,12 +934,27 @@ push_readyq(isc__taskmgr_t *manager, isc__task_t *task, int c) {
 				  memory_order_acquire);
 }
 
+static uint64_t rdtsc();
+
+static uint64_t rdtsc() {
+	uint64_t msr;
+	asm volatile ( "rdtsc\n\t"
+               "shl $32, %%rdx\n\t"
+               "or %%rdx, %0"
+               : "=a" (msr)
+               :
+               : "rdx");
+        return msr;
+}
+
 static void
 dispatch(isc__taskmgr_t *manager, unsigned int threadid) {
 	isc__task_t *task;
 
 	REQUIRE(VALID_MANAGER(manager));
-
+	char fname[1024];
+	snprintf(fname, 1024, "TASKTRACE%06d.dat", threadid);
+	FILE * tracef = fopen(fname, "w");
 	/* Wait for everything to initialize */
 	LOCK(&manager->lock);
 	UNLOCK(&manager->lock);
@@ -1114,6 +1129,7 @@ dispatch(isc__taskmgr_t *manager, unsigned int threadid) {
 					XTRACE(task->name);
 					if (event->ev_action != NULL) {
 						UNLOCK(&task->lock);
+						fprintf(tracef, "%021llu %02d EXEC %p %p\n", rdtsc(), threadid, task, event->ev_action);
 						(event->ev_action)(
 							(isc_task_t *)task,
 							event);
@@ -1198,6 +1214,7 @@ dispatch(isc__taskmgr_t *manager, unsigned int threadid) {
 				}
 			} while (!done);
 			UNLOCK(&task->lock);
+			fprintf(tracef, "%021llu %02d DONE %p %d %d\n", rdtsc(), threadid, task, finished, requeue);
 
 			if (finished)
 				task_finished(task);
@@ -1271,6 +1288,7 @@ dispatch(isc__taskmgr_t *manager, unsigned int threadid) {
 		}
 	}
 	UNLOCK(&manager->queues[threadid].lock);
+	fclose(tracef);
 	/*
 	 * There might be other dispatchers waiting on empty tasks,
 	 * wake them up.
