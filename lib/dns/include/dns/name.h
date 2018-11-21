@@ -75,6 +75,7 @@
 #include <dns/types.h>
 
 ISC_LANG_BEGINDECLS
+#define DNS_NAME_USEINLINE 1
 
 /*****
  ***** Labels
@@ -205,7 +206,7 @@ typedef isc_result_t (*dns_name_totextfilter_t)(isc_buffer_t *target,
  ***/
 
 void
-dns_name_init(dns_name_t *name, unsigned char *offsets);
+dns__name_init(dns_name_t *name, unsigned char *offsets);
 /*%<
  * Initialize 'name'.
  *
@@ -226,7 +227,7 @@ dns_name_init(dns_name_t *name, unsigned char *offsets);
  */
 
 void
-dns_name_reset(dns_name_t *name);
+dns__name_reset(dns_name_t *name);
 /*%<
  * Reinitialize 'name'.
  *
@@ -276,7 +277,7 @@ dns_name_isvalid(const dns_name_t *name);
  ***/
 
 void
-dns_name_setbuffer(dns_name_t *name, isc_buffer_t *buffer);
+dns__name_setbuffer(dns_name_t *name, isc_buffer_t *buffer);
 /*%<
  * Dedicate a buffer for use with 'name'.
  *
@@ -318,7 +319,7 @@ dns_name_hasbuffer(const dns_name_t *name);
  ***/
 
 bool
-dns_name_isabsolute(const dns_name_t *name);
+dns__name_isabsolute(const dns_name_t *name);
 /*%<
  * Does 'name' end in the root label?
  *
@@ -567,7 +568,7 @@ dns_name_matcheswildcard(const dns_name_t *name, const dns_name_t *wname);
  ***/
 
 unsigned int
-dns_name_countlabels(const dns_name_t *name);
+dns__name_countlabels(const dns_name_t *name);
 /*%<
  * How many labels does 'name' have?
  *
@@ -675,7 +676,7 @@ dns_name_fromregion(dns_name_t *name, const isc_region_t *r);
  */
 
 void
-dns_name_toregion(const dns_name_t *name, isc_region_t *r);
+dns__name_toregion(const dns_name_t *name, isc_region_t *r);
 /*%<
  * Make 'r' refer to 'name'.
  *
@@ -985,7 +986,7 @@ dns_name_concatenate(const dns_name_t *prefix, const dns_name_t *suffix,
  */
 
 void
-dns_name_split(const dns_name_t *name, unsigned int suffixlabels,
+dns__name_split(const dns_name_t *name, unsigned int suffixlabels,
 	       dns_name_t *prefix, dns_name_t *suffix);
 /*%<
  *
@@ -1385,7 +1386,7 @@ do { \
 
 #define DNS_NAME_SPLIT(n, l, p, s) \
 do { \
-	dns_name_t *_n = (n); \
+	const dns_name_t *_n = (n); \
 	dns_name_t *_p = (p); \
 	dns_name_t *_s = (s); \
 	unsigned int _l = (l); \
@@ -1404,6 +1405,16 @@ do { \
 #define dns_name_isabsolute(n)		DNS_NAME_ISABSOLUTE(n)
 #define dns_name_toregion(n, r)		DNS_NAME_TOREGION(n, r)
 #define dns_name_split(n, l, p, s)	DNS_NAME_SPLIT(n, l, p, s)
+
+#else
+
+#define dns_name_init(n, o)		dns__name_init(n, o)
+#define dns_name_reset(n)		dns__name_reset(n)
+#define dns_name_setbuffer(n, b)	dns__name_setbuffer(n, b)
+#define dns_name_countlabels(n)		dns__name_countlabels(n)
+#define dns_name_isabsolute(n)		dns__name_isabsolute(n)
+#define dns_name_toregion(n, r)		dns__name_toregion(n, r)
+#define dns_name_split(n, l, p, s)	dns__name_split(n, l, p, s)
 
 #endif /* DNS_NAME_USEINLINE */
 

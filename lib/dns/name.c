@@ -176,7 +176,7 @@ set_offsets(const dns_name_t *name, unsigned char *offsets,
 	    dns_name_t *set_name);
 
 void
-dns_name_init(dns_name_t *name, unsigned char *offsets) {
+dns__name_init(dns_name_t *name, unsigned char *offsets) {
 	/*
 	 * Initialize 'name'.
 	 */
@@ -184,7 +184,7 @@ dns_name_init(dns_name_t *name, unsigned char *offsets) {
 }
 
 void
-dns_name_reset(dns_name_t *name) {
+dns__name_reset(dns_name_t *name) {
 	REQUIRE(VALID_NAME(name));
 	REQUIRE(BINDABLE(name));
 
@@ -250,7 +250,7 @@ dns_name_isvalid(const dns_name_t *name) {
 }
 
 void
-dns_name_setbuffer(dns_name_t *name, isc_buffer_t *buffer) {
+dns__name_setbuffer(dns_name_t *name, isc_buffer_t *buffer) {
 	/*
 	 * Dedicate a buffer for use with 'name'.
 	 */
@@ -277,7 +277,7 @@ dns_name_hasbuffer(const dns_name_t *name) {
 }
 
 bool
-dns_name_isabsolute(const dns_name_t *name) {
+dns__name_isabsolute(const dns_name_t *name) {
 
 	/*
 	 * Does 'name' end in the root label?
@@ -849,7 +849,7 @@ dns_name_matcheswildcard(const dns_name_t *name, const dns_name_t *wname) {
 }
 
 unsigned int
-dns_name_countlabels(const dns_name_t *name) {
+dns__name_countlabels(const dns_name_t *name) {
 	/*
 	 * How many labels does 'name' have?
 	 */
@@ -1017,7 +1017,7 @@ dns_name_fromregion(dns_name_t *name, const isc_region_t *r) {
 }
 
 void
-dns_name_toregion(const dns_name_t *name, isc_region_t *r) {
+dns__name_toregion(const dns_name_t *name, isc_region_t *r) {
 	/*
 	 * Make 'r' refer to 'name'.
 	 */
@@ -2130,7 +2130,7 @@ dns_name_concatenate(const dns_name_t *prefix, const dns_name_t *suffix,
 }
 
 void
-dns_name_split(const dns_name_t *name, unsigned int suffixlabels,
+dns__name_split(const dns_name_t *name, unsigned int suffixlabels,
 	       dns_name_t *prefix, dns_name_t *suffix)
 
 {
