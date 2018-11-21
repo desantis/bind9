@@ -130,13 +130,13 @@ dns_acl_none(isc_mem_t *mctx, dns_acl_t **target);
  */
 
 bool
-dns_acl_isany(dns_acl_t *acl);
+dns_acl_isany(const dns_acl_t *acl);
 /*%<
  * Test whether ACL is set to "{ any; }"
  */
 
 bool
-dns_acl_isnone(dns_acl_t *acl);
+dns_acl_isnone(const dns_acl_t *acl);
 /*%<
  * Test whether ACL is set to "{ none; }"
  */

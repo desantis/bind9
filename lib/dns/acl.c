@@ -130,7 +130,7 @@ dns_acl_none(isc_mem_t *mctx, dns_acl_t **target) {
  * If pos is false, test whether acl is set to "{ none; }"
  */
 static bool
-dns_acl_isanyornone(dns_acl_t *acl, bool pos)
+dns_acl_isanyornone(const dns_acl_t *acl, bool pos)
 {
 	/* Should never happen but let's be safe */
 	if (acl == NULL ||
@@ -157,7 +157,7 @@ dns_acl_isanyornone(dns_acl_t *acl, bool pos)
  * Test whether acl is set to "{ any; }"
  */
 bool
-dns_acl_isany(dns_acl_t *acl)
+dns_acl_isany(const dns_acl_t *acl)
 {
 	return (dns_acl_isanyornone(acl, true));
 }
@@ -166,7 +166,7 @@ dns_acl_isany(dns_acl_t *acl)
  * Test whether acl is set to "{ none; }"
  */
 bool
-dns_acl_isnone(dns_acl_t *acl)
+dns_acl_isnone(const dns_acl_t *acl)
 {
 	return (dns_acl_isanyornone(acl, false));
 }
@@ -197,6 +197,20 @@ dns_acl_match(const isc_netaddr_t *reqaddr,
 
 	REQUIRE(reqaddr != NULL);
 	REQUIRE(matchelt == NULL || *matchelt == NULL);
+
+	/*
+	 * We don't care about matchelt, see if maybe that's 'any' or 'none'
+	 * ACL to speed things up.
+	 */
+	if (matchelt == NULL) {
+		if (dns_acl_isany(acl)) {
+			*match = 1;
+			return (ISC_R_SUCCESS);
+		} else if (dns_acl_isnone(acl)) {
+			*match = -1;
+			return (ISC_R_SUCCESS);
+		}
+	}
 
 	if (env != NULL && env->match_mapped &&
 	    addr->family == AF_INET6 &&
