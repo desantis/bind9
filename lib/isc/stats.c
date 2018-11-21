@@ -33,7 +33,7 @@
 #define ISC_STATS_VALID(x)		ISC_MAGIC_VALID(x, ISC_STATS_MAGIC)
 
 inline unsigned int xxhash() {
-	return (13337*pthread_self()) % CBUCKETS;
+	return (((unsigned int)(13337*pthread_self())) % CBUCKETS);
 }
 
 typedef atomic_int_fast64_t isc_stat_t;
@@ -147,6 +147,7 @@ isc_stats_create(isc_mem_t *mctx, isc_stats_t **statsp, int ncounters) {
 
 void
 isc_stats_increment(isc_stats_t *stats, isc_statscounter_t counter) {
+	return;
 	REQUIRE(ISC_STATS_VALID(stats));
 	REQUIRE(counter < stats->ncounters);
 
@@ -156,6 +157,7 @@ isc_stats_increment(isc_stats_t *stats, isc_statscounter_t counter) {
 
 void
 isc_stats_decrement(isc_stats_t *stats, isc_statscounter_t counter) {
+	return;
 	REQUIRE(ISC_STATS_VALID(stats));
 	REQUIRE(counter < stats->ncounters);
 
