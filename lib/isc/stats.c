@@ -23,10 +23,12 @@
 #include <isc/mem.h>
 #include <isc/platform.h>
 #include <isc/print.h>
+#include <isc/random.h>
 #include <isc/rwlock.h>
 #include <isc/stats.h>
 #include <isc/util.h>
 
+#define CBUCKETS 8
 #define ISC_STATS_MAGIC			ISC_MAGIC('S', 't', 'a', 't')
 #define ISC_STATS_VALID(x)		ISC_MAGIC_VALID(x, ISC_STATS_MAGIC)
 
@@ -64,29 +66,16 @@ struct isc_stats {
 static isc_result_t
 create_stats(isc_mem_t *mctx, int ncounters, isc_stats_t **statsp) {
 	isc_stats_t *stats;
-	isc_result_t result = ISC_R_SUCCESS;
 
 	REQUIRE(statsp != NULL && *statsp == NULL);
 
 	stats = isc_mem_get(mctx, sizeof(*stats));
-	if (stats == NULL)
-		return (ISC_R_NOMEMORY);
+	isc_mutex_init(&stats->lock);
 
-	result = isc_mutex_init(&stats->lock);
-	if (result != ISC_R_SUCCESS)
-		goto clean_stats;
+	stats->counters = isc_mem_get(mctx, sizeof(isc_stat_t) * ncounters * CBUCKETS);
 
-	stats->counters = isc_mem_get(mctx, sizeof(isc_stat_t) * ncounters);
-	if (stats->counters == NULL) {
-		result = ISC_R_NOMEMORY;
-		goto clean_mutex;
-	}
 	stats->copiedcounters = isc_mem_get(mctx,
 					    sizeof(uint64_t) * ncounters);
-	if (stats->copiedcounters == NULL) {
-		result = ISC_R_NOMEMORY;
-		goto clean_counters;
-	}
 
 	stats->references = 1;
 	memset(stats->counters, 0, sizeof(isc_stat_t) * ncounters);
@@ -97,18 +86,7 @@ create_stats(isc_mem_t *mctx, int ncounters, isc_stats_t **statsp) {
 
 	*statsp = stats;
 
-	return (result);
-
-clean_counters:
-	isc_mem_put(mctx, stats->counters, sizeof(isc_stat_t) * ncounters);
-
-clean_mutex:
-	DESTROYLOCK(&stats->lock);
-
-clean_stats:
-	isc_mem_put(mctx, stats, sizeof(*stats));
-
-	return (result);
+	return (ISC_R_SUCCESS);
 }
 
 void
@@ -137,7 +115,7 @@ isc_stats_detach(isc_stats_t **statsp) {
 
 	if (stats->references == 0) {
 		isc_mem_put(stats->mctx, stats->copiedcounters,
-			    sizeof(isc_stat_t) * stats->ncounters);
+			    sizeof(isc_stat_t) * stats->ncounters * CBUCKETS);
 		isc_mem_put(stats->mctx, stats->counters,
 			    sizeof(isc_stat_t) * stats->ncounters);
 		UNLOCK(&stats->lock);
@@ -168,7 +146,7 @@ isc_stats_increment(isc_stats_t *stats, isc_statscounter_t counter) {
 	REQUIRE(ISC_STATS_VALID(stats));
 	REQUIRE(counter < stats->ncounters);
 
-	atomic_fetch_add_explicit(&stats->counters[counter], 1,
+	atomic_fetch_add_explicit(&stats->counters[counter + isc_random_uniform(CBUCKETS) * stats->ncounters], 1,
 				  memory_order_relaxed);
 }
 
@@ -177,7 +155,7 @@ isc_stats_decrement(isc_stats_t *stats, isc_statscounter_t counter) {
 	REQUIRE(ISC_STATS_VALID(stats));
 	REQUIRE(counter < stats->ncounters);
 
-	atomic_fetch_sub_explicit(&stats->counters[counter], 1,
+	atomic_fetch_sub_explicit(&stats->counters[counter + isc_random_uniform(CBUCKETS) * stats->ncounters], 1,
 				  memory_order_relaxed);
 }
 
@@ -185,14 +163,17 @@ void
 isc_stats_dump(isc_stats_t *stats, isc_stats_dumper_t dump_fn,
 	       void *arg, unsigned int options)
 {
-	int i;
+	int i, j;
 
 	REQUIRE(ISC_STATS_VALID(stats));
 
 	for (i = 0; i < stats->ncounters; i++) {
-		stats->copiedcounters[i] =
-			atomic_load_explicit(&stats->counters[i],
-					     memory_order_relaxed);
+		stats->copiedcounters[i] = 0;
+		for (j = 0; i < CBUCKETS; j++) {
+			stats->copiedcounters[i] +=
+				atomic_load_explicit(&stats->counters[i+j*stats->ncounters],
+						     memory_order_relaxed);
+		}
 	}
 
 	for (i = 0; i < stats->ncounters; i++) {
@@ -207,9 +188,13 @@ void
 isc_stats_set(isc_stats_t *stats, uint64_t val,
 	      isc_statscounter_t counter)
 {
+	int i;
 	REQUIRE(ISC_STATS_VALID(stats));
 	REQUIRE(counter < stats->ncounters);
 
 	atomic_store_explicit(&stats->counters[counter], val,
 			      memory_order_relaxed);
+	for (i = 1; i < CBUCKETS; i++) {
+		atomic_store_explicit(&stats->counters[counter + i*stats->ncounters], 0, memory_order_relaxed);
+	}
 }
