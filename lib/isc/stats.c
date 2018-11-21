@@ -28,9 +28,13 @@
 #include <isc/stats.h>
 #include <isc/util.h>
 
-#define CBUCKETS 16
+#define CBUCKETS 8
 #define ISC_STATS_MAGIC			ISC_MAGIC('S', 't', 'a', 't')
 #define ISC_STATS_VALID(x)		ISC_MAGIC_VALID(x, ISC_STATS_MAGIC)
+
+inline int xxhash() {
+	return (13337*pthread_self()) % CBUCKETS;
+}
 
 typedef atomic_int_fast64_t isc_stat_t;
 
@@ -146,7 +150,7 @@ isc_stats_increment(isc_stats_t *stats, isc_statscounter_t counter) {
 	REQUIRE(ISC_STATS_VALID(stats));
 	REQUIRE(counter < stats->ncounters);
 
-	atomic_fetch_add_explicit(&stats->counters[counter + (isc_random8() % CBUCKETS) * stats->ncounters], 1,
+	atomic_fetch_add_explicit(&stats->counters[counter + xxhash() * stats->ncounters], 1,
 				  memory_order_relaxed);
 }
 
@@ -155,7 +159,7 @@ isc_stats_decrement(isc_stats_t *stats, isc_statscounter_t counter) {
 	REQUIRE(ISC_STATS_VALID(stats));
 	REQUIRE(counter < stats->ncounters);
 
-	atomic_fetch_sub_explicit(&stats->counters[counter + (isc_random8() % CBUCKETS) * stats->ncounters], 1,
+	atomic_fetch_sub_explicit(&stats->counters[counter + xxhash() * stats->ncounters], 1,
 				  memory_order_relaxed);
 }
 
