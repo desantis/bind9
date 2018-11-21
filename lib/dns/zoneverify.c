@@ -99,9 +99,13 @@ struct nsec3_chain_fixed {
 	 */
 };
 
-static unsigned char ndata[] = "\0400FEH552TRKV2I9QUNQ8KQ23MFH2IJGAK\002be";
-static unsigned char offsets[] = { 0, 33, 36 };
-static dns_name_t the_name = DNS_NAME_INITABSOLUTE(ndata, offsets);
+static unsigned char the_ndata[] = "\0400FEH552TRKV2I9QUNQ8KQ23MFH2IJGAK\002be";
+static unsigned char the_offsets[] = { 0, 33, 36 };
+static dns_name_t the_name = DNS_NAME_INITABSOLUTE(the_ndata, the_offsets);
+
+static unsigned char other_ndata[] = "\0400FEH552TRKV2I9QUNQ8KQ23MFH2IJGAK\002be";
+static unsigned char other_offsets[] = { 0, 33, 36 };
+static dns_name_t other_name = DNS_NAME_INITABSOLUTE(other_ndata, other_offsets);
 
 /*%
  * Log a zone verification error described by 'fmt' and the variable arguments
@@ -712,6 +716,12 @@ isoptout(const vctx_t *vctx, const dns_rdata_t *nsec3rdata,
 
 	dns_rdataset_init(&rdataset);
 	hashname = dns_fixedname_name(&fixed);
+	if (dns_name_equal(&other_name, hashname)) {
+		char nb[DNS_NAME_FORMATSIZE];
+		dns_name_format(vctx->origin, nb, sizeof(nb));
+		fprintf(stderr, "othername from %s\n", nb);
+		fflush(stderr);
+	}
 	result = dns_db_findnsec3node(vctx->db, hashname, false, &node);
 	if (result == ISC_R_SUCCESS) {
 		result = dns_db_findrdataset(vctx->db, node, vctx->ver,
@@ -777,10 +787,6 @@ verifynsec3(const vctx_t *vctx, const dns_name_t *name,
 		return (ISC_R_SUCCESS);
 	}
 
-	result = isoptout(vctx, rdata, &optout);
-	if (result != ISC_R_SUCCESS) {
-		return (result);
-	}
 
 	dns_fixedname_init(&fixed);
 	result = dns_nsec3_hashname(&fixed, rawhash, &rhsize, name,
@@ -802,10 +808,22 @@ verifynsec3(const vctx_t *vctx, const dns_name_t *name,
 	 */
 	dns_rdataset_init(&rdataset);
 	hashname = dns_fixedname_name(&fixed);
+	if (dns_name_equal(&other_name, hashname)) {
+		char nb[DNS_NAME_FORMATSIZE];
+		dns_name_format(name, nb, sizeof(nb));
+		fprintf(stderr, "othername from %s\n", nb);
+		fflush(stderr);
+	}
 	if (dns_name_equal(&the_name, hashname)) {
 		fprintf(stderr, "verifynsec3\n");
 		fflush(stderr);
 	}
+
+	result = isoptout(vctx, rdata, &optout);
+	if (result != ISC_R_SUCCESS) {
+		return (result);
+	}
+
 	result = dns_db_findnsec3node(vctx->db, hashname, false, &node);
 	if (result == ISC_R_SUCCESS) {
 		result = dns_db_findrdataset(vctx->db, node, vctx->ver,
@@ -1821,6 +1839,52 @@ determine_active_algorithms(vctx_t *vctx, bool ignore_kskflag,
 		vctx->bad_algorithms[i] = 1;
 	}
 }
+static void
+xxxx(vctx_t *vctx, dns_name_t *name) {
+	unsigned char rawhash[NSEC3_MAX_HASH_LENGTH];
+	size_t rhsize = sizeof(rawhash);
+	dns_fixedname_t fixed;
+	dns_name_t *hashname;
+	isc_result_t result;
+	dns_rdata_nsec3param_t nsec3param;
+	dns_rdataset_t rdataset;
+
+	if (!dns_rdataset_isassociated(&vctx->nsec3paramset))
+		return;
+
+	dns_fixedname_init(&fixed);
+	hashname = dns_fixedname_name(&fixed);
+	dns_rdataset_init(&rdataset);
+	dns_rdataset_clone(&vctx->nsec3paramset, &rdataset);
+
+	for (result = dns_rdataset_first(&rdataset);
+	     result == ISC_R_SUCCESS;
+	     result = dns_rdataset_next(&rdataset))
+	{
+		dns_rdata_t rdata = DNS_RDATA_INIT;
+
+		dns_rdataset_current(&rdataset, &rdata);
+		result = dns_rdata_tostruct(&rdata, &nsec3param, NULL);
+		RUNTIME_CHECK(result == ISC_R_SUCCESS);
+		result = dns_nsec3_hashname(&fixed, rawhash, &rhsize, name,
+					    vctx->origin, nsec3param.hash,
+					    nsec3param.iterations, nsec3param.salt,
+					    nsec3param.salt_length);
+		if (result != ISC_R_SUCCESS) {
+			zoneverify_log_error(vctx, "dns_nsec3_hashname(): %s",
+						     isc_result_totext(result));
+			continue;
+		}
+
+		if (dns_name_equal(&other_name, hashname)) {
+			char nb[DNS_NAME_FORMATSIZE];
+			dns_name_format(name, nb, sizeof(nb));
+			fprintf(stderr, "\n\nothername from %s\n\n\n", nb);
+			fflush(stderr);
+		}
+	}
+	dns_rdataset_disassociate(&rdataset);
+}
 
 /*%
  * Check that all the records not yet verified were signed by keys that are
@@ -1867,6 +1931,7 @@ verify_nodes(vctx_t *vctx, isc_result_t *vresult) {
 					     isc_result_totext(result));
 			goto done;
 		}
+		xxxx(vctx, name);
 		if (!dns_name_issubdomain(name, vctx->origin)) {
 			result = check_no_nsec(vctx, name, node);
 			if (result != ISC_R_SUCCESS) {
@@ -1910,6 +1975,7 @@ verify_nodes(vctx_t *vctx, isc_result_t *vresult) {
 				dns_db_detachnode(vctx->db, &node);
 				goto done;
 			}
+			xxxx(vctx, nextname);
 			if (!dns_name_issubdomain(nextname, vctx->origin) ||
 			    (zonecut != NULL &&
 			     dns_name_issubdomain(nextname, zonecut)))
@@ -2002,6 +2068,7 @@ verify_nodes(vctx_t *vctx, isc_result_t *vresult) {
 					     isc_result_totext(result));
 			goto done;
 		}
+		xxxx(vctx, name);
 		result = verifynode(vctx, name, node, false, &vctx->keyset,
 				    NULL, NULL, NULL, NULL);
 		if (result != ISC_R_SUCCESS) {
