@@ -28,11 +28,11 @@
 #include <isc/stats.h>
 #include <isc/util.h>
 
-#define CBUCKETS 8
+#define CBUCKETS 11
 #define ISC_STATS_MAGIC			ISC_MAGIC('S', 't', 'a', 't')
 #define ISC_STATS_VALID(x)		ISC_MAGIC_VALID(x, ISC_STATS_MAGIC)
 
-inline int xxhash() {
+inline unsigned int xxhash() {
 	return (13337*pthread_self()) % CBUCKETS;
 }
 
@@ -119,9 +119,9 @@ isc_stats_detach(isc_stats_t **statsp) {
 
 	if (stats->references == 0) {
 		isc_mem_put(stats->mctx, stats->copiedcounters,
-			    sizeof(isc_stat_t) * stats->ncounters * CBUCKETS);
-		isc_mem_put(stats->mctx, stats->counters,
 			    sizeof(isc_stat_t) * stats->ncounters);
+		isc_mem_put(stats->mctx, stats->counters,
+			    sizeof(uint64_t) * stats->ncounters * CBUCKETS);
 		UNLOCK(&stats->lock);
 		DESTROYLOCK(&stats->lock);
 		isc_mem_putanddetach(&stats->mctx, stats, sizeof(*stats));
