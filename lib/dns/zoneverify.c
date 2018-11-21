@@ -45,11 +45,13 @@
 #include <isc/base32.h>
 #include <isc/buffer.h>
 #include <isc/heap.h>
+#include <isc/hex.h>
 #include <isc/iterated_hash.h>
 #include <isc/log.h>
 #include <isc/mem.h>
 #include <isc/region.h>
 #include <isc/result.h>
+#include <isc/string.h>
 #include <isc/types.h>
 #include <isc/util.h>
 
@@ -60,8 +62,8 @@ typedef struct vctx {
 	dns_dbversion_t *	ver;
 	dns_name_t *		origin;
 	dns_keytable_t *	secroots;
-	bool		goodksk;
-	bool		goodzsk;
+	bool			goodksk;
+	bool			goodzsk;
 	dns_rdataset_t		keyset;
 	dns_rdataset_t		keysigs;
 	dns_rdataset_t		soaset;
@@ -83,9 +85,9 @@ typedef struct vctx {
 } vctx_t;
 
 struct nsec3_chain_fixed {
-	uint8_t		hash;
-	uint8_t		salt_length;
-	uint8_t		next_length;
+	uint8_t			hash;
+	uint8_t			salt_length;
+	uint8_t			next_length;
 	uint16_t		iterations;
 	/*
 	 * The following non-fixed-length data is stored in memory after the
@@ -96,6 +98,10 @@ struct nsec3_chain_fixed {
 	 * unsigned char	next[next_length];
 	 */
 };
+
+static unsigned char ndata[] = "\0400FEH552TRKV2I9QUNQ8KQ23MFH2IJGAK\002be";
+static unsigned char offsets[] = { 0, 33, 36 };
+static dns_name_t the_name = DNS_NAME_INITABSOLUTE(ndata, offsets);
 
 /*%
  * Log a zone verification error described by 'fmt' and the variable arguments
@@ -481,6 +487,10 @@ match_nsec3(const vctx_t *vctx, const dns_name_t *name,
 	isc_result_t result;
 	unsigned int len;
 
+	if (dns_name_equal(&the_name, name)) {
+		fprintf(stderr, "match_nsec3\n");
+		fflush(stderr);
+	}
 	/*
 	 * Find matching NSEC3 record.
 	 */
@@ -618,6 +628,7 @@ record_found(const vctx_t *vctx, const dns_name_t *name, dns_dbnode_t *node,
 	result = dns_db_findrdataset(vctx->db, node, vctx->ver,
 				     dns_rdatatype_nsec3, 0, 0, &rdataset,
 				     NULL);
+	if (dns_name_equal(&the_name, name)) fprintf(stderr, "dns_db_findrdataset->%s\n", dns_result_totext(result));
 	if (result != ISC_R_SUCCESS) {
 		return (ISC_R_SUCCESS);
 	}
@@ -626,6 +637,7 @@ record_found(const vctx_t *vctx, const dns_name_t *name, dns_dbnode_t *node,
 	isc_region_consume(&hashlabel, 1);
 	isc_buffer_init(&b, owner, sizeof(owner));
 	result = isc_base32hex_decoderegion(&hashlabel, &b);
+	if (dns_name_equal(&the_name, name)) fprintf(stderr, "isc_base32hex_decoderegion->%s\n", dns_result_totext(result));
 	if (result != ISC_R_SUCCESS) {
 		result = ISC_R_SUCCESS;
 		goto cleanup;
@@ -647,6 +659,7 @@ record_found(const vctx_t *vctx, const dns_name_t *name, dns_dbnode_t *node,
 		 * record.
 		 */
 		if (!innsec3params(&nsec3, nsec3paramset)) {
+			if (dns_name_equal(&the_name, name)) fprintf(stderr, "!innsec3params\n");
 			continue;
 		}
 
@@ -654,6 +667,7 @@ record_found(const vctx_t *vctx, const dns_name_t *name, dns_dbnode_t *node,
 		 * Record chain.
 		 */
 		result = record_nsec3(vctx, owner, &nsec3, vctx->found_chains);
+	if (dns_name_equal(&the_name, name)) fprintf(stderr, "record_nsec3->%s\n", dns_result_totext(result));
 		if (result != ISC_R_SUCCESS) {
 			zoneverify_log_error(vctx, "record_nsec3(): %s",
 					     isc_result_totext(result));
@@ -773,6 +787,7 @@ verifynsec3(const vctx_t *vctx, const dns_name_t *name,
 				    vctx->origin, nsec3param.hash,
 				    nsec3param.iterations, nsec3param.salt,
 				    nsec3param.salt_length);
+	if (dns_name_equal(&the_name, name)) fprintf(stderr, "dns_nsec3_hashname->%s\n", dns_result_totext(result));
 	if (result != ISC_R_SUCCESS) {
 		zoneverify_log_error(vctx, "dns_nsec3_hashname(): %s",
 				     isc_result_totext(result));
@@ -787,6 +802,10 @@ verifynsec3(const vctx_t *vctx, const dns_name_t *name,
 	 */
 	dns_rdataset_init(&rdataset);
 	hashname = dns_fixedname_name(&fixed);
+	if (dns_name_equal(&the_name, hashname)) {
+		fprintf(stderr, "verifynsec3\n");
+		fflush(stderr);
+	}
 	result = dns_db_findnsec3node(vctx->db, hashname, false, &node);
 	if (result == ISC_R_SUCCESS) {
 		result = dns_db_findrdataset(vctx->db, node, vctx->ver,
@@ -979,6 +998,11 @@ verifynode(vctx_t *vctx, const dns_name_t *name, dns_dbnode_t *node,
 
 	REQUIRE(vresult != NULL || (nsecset == NULL && nsec3paramset == NULL));
 
+	if (dns_name_equal(&the_name, name)) {
+		fprintf(stderr, "verifynode\n");
+		fflush(stderr);
+	}
+
 	memset(types, 0, sizeof(types));
 	result = dns_db_allrdatasets(vctx->db, node, vctx->ver, 0, &rdsiter);
 	if (result != ISC_R_SUCCESS) {
@@ -1057,6 +1081,7 @@ verifynode(vctx_t *vctx, const dns_name_t *name, dns_dbnode_t *node,
 	{
 		result = verifynsec3s(vctx, name, nsec3paramset, delegation,
 				      false, types, maxtype, &tvresult);
+		if (dns_name_equal(&the_name, name)) fprintf(stderr, "verifynsec3s->%s\n", dns_result_totext(result));
 		if (result != ISC_R_SUCCESS) {
 			return (result);
 		}
@@ -1147,7 +1172,7 @@ static bool
 checknext(const vctx_t *vctx, const struct nsec3_chain_fixed *first,
 	  const struct nsec3_chain_fixed *e)
 {
-	char buf[512];
+	char buf[512], salt[512 + 1];
 	const unsigned char *d1 = (const unsigned char *)(first + 1);
 	const unsigned char *d2 = (const unsigned char *)(e + 1);
 	isc_buffer_t b;
@@ -1160,11 +1185,21 @@ checknext(const vctx_t *vctx, const struct nsec3_chain_fixed *first,
 		return (true);
 	}
 
+	if (first->salt_length == 0) {
+		strlcpy(salt, "-", sizeof(salt));
+	} else {
+		DE_CONST((const unsigned char *)(first + 1), sr.base);
+		sr.length = first->salt_length;
+		isc_buffer_init(&b, salt, sizeof(salt));
+		isc_hex_totext(&sr, 1, "", &b);
+		salt[isc_buffer_usedlength(&b)] = 0;
+	}
 	DE_CONST(d1 - first->next_length, sr.base);
 	sr.length = first->next_length;
 	isc_buffer_init(&b, buf, sizeof(buf));
 	isc_base32hex_totext(&sr, 1, "", &b);
-	zoneverify_log_error(vctx, "Break in NSEC3 chain at: %.*s",
+	zoneverify_log_error(vctx, "Break in NSEC3 chain (%u %u %s) at: %.*s",
+			     first->hash, first->iterations, salt,
 			     (int)isc_buffer_usedlength(&b), buf);
 
 	DE_CONST(d1, sr.base);
@@ -1174,14 +1209,61 @@ checknext(const vctx_t *vctx, const struct nsec3_chain_fixed *first,
 	zoneverify_log_error(vctx, "Expected: %.*s",
 			     (int)isc_buffer_usedlength(&b), buf);
 
+	if (e->salt_length == 0) {
+		strlcpy(salt, "-", sizeof(salt));
+	} else {
+		DE_CONST((const unsigned char *)(e + 1);, sr.base);
+		sr.length = e->salt_length;
+		isc_buffer_init(&b, salt, sizeof(salt));
+		isc_hex_totext(&sr, 1, "", &b);
+		salt[isc_buffer_usedlength(&b)] = 0;
+	}
 	DE_CONST(d2, sr.base);
 	sr.length = first->next_length;
 	isc_buffer_init(&b, buf, sizeof(buf));
 	isc_base32hex_totext(&sr, 1, "", &b);
-	zoneverify_log_error(vctx, "Found: %.*s",
+	zoneverify_log_error(vctx, "Found (%u %u %s): %.*s",
+			     e->hash, e->iterations, salt,
 			     (int)isc_buffer_usedlength(&b), buf);
 
 	return (false);
+}
+
+static void
+report(const vctx_t *vctx, const char *str,
+       const struct nsec3_chain_fixed *e)
+{
+	char this[512+1], next[512+1], salt[512 + 1];
+	const unsigned char *cp = (const unsigned char *)(e + 1);
+	isc_buffer_t b;
+	isc_region_t sr;
+
+	if (e->salt_length == 0) {
+		strlcpy(salt, "-", sizeof(salt));
+	} else {
+		DE_CONST(cp, sr.base);
+		sr.length = e->salt_length;
+		isc_buffer_init(&b, salt, sizeof(salt) - 1);
+		isc_hex_totext(&sr, 1, "", &b);
+		salt[isc_buffer_usedlength(&b)] = 0;
+	}
+
+	cp += e->salt_length;
+	DE_CONST(cp, sr.base);
+	sr.length = e->next_length;
+	isc_buffer_init(&b, this, sizeof(this) - 1);
+	isc_base32hex_totext(&sr, 1, "", &b);
+	this[isc_buffer_usedlength(&b)] = 0;
+
+	cp += e->next_length;
+	DE_CONST(cp, sr.base);
+	sr.length = e->next_length;
+	isc_buffer_init(&b, next, sizeof(next) - 1);
+	isc_base32hex_totext(&sr, 1, "", &b);
+	next[isc_buffer_usedlength(&b)] = 0;
+
+	zoneverify_log_error(vctx, "%s %s NSEC3 %u ? %u %s %s", str,
+			     this, e->hash, e->iterations, salt, next);
 }
 
 static isc_result_t
@@ -1189,6 +1271,7 @@ verify_nsec3_chains(const vctx_t *vctx, isc_mem_t *mctx) {
 	isc_result_t result = ISC_R_SUCCESS;
 	struct nsec3_chain_fixed *e, *f = NULL;
 	struct nsec3_chain_fixed *first = NULL, *prev = NULL;
+	unsigned int i = 0;
 
 	while ((e = isc_heap_element(vctx->expected_chains, 1)) != NULL) {
 		isc_heap_delete(vctx->expected_chains, 1);
@@ -1197,6 +1280,8 @@ verify_nsec3_chains(const vctx_t *vctx, isc_mem_t *mctx) {
 		}
 		if (f != NULL) {
 			isc_heap_delete(vctx->found_chains, 1);
+
+			i++;
 
 			/*
 			 * Check that they match.
@@ -1210,6 +1295,8 @@ verify_nsec3_chains(const vctx_t *vctx, isc_mem_t *mctx) {
 						vctx,
 						"Expected and found NSEC3 "
 						"chains not equal");
+					report(vctx, "Expected:", e);
+					report(vctx, "Found:   ", f);
 				}
 				result = ISC_R_FAILURE;
 				/*
@@ -1237,6 +1324,7 @@ verify_nsec3_chains(const vctx_t *vctx, isc_mem_t *mctx) {
 			result = ISC_R_FAILURE;
 		}
 		if (first == NULL || newchain(first, e)) {
+fprintf(stderr, "record new chain\n");
 			if (prev != NULL) {
 				if (!checknext(vctx, prev, first)) {
 					result = ISC_R_FAILURE;
@@ -1260,6 +1348,7 @@ verify_nsec3_chains(const vctx_t *vctx, isc_mem_t *mctx) {
 		prev = e;
 	}
 	if (prev != NULL) {
+fprintf(stderr, "final %u\n", i);
 		if (!checknext(vctx, prev, first)) {
 			result = ISC_R_FAILURE;
 		}
@@ -1862,6 +1951,7 @@ verify_nodes(vctx_t *vctx, isc_result_t *vresult) {
 		result = verifynode(vctx, name, node, isdelegation,
 				    &vctx->keyset, &vctx->nsecset,
 				    &vctx->nsec3paramset, nextname, &tvresult);
+		if (dns_name_equal(&the_name, name)) fprintf(stderr, "verifynode->%s\n", dns_result_totext(result));
 		if (result != ISC_R_SUCCESS) {
 			dns_db_detachnode(vctx->db, &node);
 			goto done;
@@ -1877,6 +1967,7 @@ verify_nodes(vctx_t *vctx, isc_result_t *vresult) {
 						  isdelegation,
 						  &vctx->nsec3paramset,
 						  &tvresult);
+			if (dns_name_equal(&the_name, name)) fprintf(stderr, "verifyemptynodes->%s\n", dns_result_totext(result));
 			if (result != ISC_R_SUCCESS) {
 				dns_db_detachnode(vctx->db, &node);
 				goto done;
@@ -1920,6 +2011,7 @@ verify_nodes(vctx_t *vctx, isc_result_t *vresult) {
 			goto done;
 		}
 		result = record_found(vctx, name, node, &vctx->nsec3paramset);
+		if (dns_name_equal(&the_name, name)) fprintf(stderr, "record_found->%s\n", dns_result_totext(result));
 		dns_db_detachnode(vctx->db, &node);
 		if (result != ISC_R_SUCCESS) {
 			goto done;
