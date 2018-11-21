@@ -221,13 +221,13 @@ destroy(isc__timer_t *timer) {
 	 * The caller must ensure it is safe to destroy the timer.
 	 */
 
+	LOCK(&manager->lock);
 
 	(void)isc_task_purgerange(timer->task,
 				  timer,
 				  ISC_TIMEREVENT_FIRSTEVENT,
 				  ISC_TIMEREVENT_LASTEVENT,
 				  NULL);
-	LOCK(&manager->lock);
 	deschedule(timer);
 	UNLINK(manager->timers, timer, link);
 
