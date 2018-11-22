@@ -36,6 +36,7 @@ typedef enum {
 
 struct isc_rwlock {
 	pthread_rwlock_t	rwlock;
+	atomic_bool             downgrade;
 };
 
 #else /* HAVE_PTHREAD_RWLOCK_RDLOCK */
@@ -44,7 +45,7 @@ struct isc_rwlock {
 	/* Unlocked. */
 	unsigned int		magic;
 	isc_mutex_t		lock;
-	int32_t		spins;
+	int32_t			spins;
 
 	/*
 	 * When some atomic instructions with hardware assistance are
