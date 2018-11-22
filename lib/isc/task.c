@@ -257,9 +257,7 @@ isc_task_create(isc_taskmgr_t *manager0, unsigned int quantum,
 		return (ISC_R_NOMEMORY);
 	XTRACE("isc_task_create");
 	task->manager = manager;
-	task->threadid = atomic_fetch_add_explicit(&manager->curq, 1,
-						   memory_order_relaxed)
-						   % manager->workers;
+	task->threadid = isc_random_uniform(manager->workers);
 	isc_mutex_init(&task->lock);
 
 	task->state = task_state_idle;
@@ -490,11 +488,9 @@ isc_task_sendto(isc_task_t *task0, isc_event_t **eventp, int c) {
 	REQUIRE(VALID_TASK(task));
 	XTRACE("isc_task_send");
 
-	if (c < 0) {
-		c = atomic_fetch_add_explicit(&task->manager->curq, 1,
-					      memory_order_relaxed);
-	}
-	c %= task->manager->workers;
+	UNUSED(c);
+
+	c = isc_random_uniform(task->manager->workers);
 
 	/*
 	 * We're trying hard to hold locks for as short a time as possible.
@@ -540,11 +536,9 @@ isc_task_sendtoanddetach(isc_task_t **taskp, isc_event_t **eventp, int c) {
 	REQUIRE(VALID_TASK(task));
 	XTRACE("isc_task_sendanddetach");
 
-	if (c < 0) {
-		c = atomic_fetch_add_explicit(&task->manager->curq, 1,
-					      memory_order_relaxed);
-	}
-	c %= task->manager->workers;
+	UNUSED(c);
+
+	c = isc_random_uniform(task->manager->workers);
 
 	LOCK(&task->lock);
 	idle1 = task_send(task, eventp, c);
