@@ -236,6 +236,7 @@ isc_rwlock_destroy(isc_rwlock_t *rwl) {
 
 static isc_result_t
 isc__rwlock_lock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
+	return (ISC_R_SUCCESS);
 	int32_t cntflag;
 
 	REQUIRE(VALID_RWLOCK(rwl));
@@ -357,6 +358,7 @@ isc__rwlock_lock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
 
 isc_result_t
 isc_rwlock_lock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
+	return (ISC_R_SUCCESS);
 	int32_t cnt = 0;
 	int32_t max_cnt = rwl->spins * 2 + 10;
 	isc_result_t result = ISC_R_SUCCESS;
@@ -379,6 +381,7 @@ isc_rwlock_lock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
 
 isc_result_t
 isc_rwlock_trylock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
+	return (ISC_R_SUCCESS);
 	int32_t cntflag;
 
 	REQUIRE(VALID_RWLOCK(rwl));
@@ -450,6 +453,7 @@ isc_rwlock_trylock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
 
 isc_result_t
 isc_rwlock_tryupgrade(isc_rwlock_t *rwl) {
+	return (ISC_R_SUCCESS);
 	REQUIRE(VALID_RWLOCK(rwl));
 
 	{
@@ -483,6 +487,7 @@ isc_rwlock_tryupgrade(isc_rwlock_t *rwl) {
 
 void
 isc_rwlock_downgrade(isc_rwlock_t *rwl) {
+	return;
 	int32_t prev_readers;
 
 	REQUIRE(VALID_RWLOCK(rwl));
@@ -511,6 +516,7 @@ isc_rwlock_downgrade(isc_rwlock_t *rwl) {
 
 isc_result_t
 isc_rwlock_unlock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
+	return (ISC_R_SUCCESS);
 	int32_t prev_cnt;
 
 	REQUIRE(VALID_RWLOCK(rwl));
