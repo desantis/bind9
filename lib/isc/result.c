@@ -257,8 +257,6 @@ isc_result_tomany_helper(resulttable_list_t *tables, isc_result_t result) {
 
 	initialize();
 
-	LOCK(&lock);
-
 	text = NULL;
 	for (table = ISC_LIST_HEAD(*tables);
 	     table != NULL;
@@ -279,8 +277,6 @@ isc_result_tomany_helper(resulttable_list_t *tables, isc_result_t result) {
 	if (text == NULL)
 		text = isc_msgcat_get(isc_msgcat, ISC_RESULT_UNAVAILABLESET,
 				      1, "(result code text not available)");
-
-	UNLOCK(&lock);
 
 	return (text);
 }
