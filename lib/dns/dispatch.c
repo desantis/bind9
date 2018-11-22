@@ -2468,7 +2468,7 @@ dns_dispatch_createtcp(dns_dispatchmgr_t *mgr, isc_socket_t *sock,
 
 	disp->ntasks = 1;
 	disp->task[0] = NULL;
-	result = isc_task_create(taskmgr, 50, &disp->task[0]);
+	result = isc_task_create(taskmgr, 0, &disp->task[0]);
 	if (result != ISC_R_SUCCESS)
 		goto kill_socket;
 
@@ -2918,7 +2918,7 @@ dispatch_createudp(dns_dispatchmgr_t *mgr, isc_socketmgr_t *sockmgr,
 	}
 	for (i = 0; i < disp->ntasks; i++) {
 		disp->task[i] = NULL;
-		result = isc_task_create(taskmgr, 50, &disp->task[i]);
+		result = isc_task_create(taskmgr, 0, &disp->task[i]);
 		if (result != ISC_R_SUCCESS) {
 			while (--i >= 0) {
 				isc_task_shutdown(disp->task[i]);
