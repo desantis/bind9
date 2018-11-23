@@ -291,7 +291,7 @@ isc_task_create_bound(isc_taskmgr_t *manager0, unsigned int quantum,
 	INIT_LIST(task->events);
 	INIT_LIST(task->on_shutdown);
 	task->nevents = 0;
-	task->quantum = (quantum > 0) ? quantum : DEFAULT_QUANTUM;
+	task->quantum = quantum;
 	task->flags = 0;
 	task->now = 0;
 	isc_time_settoepoch(&task->tnow);
@@ -1093,7 +1093,8 @@ dispatch(isc__taskmgr_t *manager, unsigned int threadid) {
 
 		task = pop_readyq(manager, threadid);
 		if (task != NULL) {
-			unsigned int dispatch_count = 0;
+			int quantum = (task->quantum > 0) ? task->quantum :
+							    DEFAULT_QUANTUM;
 			bool done = false;
 			bool requeue = false;
 			bool finished = false;
@@ -1142,7 +1143,7 @@ dispatch(isc__taskmgr_t *manager, unsigned int threadid) {
 							event);
 						LOCK(&task->lock);
 					}
-					dispatch_count++;
+					quantum--;
 				}
 
 				if (task->references == 0 &&
@@ -1200,7 +1201,7 @@ dispatch(isc__taskmgr_t *manager, unsigned int threadid) {
 					} else
 						task->state = task_state_idle;
 					done = true;
-				} else if (dispatch_count >= task->quantum) {
+				} else if (quantum <= 0) {
 					/*
 					 * Our quantum has expired, but
 					 * there is more work to be done.
