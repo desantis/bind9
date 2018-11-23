@@ -134,6 +134,7 @@ struct isc__taskqueue {
 	isc_condition_t			work_available;
 	isc_thread_t			thread;
 	unsigned int			threadid;
+	unsigned int			tasks_waiting;
 	isc__taskmgr_t			*manager;
 };
 
@@ -931,6 +932,7 @@ pop_readyq(isc__taskmgr_t *manager, int c) {
 
 	if (task != NULL) {
 		DEQUEUE(manager->queues[c].ready_tasks, task, ready_link);
+		manager->queues[c].tasks_waiting--;
 		if (ISC_LINK_LINKED(task, ready_priority_link)) {
 			DEQUEUE(manager->queues[c].ready_priority_tasks, task,
 				ready_priority_link);
@@ -949,6 +951,7 @@ pop_readyq(isc__taskmgr_t *manager, int c) {
 static inline void
 push_readyq(isc__taskmgr_t *manager, isc__task_t *task, int c) {
 	ENQUEUE(manager->queues[c].ready_tasks, task, ready_link);
+	manager->queues[c].tasks_waiting++;
 	if ((task->flags & TASK_F_PRIVILEGED) != 0) {
 		ENQUEUE(manager->queues[c].ready_priority_tasks, task,
 			ready_priority_link);
@@ -1395,6 +1398,7 @@ isc_taskmgr_create(isc_mem_t *mctx, unsigned int workers,
 
 		manager->queues[i].manager = manager;
 		manager->queues[i].threadid = i;
+		manager->queues[i].tasks_waiting = 0;
 		RUNTIME_CHECK(isc_thread_create(run, &manager->queues[i],
 						&manager->queues[i].thread)
 			      == ISC_R_SUCCESS);
