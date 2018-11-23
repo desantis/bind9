@@ -135,6 +135,7 @@ struct isc__taskqueue {
 	isc_thread_t			thread;
 	unsigned int			threadid;
 	unsigned int			tasks_waiting;
+	bool				running;
 	isc__taskmgr_t			*manager;
 };
 
@@ -146,8 +147,6 @@ struct isc__taskmgr {
 	isc_mutex_t			halt_lock;
 	isc_condition_t			halt_cond;
 	unsigned int			workers;
-	atomic_uint_fast32_t		tasks_running;
-	atomic_uint_fast32_t		tasks_ready;
 	atomic_uint_fast32_t		curq;
 	isc__taskqueue_t		*queues;
 
@@ -932,6 +931,7 @@ pop_readyq(isc__taskmgr_t *manager, int c) {
 
 	if (task != NULL) {
 		DEQUEUE(manager->queues[c].ready_tasks, task, ready_link);
+		INSIST(manager->queues[c].tasks_waiting > 0);
 		manager->queues[c].tasks_waiting--;
 		if (ISC_LINK_LINKED(task, ready_priority_link)) {
 			DEQUEUE(manager->queues[c].ready_priority_tasks, task,
@@ -956,8 +956,6 @@ push_readyq(isc__taskmgr_t *manager, isc__task_t *task, int c) {
 		ENQUEUE(manager->queues[c].ready_priority_tasks, task,
 			ready_priority_link);
 	}
-	atomic_fetch_add_explicit(&manager->tasks_ready, 1,
-				  memory_order_acquire);
 }
 
 static void
@@ -1110,12 +1108,8 @@ dispatch(isc__taskmgr_t *manager, unsigned int threadid) {
 			 * have a task to do.  We must reacquire the queue
 			 * lock before exiting the 'if (task != NULL)' block.
 			 */
+			manager->queues[threadid].running = true;
 			UNLOCK(&manager->queues[threadid].lock);
-			RUNTIME_CHECK(
-			      atomic_fetch_sub_explicit(&manager->tasks_ready,
-						1, memory_order_release) > 0);
-			atomic_fetch_add_explicit(&manager->tasks_running, 1,
-						  memory_order_acquire);
 
 			LOCK(&task->lock);
 			INSIST(task->state == task_state_ready);
@@ -1229,10 +1223,8 @@ dispatch(isc__taskmgr_t *manager, unsigned int threadid) {
 			if (finished)
 				task_finished(task);
 
-			RUNTIME_CHECK(
-			      atomic_fetch_sub_explicit(&manager->tasks_running,
-						1, memory_order_release) > 0);
 			LOCK(&manager->queues[threadid].lock);
+			manager->queues[threadid].running = false;
 			if (requeue) {
 				/*
 				 * We know we're awake, so we don't have
@@ -1259,13 +1251,14 @@ dispatch(isc__taskmgr_t *manager, unsigned int threadid) {
 
 		/*
 		 * If we are in privileged execution mode and there are no
-		 * tasks remaining on the current ready queue, then
-		 * we're stuck.  Automatically drop privileges at that
-		 * point and continue with the regular ready queue.
+		 * tasks remaining on the current ready queue, we need to check
+		 * if maybe we need to drop from privileged to normal mode.
+		 * This might seem too heavy with all the locking but
+		 * privileged mode is used only during startup and dropped
+		 * once - after that this code is never executed.
 		 */
 		if (manager->mode != isc_taskmgrmode_normal &&
-		    atomic_load_explicit(&manager->tasks_running,
-					 memory_order_acquire) == 0)
+		    empty_readyq(manager, threadid))
 		{
 			UNLOCK(&manager->queues[threadid].lock);
 			LOCK(&manager->lock);
@@ -1276,16 +1269,14 @@ dispatch(isc__taskmgr_t *manager, unsigned int threadid) {
 			 * we'll end up in a deadlock over queue locks.
 			 *
 			 */
-			if (manager->mode != isc_taskmgrmode_normal &&
-			    atomic_load_explicit(&manager->tasks_running,
-						 memory_order_acquire) == 0)
-			{
+			if (manager->mode != isc_taskmgrmode_normal) {
 				bool empty = true;
 				unsigned int i;
 				for (i = 0; i < manager->workers && empty; i++)
 				{
 					LOCK(&manager->queues[i].lock);
-					empty &= empty_readyq(manager, i);
+					empty &= empty_readyq(manager, i) &&
+						 !manager->queues[i].running;
 					UNLOCK(&manager->queues[i].lock);
 				}
 				if (empty) {
@@ -1376,8 +1367,6 @@ isc_taskmgr_create(isc_mem_t *mctx, unsigned int workers,
 	manager->queues = isc_mem_get(mctx, workers * sizeof(isc__taskqueue_t));
 	RUNTIME_CHECK(manager->queues != NULL);
 
-	manager->tasks_running = 0;
-	manager->tasks_ready = 0;
 	manager->curq = 0;
 	manager->exiting = false;
 	manager->excl = NULL;
@@ -1400,6 +1389,7 @@ isc_taskmgr_create(isc_mem_t *mctx, unsigned int workers,
 		manager->queues[i].manager = manager;
 		manager->queues[i].threadid = i;
 		manager->queues[i].tasks_waiting = 0;
+		manager->queues[i].running = false;
 		RUNTIME_CHECK(isc_thread_create(run, &manager->queues[i],
 						&manager->queues[i].thread)
 			      == ISC_R_SUCCESS);
@@ -1708,16 +1698,6 @@ isc_taskmgr_renderxml(isc_taskmgr_t *mgr0, xmlTextWriterPtr writer) {
 	TRY0(xmlTextWriterWriteFormatString(writer, "%d", mgr->workers));
 	TRY0(xmlTextWriterEndElement(writer)); /* worker-threads */
 
-	TRY0(xmlTextWriterStartElement(writer, ISC_XMLCHAR "tasks-running"));
-	TRY0(xmlTextWriterWriteFormatString(writer, "%d",
-					    (int) mgr->tasks_running));
-	TRY0(xmlTextWriterEndElement(writer)); /* tasks-running */
-
-	TRY0(xmlTextWriterStartElement(writer, ISC_XMLCHAR "tasks-ready"));
-	TRY0(xmlTextWriterWriteFormatString(writer, "%d",
-					    (int) mgr->tasks_ready));
-	TRY0(xmlTextWriterEndElement(writer)); /* tasks-ready */
-
 	TRY0(xmlTextWriterEndElement(writer)); /* thread-model */
 
 	TRY0(xmlTextWriterStartElement(writer, ISC_XMLCHAR "tasks"));
@@ -1803,14 +1783,6 @@ isc_taskmgr_renderjson(isc_taskmgr_t *mgr0, json_object *tasks) {
 	obj = json_object_new_int(mgr->workers);
 	CHECKMEM(obj);
 	json_object_object_add(tasks, "worker-threads", obj);
-
-	obj = json_object_new_int(mgr->tasks_running);
-	CHECKMEM(obj);
-	json_object_object_add(tasks, "tasks-running", obj);
-
-	obj = json_object_new_int(mgr->tasks_ready);
-	CHECKMEM(obj);
-	json_object_object_add(tasks, "tasks-ready", obj);
 
 	array = json_object_new_array();
 	CHECKMEM(array);
