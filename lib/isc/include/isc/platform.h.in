@@ -28,6 +28,11 @@
 #define ISC_ATTR_NORETURN
 #endif
 
+#if HAVE_FUNCTION_ATTRIBUTE_DEPRECATED
+#define ISC_ATTR_DEPRECATED __attribute__((__deprecated__))
+#else
+#define ISC_ATTR_DEPRECATED
+#endif
 
 /***
  *** Thread-Local Storage

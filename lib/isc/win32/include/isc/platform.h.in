@@ -53,6 +53,7 @@ typedef uint32_t socklen_t;
  ***/
 
 #define ISC_ATTR_NORETURN __declspec(noreturn)
+#define ISC_ATTR_DEPRECATED
 
 /***
  *** Network.

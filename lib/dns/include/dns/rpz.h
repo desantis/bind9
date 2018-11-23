@@ -16,7 +16,6 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-#include <isc/deprecated.h>
 #include <isc/event.h>
 #include <isc/ht.h>
 #include <isc/lang.h>
@@ -394,15 +393,15 @@ dns_rpz_attach_rpzs(dns_rpz_zones_t *source, dns_rpz_zones_t **target);
 void
 dns_rpz_detach_rpzs(dns_rpz_zones_t **rpzsp);
 
+ISC_ATTR_DEPRECATED
 isc_result_t
 dns_rpz_beginload(dns_rpz_zones_t **load_rpzsp,
-		  dns_rpz_zones_t *rpzs, dns_rpz_num_t rpz_num)
-	ISC_DEPRECATED;
+		  dns_rpz_zones_t *rpzs, dns_rpz_num_t rpz_num);
 
+ISC_ATTR_DEPRECATED
 isc_result_t
 dns_rpz_ready(dns_rpz_zones_t *rpzs,
-	      dns_rpz_zones_t **load_rpzsp, dns_rpz_num_t rpz_num)
-	ISC_DEPRECATED;
+	      dns_rpz_zones_t **load_rpzsp, dns_rpz_num_t rpz_num);
 
 isc_result_t
 dns_rpz_add(dns_rpz_zones_t *rpzs, dns_rpz_num_t rpz_num,
@@ -424,4 +423,3 @@ dns_rpz_find_name(dns_rpz_zones_t *rpzs, dns_rpz_type_t rpz_type,
 ISC_LANG_ENDDECLS
 
 #endif /* DNS_RPZ_H */
-

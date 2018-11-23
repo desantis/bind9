@@ -280,9 +280,4 @@ extern void mock_assert(const int result, const char* const expression,
  */
 #define ISC_ALIGN(x, a) (((x) + (a) - 1) & ~((typeof(x))(a)-1))
 
-/*%
- * Misc
- */
-#include <isc/deprecated.h>
-
 #endif /* ISC_UTIL_H */

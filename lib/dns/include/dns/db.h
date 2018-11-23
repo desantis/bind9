@@ -49,7 +49,6 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-#include <isc/deprecated.h>
 #include <isc/lang.h>
 #include <isc/magic.h>
 #include <isc/stats.h>
@@ -1618,17 +1617,17 @@ dns_db_setcachestats(dns_db_t *db, isc_stats_t *stats);
  *	dns_rdatasetstats_create(); otherwise NULL.
  */
 
+ISC_ATTR_DEPRECATED
 void
-dns_db_rpz_attach(dns_db_t *db, void *rpzs, uint8_t rpz_num)
-	ISC_DEPRECATED;
+dns_db_rpz_attach(dns_db_t *db, void *rpzs, uint8_t rpz_num);
 /*%<
  * Attach the response policy information for a view to a database for a
  * zone for the view.
  */
 
+ISC_ATTR_DEPRECATED
 isc_result_t
-dns_db_rpz_ready(dns_db_t *db)
-	ISC_DEPRECATED;
+dns_db_rpz_ready(dns_db_t *db);
 /*%<
  * Finish loading a response policy zone.
  */
