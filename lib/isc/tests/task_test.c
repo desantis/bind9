@@ -712,7 +712,7 @@ manytasks(void **state) {
 	result = isc_mem_create(0, 0, &mctx);
 	assert_int_equal(result, ISC_R_SUCCESS);
 
-	result = isc_taskmgr_create(mctx, 4, 0, &taskmgr);
+	result = isc_taskmgr_create(mctx, 4, &taskmgr);
 	assert_int_equal(result, ISC_R_SUCCESS);
 
 	done = false;

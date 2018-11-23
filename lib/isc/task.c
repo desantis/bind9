@@ -151,7 +151,6 @@ struct isc__taskmgr {
 	isc__taskqueue_t		*queues;
 
 	/* Locked by task manager lock. */
-	unsigned int			default_quantum;
 	LIST(isc__task_t)		tasks;
 	isc_taskmgrmode_t		mode;
 	bool				pause_requested;
@@ -176,7 +175,7 @@ void
 isc__taskmgr_resume(isc_taskmgr_t *manager0);
 
 
-#define DEFAULT_DEFAULT_QUANTUM		25
+#define DEFAULT_QUANTUM			25
 #define FINISHED(m)			((m)->exiting && EMPTY((m)->tasks))
 
 /*%
@@ -292,7 +291,7 @@ isc_task_create_bound(isc_taskmgr_t *manager0, unsigned int quantum,
 	INIT_LIST(task->events);
 	INIT_LIST(task->on_shutdown);
 	task->nevents = 0;
-	task->quantum = (quantum > 0) ? quantum : manager->default_quantum;
+	task->quantum = (quantum > 0) ? quantum : DEFAULT_QUANTUM;
 	task->flags = 0;
 	task->now = 0;
 	isc_time_settoepoch(&task->tnow);
@@ -1343,7 +1342,7 @@ manager_free(isc__taskmgr_t *manager) {
 
 isc_result_t
 isc_taskmgr_create(isc_mem_t *mctx, unsigned int workers,
-		    unsigned int default_quantum, isc_taskmgr_t **managerp)
+		   isc_taskmgr_t **managerp)
 {
 	unsigned int i;
 	isc__taskmgr_t *manager;
@@ -1369,10 +1368,6 @@ isc_taskmgr_create(isc_mem_t *mctx, unsigned int workers,
 
 	manager->workers = workers;
 
-	if (default_quantum == 0) {
-		default_quantum = DEFAULT_DEFAULT_QUANTUM;
-	}
-	manager->default_quantum = default_quantum;
 	INIT_LIST(manager->tasks);
 	manager->queues = isc_mem_get(mctx, workers * sizeof(isc__taskqueue_t));
 	RUNTIME_CHECK(manager->queues != NULL);
@@ -1708,11 +1703,6 @@ isc_taskmgr_renderxml(isc_taskmgr_t *mgr0, xmlTextWriterPtr writer) {
 	TRY0(xmlTextWriterWriteFormatString(writer, "%d", mgr->workers));
 	TRY0(xmlTextWriterEndElement(writer)); /* worker-threads */
 
-	TRY0(xmlTextWriterStartElement(writer, ISC_XMLCHAR "default-quantum"));
-	TRY0(xmlTextWriterWriteFormatString(writer, "%d",
-					    mgr->default_quantum));
-	TRY0(xmlTextWriterEndElement(writer)); /* default-quantum */
-
 	TRY0(xmlTextWriterStartElement(writer, ISC_XMLCHAR "tasks-running"));
 	TRY0(xmlTextWriterWriteFormatString(writer, "%d",
 					    (int) mgr->tasks_running));
@@ -1809,10 +1799,6 @@ isc_taskmgr_renderjson(isc_taskmgr_t *mgr0, json_object *tasks) {
 	CHECKMEM(obj);
 	json_object_object_add(tasks, "worker-threads", obj);
 
-	obj = json_object_new_int(mgr->default_quantum);
-	CHECKMEM(obj);
-	json_object_object_add(tasks, "default-quantum", obj);
-
 	obj = json_object_new_int(mgr->tasks_running);
 	CHECKMEM(obj);
 	json_object_object_add(tasks, "tasks-running", obj);
@@ -1885,13 +1871,11 @@ isc_taskmgr_renderjson(isc_taskmgr_t *mgr0, json_object *tasks) {
 
 isc_result_t
 isc_taskmgr_createinctx(isc_mem_t *mctx, isc_appctx_t *actx,
-			unsigned int workers, unsigned int default_quantum,
-			isc_taskmgr_t **managerp)
+			unsigned int workers, isc_taskmgr_t **managerp)
 {
 	isc_result_t result;
 
-	result = isc_taskmgr_create(mctx, workers, default_quantum,
-				       managerp);
+	result = isc_taskmgr_create(mctx, workers, managerp);
 
 	if (result == ISC_R_SUCCESS)
 		isc_appctx_settaskmgr(actx, *managerp);
