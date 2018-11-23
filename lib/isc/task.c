@@ -182,9 +182,9 @@ isc__taskmgr_resume(isc_taskmgr_t *manager0);
  * we switch to CONGESTED_QUANTUM tasks per loop.
  */
 
-#define DEFAULT_QUANTUM			25
-#define CONGESTED_QUANTUM		10
-#define CONGESTED_TASK_LIMIT		5
+#define DEFAULT_QUANTUM			50
+#define CONGESTED_QUANTUM		5
+#define CONGESTED_TASK_LIMIT		2
 
 #define FINISHED(m)			((m)->exiting && EMPTY((m)->tasks))
 

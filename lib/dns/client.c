@@ -66,7 +66,7 @@
 #ifdef TUNE_LARGE
 #define RESOLVER_NTASKS 24
 #else
-#define RESOLVER_NTASKS 24
+#define RESOLVER_NTASKS 48
 #endif /* TUNE_LARGE */
 
 /*%
