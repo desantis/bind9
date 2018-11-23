@@ -284,7 +284,7 @@ main(int argc, char **argv) {
 
 	RUNTIME_CHECK(isc_app_start() == ISC_R_SUCCESS);
 	RUNTIME_CHECK(isc_mem_create(0, 0, &mctx) == ISC_R_SUCCESS);
-	RUNTIME_CHECK(isc_taskmgr_create(mctx, 2, 0, &taskmgr) ==
+	RUNTIME_CHECK(isc_taskmgr_create(mctx, 2, &taskmgr) ==
 		      ISC_R_SUCCESS);
 	RUNTIME_CHECK(isc_timermgr_create(mctx, &timermgr) == ISC_R_SUCCESS);
 	RUNTIME_CHECK(isc_socketmgr_create(mctx, &socketmgr) == ISC_R_SUCCESS);

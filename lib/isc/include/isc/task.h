@@ -631,11 +631,10 @@ isc_task_privilege(isc_task_t *task);
 
 isc_result_t
 isc_taskmgr_createinctx(isc_mem_t *mctx, isc_appctx_t *actx,
-			unsigned int workers, unsigned int default_quantum,
-			isc_taskmgr_t **managerp);
+			unsigned int workers, isc_taskmgr_t **managerp);
 isc_result_t
 isc_taskmgr_create(isc_mem_t *mctx, unsigned int workers,
-		   unsigned int default_quantum, isc_taskmgr_t **managerp);
+		   isc_taskmgr_t **managerp);
 /*%<
  * Create a new task manager.  isc_taskmgr_createinctx() also associates
  * the new manager with the specified application context.
@@ -647,10 +646,6 @@ isc_taskmgr_create(isc_mem_t *mctx, unsigned int workers,
  *	The 'workers' value is advisory only.  An attempt will be made to
  *	create 'workers' threads, but if at least one thread creation
  *	succeeds, isc_taskmgr_create() may return ISC_R_SUCCESS.
- *
- *\li	If 'default_quantum' is non-zero, then it will be used as the default
- *	quantum value when tasks are created.  If zero, then an implementation
- *	defined default quantum will be used.
  *
  * Requires:
  *

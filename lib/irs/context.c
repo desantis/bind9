@@ -104,7 +104,7 @@ ctxs_init(isc_mem_t **mctxp, isc_appctx_t **actxp,
 	if (result != ISC_R_SUCCESS)
 		goto fail;
 
-	result = isc_taskmgr_createinctx(*mctxp, *actxp, 1, 0, taskmgrp);
+	result = isc_taskmgr_createinctx(*mctxp, *actxp, 1, taskmgrp);
 	if (result != ISC_R_SUCCESS)
 		goto fail;
 

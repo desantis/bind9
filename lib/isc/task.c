@@ -134,6 +134,7 @@ struct isc__taskqueue {
 	isc_condition_t			work_available;
 	isc_thread_t			thread;
 	unsigned int			threadid;
+	unsigned int			tasks_waiting;
 	isc__taskmgr_t			*manager;
 };
 
@@ -151,7 +152,6 @@ struct isc__taskmgr {
 	isc__taskqueue_t		*queues;
 
 	/* Locked by task manager lock. */
-	unsigned int			default_quantum;
 	LIST(isc__task_t)		tasks;
 	isc_taskmgrmode_t		mode;
 	bool				pause_requested;
@@ -176,7 +176,17 @@ void
 isc__taskmgr_resume(isc_taskmgr_t *manager0);
 
 
-#define DEFAULT_DEFAULT_QUANTUM		25
+/*
+ * Unless specified otherwise when creating task we  normally run
+ * DEFAULT_QUANTUM events from a task in a single worker loop.
+ * If there are more than CONGESTED_TASK_LIMIT tasks waiting in the same queue
+ * we switch to CONGESTED_QUANTUM tasks per loop.
+ */
+
+#define DEFAULT_QUANTUM			25
+#define CONGESTED_QUANTUM		10
+#define CONGESTED_TASK_LIMIT		5
+
 #define FINISHED(m)			((m)->exiting && EMPTY((m)->tasks))
 
 /*%
@@ -292,7 +302,7 @@ isc_task_create_bound(isc_taskmgr_t *manager0, unsigned int quantum,
 	INIT_LIST(task->events);
 	INIT_LIST(task->on_shutdown);
 	task->nevents = 0;
-	task->quantum = (quantum > 0) ? quantum : manager->default_quantum;
+	task->quantum = quantum;
 	task->flags = 0;
 	task->now = 0;
 	isc_time_settoepoch(&task->tnow);
@@ -932,6 +942,7 @@ pop_readyq(isc__taskmgr_t *manager, int c) {
 
 	if (task != NULL) {
 		DEQUEUE(manager->queues[c].ready_tasks, task, ready_link);
+		manager->queues[c].tasks_waiting--;
 		if (ISC_LINK_LINKED(task, ready_priority_link)) {
 			DEQUEUE(manager->queues[c].ready_priority_tasks, task,
 				ready_priority_link);
@@ -950,6 +961,7 @@ pop_readyq(isc__taskmgr_t *manager, int c) {
 static inline void
 push_readyq(isc__taskmgr_t *manager, isc__task_t *task, int c) {
 	ENQUEUE(manager->queues[c].ready_tasks, task, ready_link);
+	manager->queues[c].tasks_waiting++;
 	if ((task->flags & TASK_F_PRIVILEGED) != 0) {
 		ENQUEUE(manager->queues[c].ready_priority_tasks, task,
 			ready_priority_link);
@@ -1095,6 +1107,16 @@ dispatch(isc__taskmgr_t *manager, unsigned int threadid) {
 		task = pop_readyq(manager, threadid);
 		if (task != NULL) {
 			unsigned int dispatch_count = 0;
+			unsigned int quantum = task->quantum;
+			if (quantum == 0) {
+				if (manager->queues[threadid].tasks_waiting
+				    < CONGESTED_TASK_LIMIT)
+				{
+					quantum = DEFAULT_QUANTUM;
+				} else {
+					quantum = CONGESTED_QUANTUM;
+				}
+			}
 			bool done = false;
 			bool requeue = false;
 			bool finished = false;
@@ -1201,7 +1223,7 @@ dispatch(isc__taskmgr_t *manager, unsigned int threadid) {
 					} else
 						task->state = task_state_idle;
 					done = true;
-				} else if (dispatch_count >= task->quantum) {
+				} else if (dispatch_count >= quantum) {
 					/*
 					 * Our quantum has expired, but
 					 * there is more work to be done.
@@ -1343,7 +1365,7 @@ manager_free(isc__taskmgr_t *manager) {
 
 isc_result_t
 isc_taskmgr_create(isc_mem_t *mctx, unsigned int workers,
-		    unsigned int default_quantum, isc_taskmgr_t **managerp)
+		   isc_taskmgr_t **managerp)
 {
 	unsigned int i;
 	isc__taskmgr_t *manager;
@@ -1369,10 +1391,6 @@ isc_taskmgr_create(isc_mem_t *mctx, unsigned int workers,
 
 	manager->workers = workers;
 
-	if (default_quantum == 0) {
-		default_quantum = DEFAULT_DEFAULT_QUANTUM;
-	}
-	manager->default_quantum = default_quantum;
 	INIT_LIST(manager->tasks);
 	manager->queues = isc_mem_get(mctx, workers * sizeof(isc__taskqueue_t));
 	RUNTIME_CHECK(manager->queues != NULL);
@@ -1400,6 +1418,7 @@ isc_taskmgr_create(isc_mem_t *mctx, unsigned int workers,
 
 		manager->queues[i].manager = manager;
 		manager->queues[i].threadid = i;
+		manager->queues[i].tasks_waiting = 0;
 		RUNTIME_CHECK(isc_thread_create(run, &manager->queues[i],
 						&manager->queues[i].thread)
 			      == ISC_R_SUCCESS);
@@ -1708,11 +1727,6 @@ isc_taskmgr_renderxml(isc_taskmgr_t *mgr0, xmlTextWriterPtr writer) {
 	TRY0(xmlTextWriterWriteFormatString(writer, "%d", mgr->workers));
 	TRY0(xmlTextWriterEndElement(writer)); /* worker-threads */
 
-	TRY0(xmlTextWriterStartElement(writer, ISC_XMLCHAR "default-quantum"));
-	TRY0(xmlTextWriterWriteFormatString(writer, "%d",
-					    mgr->default_quantum));
-	TRY0(xmlTextWriterEndElement(writer)); /* default-quantum */
-
 	TRY0(xmlTextWriterStartElement(writer, ISC_XMLCHAR "tasks-running"));
 	TRY0(xmlTextWriterWriteFormatString(writer, "%d",
 					    (int) mgr->tasks_running));
@@ -1809,10 +1823,6 @@ isc_taskmgr_renderjson(isc_taskmgr_t *mgr0, json_object *tasks) {
 	CHECKMEM(obj);
 	json_object_object_add(tasks, "worker-threads", obj);
 
-	obj = json_object_new_int(mgr->default_quantum);
-	CHECKMEM(obj);
-	json_object_object_add(tasks, "default-quantum", obj);
-
 	obj = json_object_new_int(mgr->tasks_running);
 	CHECKMEM(obj);
 	json_object_object_add(tasks, "tasks-running", obj);
@@ -1885,13 +1895,11 @@ isc_taskmgr_renderjson(isc_taskmgr_t *mgr0, json_object *tasks) {
 
 isc_result_t
 isc_taskmgr_createinctx(isc_mem_t *mctx, isc_appctx_t *actx,
-			unsigned int workers, unsigned int default_quantum,
-			isc_taskmgr_t **managerp)
+			unsigned int workers, isc_taskmgr_t **managerp)
 {
 	isc_result_t result;
 
-	result = isc_taskmgr_create(mctx, workers, default_quantum,
-				       managerp);
+	result = isc_taskmgr_create(mctx, workers, managerp);
 
 	if (result == ISC_R_SUCCESS)
 		isc_appctx_settaskmgr(actx, *managerp);
