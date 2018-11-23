@@ -254,10 +254,11 @@ assertion_failed(const char *file, int line, isc_assertiontype_t type,
 	exit(1);
 }
 
-ISC_ATTR_NORETURN static void
+ISC_ATTR_NORETURN
+ISC_ATTR_FORMAT_PRINTF(3, 0)
+static void
 library_fatal_error(const char *file, int line, const char *format,
-		    va_list args)
-ISC_FORMAT_PRINTF(3, 0);
+		    va_list args);
 
 static void
 library_fatal_error(const char *file, int line, const char *format,
@@ -295,9 +296,10 @@ library_fatal_error(const char *file, int line, const char *format,
 	exit(1);
 }
 
+ISC_ATTR_FORMAT_PRINTF(3, 0)
 static void
 library_unexpected_error(const char *file, int line, const char *format,
-			 va_list args) ISC_FORMAT_PRINTF(3, 0);
+			 va_list args);
 
 static void
 library_unexpected_error(const char *file, int line, const char *format,

@@ -122,7 +122,11 @@ static void req_connected(isc_task_t *task, isc_event_t *event);
 static void req_sendevent(dns_request_t *request, isc_result_t result);
 static void req_cancel(dns_request_t *request);
 static void req_destroy(dns_request_t *request);
-static void req_log(int level, const char *fmt, ...) ISC_FORMAT_PRINTF(2, 3);
+
+ISC_ATTR_FORMAT_PRINTF(2, 3)
+static void
+req_log(int level, const char *fmt, ...);
+
 static void do_cancel(isc_task_t *task, isc_event_t *event);
 
 /***

@@ -58,9 +58,9 @@ static isc_mutex_t client_lock;
 static isc_stdtime_t now;
 static dns_adb_t *adb;
 
+ISC_ATTR_FORMAT_PRINTF(2, 3)
 static void
-check_result(isc_result_t result, const char *format, ...)
-     ISC_FORMAT_PRINTF(2, 3);
+check_result(isc_result_t result, const char *format, ...);
 
 static void
 check_result(isc_result_t result, const char *format, ...) {

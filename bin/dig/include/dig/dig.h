@@ -23,7 +23,6 @@
 
 #include <isc/buffer.h>
 #include <isc/bufferlist.h>
-#include <isc/formatcheck.h>
 #include <isc/lang.h>
 #include <isc/list.h>
 #include <isc/magic.h>
@@ -31,6 +30,7 @@
 #include <isc/print.h>
 #include <isc/sockaddr.h>
 #include <isc/socket.h>
+#include <isc/util.h>
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
@@ -288,19 +288,22 @@ getaddresses(dig_lookup_t *lookup, const char *host, isc_result_t *resultp);
 isc_result_t
 get_reverse(char *reverse, size_t len, char *value, bool strict);
 
-ISC_ATTR_NORETURN void
-fatal(const char *format, ...)
-ISC_FORMAT_PRINTF(1, 2);
-
+ISC_ATTR_NORETURN
+ISC_ATTR_FORMAT_PRINTF(1, 2)
 void
-warn(const char *format, ...) ISC_FORMAT_PRINTF(1, 2);
+fatal(const char *format, ...);
+
+ISC_ATTR_FORMAT_PRINTF(1, 2)
+void
+warn(const char *format, ...);
 
 ISC_ATTR_NORETURN
 void
 digexit(void);
 
+ISC_ATTR_FORMAT_PRINTF(1, 2)
 void
-debug(const char *format, ...) ISC_FORMAT_PRINTF(1, 2);
+debug(const char *format, ...);
 
 void
 check_result(isc_result_t result, const char *msg);

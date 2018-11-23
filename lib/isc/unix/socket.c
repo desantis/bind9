@@ -40,7 +40,6 @@
 #include <isc/app.h>
 #include <isc/buffer.h>
 #include <isc/condition.h>
-#include <isc/formatcheck.h>
 #include <isc/json.h>
 #include <isc/list.h>
 #include <isc/log.h>
@@ -576,10 +575,11 @@ gen_threadid(isc__socket_t *sock) {
 	return sock->fd % sock->manager->nthreads;
 }
 
+ISC_ATTR_FORMAT_PRINTF(5, 6)
 static void
 manager_log(isc__socketmgr_t *sockmgr,
 	    isc_logcategory_t *category, isc_logmodule_t *module, int level,
-	    const char *fmt, ...) ISC_FORMAT_PRINTF(5, 6);
+	    const char *fmt, ...);
 static void
 manager_log(isc__socketmgr_t *sockmgr,
 	    isc_logcategory_t *category, isc_logmodule_t *module, int level,
@@ -599,10 +599,11 @@ manager_log(isc__socketmgr_t *sockmgr,
 		      "sockmgr %p: %s", sockmgr, msgbuf);
 }
 
+ISC_ATTR_FORMAT_PRINTF(5, 6)
 static void
 thread_log(isc__socketthread_t *thread,
 	    isc_logcategory_t *category, isc_logmodule_t *module, int level,
-	    const char *fmt, ...) ISC_FORMAT_PRINTF(5, 6);
+	    const char *fmt, ...);
 static void
 thread_log(isc__socketthread_t *thread,
 	   isc_logcategory_t *category, isc_logmodule_t *module, int level,
@@ -624,11 +625,12 @@ thread_log(isc__socketthread_t *thread,
 		      thread->manager, thread->threadid, msgbuf);
 }
 
+ISC_ATTR_FORMAT_PRINTF(9, 10)
 static void
 socket_log(isc__socket_t *sock, const isc_sockaddr_t *address,
 	   isc_logcategory_t *category, isc_logmodule_t *module, int level,
 	   isc_msgcat_t *msgcat, int msgset, int message,
-	   const char *fmt, ...) ISC_FORMAT_PRINTF(9, 10);
+	   const char *fmt, ...);
 static void
 socket_log(isc__socket_t *sock, const isc_sockaddr_t *address,
 	   isc_logcategory_t *category, isc_logmodule_t *module, int level,

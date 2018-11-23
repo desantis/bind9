@@ -20,17 +20,17 @@
 #include <dns/callbacks.h>
 #include <dns/log.h>
 
+ISC_ATTR_FORMAT_PRINTF(2, 3)
 static void
-stdio_error_warn_callback(dns_rdatacallbacks_t *, const char *, ...)
-     ISC_FORMAT_PRINTF(2, 3);
+stdio_error_warn_callback(dns_rdatacallbacks_t *, const char *, ...);
 
+ISC_ATTR_FORMAT_PRINTF(2, 3)
 static void
-isclog_error_callback(dns_rdatacallbacks_t *callbacks, const char *fmt, ...)
-     ISC_FORMAT_PRINTF(2, 3);
+isclog_error_callback(dns_rdatacallbacks_t *callbacks, const char *fmt, ...);
 
+ISC_ATTR_FORMAT_PRINTF(2, 3)
 static void
-isclog_warn_callback(dns_rdatacallbacks_t *callbacks, const char *fmt, ...)
-     ISC_FORMAT_PRINTF(2, 3);
+isclog_warn_callback(dns_rdatacallbacks_t *callbacks, const char *fmt, ...);
 
 /*
  * Private
@@ -107,4 +107,3 @@ dns_rdatacallbacks_init_stdio(dns_rdatacallbacks_t *callbacks) {
 	callbacks->error = stdio_error_warn_callback;
 	callbacks->warn = stdio_error_warn_callback;
 }
-

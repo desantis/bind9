@@ -197,9 +197,9 @@ btoa_totext(unsigned char *inbuf, int inbuflen, isc_buffer_t *target);
 static isc_result_t
 atob_tobuffer(isc_lex_t *lexer, isc_buffer_t *target);
 
+ISC_ATTR_FORMAT_PRINTF(2, 3)
 static void
-default_fromtext_callback(dns_rdatacallbacks_t *callbacks, const char *, ...)
-     ISC_FORMAT_PRINTF(2, 3);
+default_fromtext_callback(dns_rdatacallbacks_t *callbacks, const char *, ...);
 
 static void
 fromtext_error(void (*callback)(dns_rdatacallbacks_t *, const char *, ...),

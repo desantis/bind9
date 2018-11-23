@@ -471,6 +471,9 @@
 /* Define to 1 if you have the `usleep' function. */
 #undef HAVE_USLEEP
 
+/* Define to 1 if the system has the `unused' variable attribute */
+#undef HAVE_VARIABLE_ATTRIBUTE_UNUSED
+
 /* Define if zlib was found */
 #undef HAVE_ZLIB
 

@@ -124,9 +124,9 @@ static const struct {
 static isc_result_t
 tsig_verify_tcp(isc_buffer_t *source, dns_message_t *msg);
 
+ISC_ATTR_FORMAT_PRINTF(3, 4)
 static void
-tsig_log(dns_tsigkey_t *key, int level, const char *fmt, ...)
-     ISC_FORMAT_PRINTF(3, 4);
+tsig_log(dns_tsigkey_t *key, int level, const char *fmt, ...);
 
 static void
 cleanup_ring(dns_tsig_keyring_t *ring);

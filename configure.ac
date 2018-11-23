@@ -441,6 +441,8 @@ AC_HEADER_TIME
 
 AX_C_FUNCTION_ATTRIBUTE([noreturn])
 AX_C_FUNCTION_ATTRIBUTE([deprecated])
+AX_C_FUNCTION_ATTRIBUTE([format])
+AX_C_VARIABLE_ATTRIBUTE([unused])
 
 #
 # check for uname library routine

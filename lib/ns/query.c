@@ -234,9 +234,9 @@ static bool
 rpz_ck_dnssec(ns_client_t *client, isc_result_t qresult,
 	      dns_rdataset_t *rdataset, dns_rdataset_t *sigrdataset);
 
+ISC_ATTR_FORMAT_PRINTF(3, 4)
 static void
-log_noexistnodata(void *val, int level, const char *fmt, ...)
-	ISC_FORMAT_PRINTF(3, 4);
+log_noexistnodata(void *val, int level, const char *fmt, ...);
 
 
 /*

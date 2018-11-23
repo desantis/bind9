@@ -21,6 +21,15 @@
 #define HAVE___DECLSPEC_THREAD 1
 #endif
 
+/*%
+ * Compiler attributes
+ */
+
+#define ISC_ATTR_NORETURN __declspec(noreturn)
+#define ISC_ATTR_DEPRECATED
+#define ISC_ATTR_UNUSED
+#define ISC_ATTR_FORMAT_PRINTF(fmt, args)
+
 /*
  * Some compatibility cludges
  */
@@ -47,13 +56,6 @@ typedef uint32_t socklen_t;
  */
 
 #define __attribute__(attribute) /* do nothing */
-
-/***
- *** Define supported __declspec()s
- ***/
-
-#define ISC_ATTR_NORETURN __declspec(noreturn)
-#define ISC_ATTR_DEPRECATED
 
 /***
  *** Network.

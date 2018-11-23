@@ -103,7 +103,6 @@
 #include <stdbool.h>
 
 #include <isc/assertions.h>
-#include <isc/formatcheck.h>
 #include <isc/lang.h>
 #include <isc/likely.h>
 #include <isc/magic.h>
@@ -727,9 +726,10 @@ isc_buffer_dup(isc_mem_t *mctx, isc_buffer_t **dstp, const isc_buffer_t *src);
  *					big enough.
  */
 
+ISC_ATTR_FORMAT_PRINTF(2, 3)
 isc_result_t
-isc_buffer_printf(isc_buffer_t *b, const char *format, ...)
-	ISC_FORMAT_PRINTF(2, 3);
+isc_buffer_printf(isc_buffer_t *b, const char *format, ...);
+
 /*!<
  * \brief Append a formatted string to the used region of 'b'.
  *

@@ -21,7 +21,8 @@
 #define log_info(format, ...)	\
 	log_write(ISC_LOG_INFO, format, ##__VA_ARGS__)
 
+ISC_ATTR_FORMAT_PRINTF(2, 3)
 void
-log_write(int level, const char *format, ...) ISC_FORMAT_PRINTF(2, 3);
+log_write(int level, const char *format, ...);
 
 #endif /* !_LD_LOG_H_ */

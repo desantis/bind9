@@ -18,10 +18,10 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-#include <isc/formatcheck.h>
 #include <isc/lang.h>
 #include <isc/platform.h>
 #include <isc/types.h>
+
 #include <dns/types.h>
 
 #ifdef GSSAPI
@@ -160,9 +160,10 @@ dst_gssapi_deletectx(isc_mem_t *mctx, gss_ctx_id_t *gssctx);
  */
 
 
+ISC_ATTR_FORMAT_PRINTF(2, 3)
 void
-gss_log(int level, const char *fmt, ...)
-ISC_FORMAT_PRINTF(2, 3);
+gss_log(int level, const char *fmt, ...);
+
 /*
  * Logging function for GSS.
  *

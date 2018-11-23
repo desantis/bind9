@@ -192,9 +192,10 @@ typedef struct update_event update_event_t;
 
 /**************************************************************************/
 
+ISC_ATTR_FORMAT_PRINTF(4, 5)
 static void
 update_log(dns_update_log_t *callback, dns_zone_t *zone,
-	   int level, const char *fmt, ...) ISC_FORMAT_PRINTF(4, 5);
+	   int level, const char *fmt, ...);
 
 static void
 update_log(dns_update_log_t *callback, dns_zone_t *zone,

@@ -227,12 +227,12 @@ sync_channellist(isc_logconfig_t *lcfg);
 static isc_result_t
 greatest_version(isc_logfile_t *file, int versions, int *greatest);
 
+ISC_ATTR_FORMAT_PRINTF(9, 0)
 static void
 isc_log_doit(isc_log_t *lctx, isc_logcategory_t *category,
 	     isc_logmodule_t *module, int level, bool write_once,
 	     isc_msgcat_t *msgcat, int msgset, int msg,
-	     const char *format, va_list args)
-     ISC_FORMAT_PRINTF(9, 0);
+	     const char *format, va_list args);
 
 /*@{*/
 /*!

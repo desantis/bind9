@@ -18,9 +18,9 @@
  ***** Platform-dependent defines.
  *****/
 
-/***
- *** __attributes__s
- ***/
+/*%
+ * Compiler attributes
+ */
 
 #if HAVE_FUNCTION_ATTRIBUTE_NORETURN
 #define ISC_ATTR_NORETURN __attribute__((__noreturn__))
@@ -33,6 +33,20 @@
 #else
 #define ISC_ATTR_DEPRECATED
 #endif
+
+#if HAVE_VARIABLE_ATTRIBUTE_UNUSED
+#define ISC_ATTR_UNUSED __attribute__((__unused__))
+#else
+#define ISC_ATTR_UNUSED
+#endif
+
+#if HAVE_FUNCTION_ATTRIBUTE_FORMAT
+#define ISC_ATTR_FORMAT_PRINTF(fmt, args) \
+	__attribute__((__format__(__printf__, fmt, args)))
+#else
+#define ISC_ATTR_FORMAT_PRINTF(fmt, args)
+#endif
+
 
 /***
  *** Thread-Local Storage

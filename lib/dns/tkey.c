@@ -58,8 +58,9 @@
 		goto failure; \
 	} while (0)
 
+ISC_ATTR_FORMAT_PRINTF(1, 2)
 static void
-tkey_log(const char *fmt, ...) ISC_FORMAT_PRINTF(1, 2);
+tkey_log(const char *fmt, ...);
 
 static void
 tkey_log(const char *fmt, ...) {

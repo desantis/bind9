@@ -24,9 +24,9 @@
 typedef void (fatalcallback_t)(void);
 
 ISC_ATTR_NORETURN
+ISC_ATTR_FORMAT_PRINTF(1, 2)
 void
-fatal(const char *format, ...)
-ISC_FORMAT_PRINTF(1, 2);
+fatal(const char *format, ...);
 
 void
 setfatalcallback(fatalcallback_t *callback);
@@ -34,8 +34,9 @@ setfatalcallback(fatalcallback_t *callback);
 void
 check_result(isc_result_t result, const char *message);
 
+ISC_ATTR_FORMAT_PRINTF(2, 3)
 void
-vbprintf(int level, const char *fmt, ...) ISC_FORMAT_PRINTF(2, 3);
+vbprintf(int level, const char *fmt, ...);
 
 ISC_ATTR_NORETURN
 void

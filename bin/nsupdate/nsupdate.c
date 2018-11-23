@@ -190,15 +190,18 @@ sendrequest(isc_sockaddr_t *destaddr, dns_message_t *msg,
 static void
 send_update(dns_name_t *zonename, isc_sockaddr_t *master);
 
-ISC_ATTR_NORETURN static void
-fatal(const char *format, ...)
-ISC_FORMAT_PRINTF(1, 2);
-
+ISC_ATTR_NORETURN
+ISC_ATTR_FORMAT_PRINTF(1, 2)
 static void
-debug(const char *format, ...) ISC_FORMAT_PRINTF(1, 2);
+fatal(const char *format, ...);
 
+ISC_ATTR_FORMAT_PRINTF(1, 2)
 static void
-ddebug(const char *format, ...) ISC_FORMAT_PRINTF(1, 2);
+debug(const char *format, ...);
+
+ISC_ATTR_FORMAT_PRINTF(1, 2)
+static void
+ddebug(const char *format, ...);
 
 #ifdef GSSAPI
 static dns_fixedname_t fkname;
@@ -223,8 +226,9 @@ static void
 recvgss(isc_task_t *task, isc_event_t *event);
 #endif /* GSSAPI */
 
+ISC_ATTR_FORMAT_PRINTF(1, 2)
 static void
-error(const char *format, ...) ISC_FORMAT_PRINTF(1, 2);
+error(const char *format, ...);
 
 #define STATUS_MORE	(uint16_t)0
 #define STATUS_SEND	(uint16_t)1

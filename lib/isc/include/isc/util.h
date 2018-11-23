@@ -9,8 +9,7 @@
  * information regarding copyright ownership.
  */
 
-#ifndef ISC_UTIL_H
-#define ISC_UTIL_H 1
+#pragma once
 
 /*! \file isc/util.h
  * NOTE:
@@ -279,5 +278,3 @@ extern void mock_assert(const int result, const char* const expression,
  * Alignment
  */
 #define ISC_ALIGN(x, a) (((x) + (a) - 1) & ~((typeof(x))(a)-1))
-
-#endif /* ISC_UTIL_H */

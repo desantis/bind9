@@ -14,7 +14,6 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-#include <isc/formatcheck.h>
 #include <isc/mem.h>
 #include <isc/timer.h>
 #include <isc/print.h>
@@ -710,14 +709,15 @@ xfrout_ctx_destroy(xfrout_ctx_t **xfrp);
 static void
 xfrout_client_shutdown(void *arg, isc_result_t result);
 
+ISC_ATTR_FORMAT_PRINTF(5, 6)
 static void
 xfrout_log1(ns_client_t *client, dns_name_t *zonename,
 	    dns_rdataclass_t rdclass, int level,
-	    const char *fmt, ...) ISC_FORMAT_PRINTF(5, 6);
+	    const char *fmt, ...);
 
+ISC_ATTR_FORMAT_PRINTF(3, 4)
 static void
-xfrout_log(xfrout_ctx_t *xfr, int level, const char *fmt, ...)
-	   ISC_FORMAT_PRINTF(3, 4);
+xfrout_log(xfrout_ctx_t *xfr, int level, const char *fmt, ...);
 
 /**************************************************************************/
 
@@ -1673,10 +1673,10 @@ xfrout_client_shutdown(void *arg, isc_result_t result) {
  * <client>: transfer of <zone>: <message>
  */
 
+ISC_ATTR_FORMAT_PRINTF(5, 0)
 static void
 xfrout_logv(ns_client_t *client, dns_name_t *zonename,
-	    dns_rdataclass_t rdclass, int level, const char *fmt, va_list ap)
-     ISC_FORMAT_PRINTF(5, 0);
+	    dns_rdataclass_t rdclass, int level, const char *fmt, va_list ap);
 
 static void
 xfrout_logv(ns_client_t *client, dns_name_t *zonename,

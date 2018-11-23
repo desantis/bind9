@@ -17,7 +17,6 @@
 
 #include <stdarg.h>
 
-#include <isc/formatcheck.h>
 #include <isc/lang.h>
 #include <isc/likely.h>
 #include <isc/platform.h>
@@ -35,17 +34,19 @@ void
 isc_error_setfatal(isc_errorcallback_t);
 
 /*% unexpected error */
+ISC_ATTR_FORMAT_PRINTF(3, 4)
 void
-isc_error_unexpected(const char *, int, const char *, ...)
-     ISC_FORMAT_PRINTF(3, 4);
+isc_error_unexpected(const char *, int, const char *, ...);
 
 /*% fatal error */
-ISC_ATTR_NORETURN void
-isc_error_fatal(const char *, int, const char *, ...)
-ISC_FORMAT_PRINTF(3, 4);
+ISC_ATTR_NORETURN
+ISC_ATTR_FORMAT_PRINTF(3, 4)
+void
+isc_error_fatal(const char *, int, const char *, ...);
 
 /*% runtimecheck error */
-ISC_ATTR_NORETURN void
+ISC_ATTR_NORETURN
+void
 isc_error_runtimecheck(const char *, int, const char *);
 
 #define ISC_ERROR_RUNTIMECHECK(cond) \

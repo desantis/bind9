@@ -201,9 +201,9 @@ usage(void) {
 }
 
 ISC_ATTR_NORETURN
+ISC_ATTR_FORMAT_PRINTF(1, 2)
 static void
-fatal(const char *format, ...)
-ISC_FORMAT_PRINTF(1, 2);
+fatal(const char *format, ...);
 
 static void
 fatal(const char *format, ...) {
@@ -218,8 +218,9 @@ fatal(const char *format, ...) {
 	exit(1);
 }
 
+ISC_ATTR_FORMAT_PRINTF(1, 2)
 static void
-warn(const char *format, ...) ISC_FORMAT_PRINTF(1, 2);
+warn(const char *format, ...);
 
 static void
 warn(const char *format, ...) {
@@ -245,8 +246,9 @@ static isc_logmodule_t modules[] = {
 	{ NULL, 			0 }
 };
 
+ISC_ATTR_FORMAT_PRINTF(2, 3)
 static void
-delv_log(int level, const char *fmt, ...) ISC_FORMAT_PRINTF(2, 3);
+delv_log(int level, const char *fmt, ...);
 
 static void
 delv_log(int level, const char *fmt, ...) {

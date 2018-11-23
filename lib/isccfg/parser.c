@@ -19,7 +19,6 @@
 
 #include <isc/buffer.h>
 #include <isc/dir.h>
-#include <isc/formatcheck.h>
 #include <isc/lex.h>
 #include <isc/log.h>
 #include <isc/mem.h>

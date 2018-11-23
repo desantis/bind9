@@ -732,10 +732,13 @@ LIBDNS_EXTERNAL_DATA unsigned int dns_zone_mkey_month = MONTH;
 
 static void zone_settimer(dns_zone_t *, isc_time_t *);
 static void cancel_refresh(dns_zone_t *);
-static void zone_debuglog(dns_zone_t *zone, const char *, int debuglevel,
-			  const char *msg, ...) ISC_FORMAT_PRINTF(4, 5);
-static void notify_log(dns_zone_t *zone, int level, const char *fmt, ...)
-     ISC_FORMAT_PRINTF(3, 4);
+ISC_ATTR_FORMAT_PRINTF(4, 5)
+static void
+zone_debuglog(dns_zone_t *zone, const char *, int debuglevel,
+	      const char *msg, ...);
+ISC_ATTR_FORMAT_PRINTF(3, 4)
+static void
+notify_log(dns_zone_t *zone, int level, const char *fmt, ...);
 static void queue_xfrin(dns_zone_t *zone);
 static isc_result_t update_one_rr(dns_db_t *db, dns_dbversion_t *ver,
 				  dns_diff_t *diff, dns_diffop_t op,

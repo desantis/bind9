@@ -522,9 +522,10 @@ cfg_doc_terminal(cfg_printer_t *pctx, const cfg_type_t *type);
  * name in angle brackets, e.g., &lt;uint32>.
  */
 
+ISC_ATTR_FORMAT_PRINTF(3, 4)
 void
 cfg_parser_error(cfg_parser_t *pctx, unsigned int flags,
-		 const char *fmt, ...) ISC_FORMAT_PRINTF(3, 4);
+		 const char *fmt, ...);
 /*!
  * Pass one of these flags to cfg_parser_error() to include the
  * token text in log message.
@@ -533,9 +534,10 @@ cfg_parser_error(cfg_parser_t *pctx, unsigned int flags,
 #define CFG_LOG_BEFORE  0x00000002	/*%< Say "before <token>" */
 #define CFG_LOG_NOPREP  0x00000004	/*%< Say just "<token>" */
 
+ISC_ATTR_FORMAT_PRINTF(3, 4)
 void
 cfg_parser_warning(cfg_parser_t *pctx, unsigned int flags,
-		   const char *fmt, ...) ISC_FORMAT_PRINTF(3, 4);
+		   const char *fmt, ...);
 
 bool
 cfg_is_enum(const char *s, const char *const *enums);

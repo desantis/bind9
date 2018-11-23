@@ -22,7 +22,6 @@
 #include <stdio.h>
 #include <inttypes.h>
 
-#include <isc/formatcheck.h>
 #include <isc/lang.h>
 #include <isc/rwlock.h>
 
@@ -1977,17 +1976,19 @@ dns_zone_logv(dns_zone_t *zone, isc_logcategory_t *category, int level,
  * 'prefix' is not NULL, it will be placed at the start of the entire log line.
  */
 
+ISC_ATTR_FORMAT_PRINTF(3, 4)
 void
-dns_zone_log(dns_zone_t *zone, int level, const char *msg, ...)
-	ISC_FORMAT_PRINTF(3, 4);
+dns_zone_log(dns_zone_t *zone, int level, const char *msg, ...);
+
 /*%<
  * Log the message 'msg...' at 'level', including text that identifies
  * the message as applying to 'zone'.
  */
 
+ISC_ATTR_FORMAT_PRINTF(4, 5)
 void
 dns_zone_logc(dns_zone_t *zone, isc_logcategory_t *category, int level,
-	      const char *msg, ...) ISC_FORMAT_PRINTF(4, 5);
+	      const char *msg, ...);
 /*%<
  * Log the message 'msg...' at 'level', including text that identifies
  * the message as applying to 'zone'.

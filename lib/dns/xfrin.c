@@ -18,6 +18,7 @@
 #include <stdbool.h>
 
 #include <isc/mem.h>
+#include <isc/platform.h>
 #include <isc/print.h>
 #include <isc/random.h>
 #include <isc/string.h>		/* Required for HP/UX (and others?) */
@@ -232,19 +233,19 @@ xfrin_fail(dns_xfrin_ctx_t *xfr, isc_result_t result, const char *msg);
 static isc_result_t
 render(dns_message_t *msg, isc_mem_t *mctx, isc_buffer_t *buf);
 
+ISC_ATTR_FORMAT_PRINTF(4, 0)
 static void
 xfrin_logv(int level, const char *zonetext, const isc_sockaddr_t *masteraddr,
-	   const char *fmt, va_list ap)
-     ISC_FORMAT_PRINTF(4, 0);
+	   const char *fmt, va_list ap);
 
+ISC_ATTR_FORMAT_PRINTF(4, 5)
 static void
 xfrin_log1(int level, const char *zonetext, const isc_sockaddr_t *masteraddr,
-	   const char *fmt, ...)
-     ISC_FORMAT_PRINTF(4, 5);
+	   const char *fmt, ...);
 
+ISC_ATTR_FORMAT_PRINTF(3, 4)
 static void
-xfrin_log(dns_xfrin_ctx_t *xfr, int level, const char *fmt, ...)
-     ISC_FORMAT_PRINTF(3, 4);
+xfrin_log(dns_xfrin_ctx_t *xfr, int level, const char *fmt, ...);
 
 /**************************************************************************/
 /*

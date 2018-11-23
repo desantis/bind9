@@ -70,7 +70,9 @@ static dst_func_t *dst_t_func[DST_MAX_ALGS];
 
 static bool dst_initialized = false;
 
-void gss_log(int level, const char *fmt, ...) ISC_FORMAT_PRINTF(2, 3);
+ISC_ATTR_FORMAT_PRINTF(2, 3)
+void
+gss_log(int level, const char *fmt, ...);
 
 /*
  * Static functions.

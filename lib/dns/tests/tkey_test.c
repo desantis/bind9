@@ -19,6 +19,7 @@
 #include <setjmp.h>
 #include <cmocka.h>
 
+#include <isc/platform.h>
 #include <isc/mem.h>
 #include <isc/result.h>
 
@@ -32,7 +33,7 @@ static isc_mem_t mock_mctx = {
 };
 
 static void *
-__wrap_isc__mem_get(isc_mem_t *mctx __attribute__ ((unused)),
+__wrap_isc__mem_get(isc_mem_t *mctx ISC_ATTR_UNUSED,
 		   size_t size)
 {
 	bool has_enough_memory = mock_type(bool);
@@ -43,9 +44,9 @@ __wrap_isc__mem_get(isc_mem_t *mctx __attribute__ ((unused)),
 }
 
 static void
-__wrap_isc__mem_put(isc_mem_t *ctx0 __attribute__ ((unused)),
+__wrap_isc__mem_put(isc_mem_t *ctx0 ISC_ATTR_UNUSED,
 		   void *ptr,
-		   size_t size __attribute__ ((unused)))
+		   size_t size ISC_ATTR_UNUSED)
 {
 	free(ptr);
 }

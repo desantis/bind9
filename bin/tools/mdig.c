@@ -796,9 +796,10 @@ help(void) {
 	stdout);
 }
 
-ISC_ATTR_NORETURN static void
-fatal(const char *format, ...)
-ISC_FORMAT_PRINTF(1, 2);
+ISC_ATTR_NORETURN
+ISC_ATTR_FORMAT_PRINTF(1, 2)
+static void
+fatal(const char *format, ...);
 
 static void
 fatal(const char *format, ...) {

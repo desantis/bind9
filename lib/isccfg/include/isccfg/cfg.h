@@ -28,7 +28,6 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-#include <isc/formatcheck.h>
 #include <isc/lang.h>
 #include <isc/refcount.h>
 #include <isc/types.h>
@@ -526,10 +525,11 @@ cfg_obj_destroy(cfg_parser_t *pctx, cfg_obj_t **obj);
  * \li     'pctx' is a valid cfg_parser_t.
  */
 
+ISC_ATTR_FORMAT_PRINTF(4, 5)
 void
 cfg_obj_log(const cfg_obj_t *obj, isc_log_t *lctx, int level,
-	    const char *fmt, ...)
-	ISC_FORMAT_PRINTF(4, 5);
+	    const char *fmt, ...);
+
 /*%<
  * Log a message concerning configuration object 'obj' to the logging
  * channel of 'pctx', at log level 'level'.  The message will be prefixed

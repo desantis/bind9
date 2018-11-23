@@ -18,8 +18,6 @@
 #include <isc/lang.h>
 #include <isc/platform.h>
 
-#include <isc/formatcheck.h>
-
 #define NS_CONTROL_PORT		953
 
 #undef DO
@@ -34,12 +32,14 @@
 
 ISC_LANG_BEGINDECLS
 
+ISC_ATTR_FORMAT_PRINTF(1, 2)
 void
-notify(const char *fmt, ...) ISC_FORMAT_PRINTF(1, 2);
+notify(const char *fmt, ...);
 
-ISC_ATTR_NORETURN void
-fatal(const char *format, ...)
-ISC_FORMAT_PRINTF(1, 2);
+ISC_ATTR_NORETURN
+ISC_ATTR_FORMAT_PRINTF(1, 2)
+void
+fatal(const char *format, ...);
 
 ISC_LANG_ENDDECLS
 

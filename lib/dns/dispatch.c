@@ -324,9 +324,9 @@ static bool portavailable(dns_dispatchmgr_t *mgr, isc_socket_t *sock,
 
 #define LVL(x) ISC_LOG_DEBUG(x)
 
+ISC_ATTR_FORMAT_PRINTF(3, 4)
 static void
-mgr_log(dns_dispatchmgr_t *mgr, int level, const char *fmt, ...)
-     ISC_FORMAT_PRINTF(3, 4);
+mgr_log(dns_dispatchmgr_t *mgr, int level, const char *fmt, ...);
 
 static void
 mgr_log(dns_dispatchmgr_t *mgr, int level, const char *fmt, ...) {
@@ -357,9 +357,9 @@ dec_stats(dns_dispatchmgr_t *mgr, isc_statscounter_t counter) {
 		isc_stats_decrement(mgr->stats, counter);
 }
 
+ISC_ATTR_FORMAT_PRINTF(3, 4)
 static void
-dispatch_log(dns_dispatch_t *disp, int level, const char *fmt, ...)
-     ISC_FORMAT_PRINTF(3, 4);
+dispatch_log(dns_dispatch_t *disp, int level, const char *fmt, ...);
 
 static void
 dispatch_log(dns_dispatch_t *disp, int level, const char *fmt, ...) {
@@ -378,10 +378,10 @@ dispatch_log(dns_dispatch_t *disp, int level, const char *fmt, ...) {
 		      level, "dispatch %p: %s", disp, msgbuf);
 }
 
+ISC_ATTR_FORMAT_PRINTF(4, 5)
 static void
 request_log(dns_dispatch_t *disp, dns_dispentry_t *resp,
-	    int level, const char *fmt, ...)
-     ISC_FORMAT_PRINTF(4, 5);
+	    int level, const char *fmt, ...);
 
 static void
 request_log(dns_dispatch_t *disp, dns_dispentry_t *resp,

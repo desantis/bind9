@@ -256,9 +256,10 @@ static isc_result_t add_rr_prepare_action(void *data, rr_t *rr);
 
 /**************************************************************************/
 
+ISC_ATTR_FORMAT_PRINTF(4, 5)
 static void
 update_log(ns_client_t *client, dns_zone_t *zone,
-	   int level, const char *fmt, ...) ISC_FORMAT_PRINTF(4, 5);
+	   int level, const char *fmt, ...);
 
 static void
 update_log(ns_client_t *client, dns_zone_t *zone,

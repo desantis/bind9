@@ -353,8 +353,10 @@ static void dump_entry(FILE *, dns_adb_t *, dns_adbentry_t *,
 static void adjustsrtt(dns_adbaddrinfo_t *addr, unsigned int rtt,
 		       unsigned int factor, isc_stdtime_t now);
 static void shutdown_task(isc_task_t *task, isc_event_t *ev);
-static void log_quota(dns_adbentry_t *entry, const char *fmt, ...)
-     ISC_FORMAT_PRINTF(2, 3);
+
+ISC_ATTR_FORMAT_PRINTF(2, 3)
+static void
+log_quota(dns_adbentry_t *entry, const char *fmt, ...);
 
 /*
  * MUST NOT overlap DNS_ADBFIND_* flags!
@@ -486,8 +488,9 @@ static isc_result_t find_err_map[FIND_ERR_MAX] = {
 	ISC_R_NOTFOUND          /* not YET found */
 };
 
+ISC_ATTR_FORMAT_PRINTF(2, 3)
 static void
-DP(int level, const char *format, ...) ISC_FORMAT_PRINTF(2, 3);
+DP(int level, const char *format, ...);
 
 static void
 DP(int level, const char *format, ...) {
