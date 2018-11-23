@@ -109,7 +109,7 @@ create_managers(void) {
 	isc_result_t result;
 	ncpus = isc_os_ncpus();
 
-	CHECK(isc_taskmgr_create(mctx, ncpus, 0, &taskmgr));
+	CHECK(isc_taskmgr_create(mctx, ncpus, &taskmgr));
 	CHECK(isc_timermgr_create(mctx, &timermgr));
 	CHECK(isc_socketmgr_create(mctx, &socketmgr));
 	CHECK(isc_task_create(taskmgr, 0, &maintask));

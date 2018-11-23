@@ -297,7 +297,7 @@ main(int argc, char *argv[]) {
 	 * The task manager is independent (other than memory context)
 	 */
 	manager = NULL;
-	RUNTIME_CHECK(isc_taskmgr_create(mctx, workers, 0, &manager) ==
+	RUNTIME_CHECK(isc_taskmgr_create(mctx, workers, &manager) ==
 		      ISC_R_SUCCESS);
 
 	/*
