@@ -64,9 +64,9 @@
 #define MAX_RESTARTS 16
 
 #ifdef TUNE_LARGE
-#define RESOLVER_NTASKS 523
+#define RESOLVER_NTASKS 24
 #else
-#define RESOLVER_NTASKS 31
+#define RESOLVER_NTASKS 24
 #endif /* TUNE_LARGE */
 
 /*%
