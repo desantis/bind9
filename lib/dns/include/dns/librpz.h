@@ -219,16 +219,10 @@ typedef struct {
 	char	c[120];
 } librpz_emsg_t;
 
+#define LIBRPZ_UNUSED  ISC_ATTR_UNUSED
+#define LIBRPZ_PF(f,l) ISC_ATTR_FORMAT_PRINTF(f, l)
+#define LIBRPZ_NORET   ISC_ATTR_NORETURN
 
-#ifdef LIBRPZ_HAVE_ATTR
-#define LIBRPZ_UNUSED	__attribute__((unused))
-#define LIBRPZ_PF(f,l)	__attribute__((format(printf,f,l)))
-#define	LIBRPZ_NORET	__attribute__((__noreturn__))
-#else
-#define LIBRPZ_UNUSED
-#define LIBRPZ_PF(f,l)
-#define	LIBRPZ_NORET
-#endif
 
 #ifdef HAVE_BUILTIN_EXPECT
 #define LIBRPZ_LIKELY(c) __builtin_expect(!!(c), 1)
