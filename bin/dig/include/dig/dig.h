@@ -288,16 +288,16 @@ getaddresses(dig_lookup_t *lookup, const char *host, isc_result_t *resultp);
 isc_result_t
 get_reverse(char *reverse, size_t len, char *value, bool strict);
 
-ISC_PLATFORM_NORETURN_PRE void
+ISC_ATTR_NORETURN void
 fatal(const char *format, ...)
-ISC_FORMAT_PRINTF(1, 2) ISC_PLATFORM_NORETURN_POST;
+ISC_FORMAT_PRINTF(1, 2);
 
 void
 warn(const char *format, ...) ISC_FORMAT_PRINTF(1, 2);
 
-ISC_PLATFORM_NORETURN_PRE void
-digexit(void)
-ISC_PLATFORM_NORETURN_POST;
+ISC_ATTR_NORETURN
+void
+digexit(void);
 
 void
 debug(const char *format, ...) ISC_FORMAT_PRINTF(1, 2);

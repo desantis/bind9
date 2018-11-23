@@ -132,10 +132,10 @@ isc_result_t pk11_finalize(void);
 isc_result_t pk11_parse_uri(pk11_object_t *obj, const char *label,
 			    isc_mem_t *mctx, pk11_optype_t optype);
 
-ISC_PLATFORM_NORETURN_PRE void
+ISC_ATTR_NORETURN void
 pk11_error_fatalcheck(const char *file, int line,
 		      const char *funcname, CK_RV rv)
-ISC_PLATFORM_NORETURN_POST;
+;
 
 void pk11_dump_tokens(void);
 

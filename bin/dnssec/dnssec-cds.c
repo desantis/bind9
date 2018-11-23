@@ -1106,8 +1106,9 @@ nsdiff(uint32_t ttl, dns_rdataset_t *oldset, dns_rdataset_t *newset) {
 	}
 }
 
-ISC_PLATFORM_NORETURN_PRE static void
-usage(void) ISC_PLATFORM_NORETURN_POST;
+ISC_ATTR_NORETURN
+static void
+usage(void);
 
 static void
 usage(void) {

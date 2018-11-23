@@ -23,9 +23,9 @@
  */
 #define NAMED_MAIN_ARGS "46A:c:d:D:E:fFgL:M:m:n:N:p:sS:t:T:U:u:vVx:X:"
 
-ISC_PLATFORM_NORETURN_PRE void
+ISC_ATTR_NORETURN void
 named_main_earlyfatal(const char *format, ...)
-ISC_FORMAT_PRINTF(1, 2) ISC_PLATFORM_NORETURN_POST;
+ISC_FORMAT_PRINTF(1, 2);
 
 void
 named_main_earlywarning(const char *format, ...) ISC_FORMAT_PRINTF(1, 2);

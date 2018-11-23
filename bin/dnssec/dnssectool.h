@@ -23,9 +23,10 @@
 
 typedef void (fatalcallback_t)(void);
 
-ISC_PLATFORM_NORETURN_PRE void
+ISC_ATTR_NORETURN
+void
 fatal(const char *format, ...)
-ISC_FORMAT_PRINTF(1, 2) ISC_PLATFORM_NORETURN_POST;
+ISC_FORMAT_PRINTF(1, 2);
 
 void
 setfatalcallback(fatalcallback_t *callback);
@@ -36,8 +37,9 @@ check_result(isc_result_t result, const char *message);
 void
 vbprintf(int level, const char *fmt, ...) ISC_FORMAT_PRINTF(2, 3);
 
-ISC_PLATFORM_NORETURN_PRE void
-version(const char *program) ISC_PLATFORM_NORETURN_POST;
+ISC_ATTR_NORETURN
+void
+version(const char *program);
 
 void
 sig_format(dns_rdata_rrsig_t *sig, char *cp, unsigned int size);

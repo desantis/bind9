@@ -86,8 +86,8 @@ static bool showresult = false;
 
 static void rndc_startconnect(isc_sockaddr_t *addr, isc_task_t *task);
 
-ISC_PLATFORM_NORETURN_PRE static void
-usage(int status) ISC_PLATFORM_NORETURN_POST;
+ISC_ATTR_NORETURN static void
+usage(int status);
 
 static void
 usage(int status) {

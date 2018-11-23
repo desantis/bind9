@@ -129,8 +129,9 @@ loadzone(char *file, char *origin, dns_rdataclass_t rdclass, dns_db_t **db) {
 	}
 }
 
-ISC_PLATFORM_NORETURN_PRE static void
-usage(void) ISC_PLATFORM_NORETURN_POST;
+ISC_ATTR_NORETURN
+static void
+usage(void);
 
 static void
 usage(void) {

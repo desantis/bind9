@@ -19,6 +19,17 @@
  *****/
 
 /***
+ *** __attributes__s
+ ***/
+
+#if HAVE_FUNCTION_ATTRIBUTE_NORETURN
+#define ISC_ATTR_NORETURN __attribute__((__noreturn__))
+#else
+#define ISC_ATTR_NORETURN
+#endif
+
+
+/***
  *** Thread-Local Storage
  ***/
 
@@ -58,12 +69,6 @@
  * Define if the platform has <sys/un.h>.
  */
 @ISC_PLATFORM_HAVESYSUNH@
-
-/*
- * Defines for the noreturn attribute.
- */
-@ISC_PLATFORM_NORETURN_PRE@
-@ISC_PLATFORM_NORETURN_POST@
 
 /***
  ***	Windows dll support.

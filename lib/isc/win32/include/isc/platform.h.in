@@ -49,6 +49,12 @@ typedef uint32_t socklen_t;
 #define __attribute__(attribute) /* do nothing */
 
 /***
+ *** Define supported __declspec()s
+ ***/
+
+#define ISC_ATTR_NORETURN __declspec(noreturn)
+
+/***
  *** Network.
  ***/
 
@@ -62,12 +68,6 @@ typedef uint32_t socklen_t;
  * Define if the platform has <sys/un.h>.
  */
 #undef ISC_PLATFORM_HAVESYSUNH
-
-/*
- * Defines for the noreturn attribute.
- */
-#define ISC_PLATFORM_NORETURN_PRE __declspec(noreturn)
-#define ISC_PLATFORM_NORETURN_POST
 
 /*
  * Set up a macro for importing and exporting from the DLL

@@ -61,8 +61,9 @@ bool verbose = false;
 
 const char *keyfile, *keydef;
 
-ISC_PLATFORM_NORETURN_PRE static void
-usage(int status) ISC_PLATFORM_NORETURN_POST;
+ISC_ATTR_NORETURN
+static void
+usage(int status);
 
 static void
 usage(int status) {

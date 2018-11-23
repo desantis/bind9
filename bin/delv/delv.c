@@ -200,9 +200,10 @@ usage(void) {
 	exit(1);
 }
 
-ISC_PLATFORM_NORETURN_PRE static void
+ISC_ATTR_NORETURN
+static void
 fatal(const char *format, ...)
-ISC_FORMAT_PRINTF(1, 2) ISC_PLATFORM_NORETURN_POST;
+ISC_FORMAT_PRINTF(1, 2);
 
 static void
 fatal(const char *format, ...) {

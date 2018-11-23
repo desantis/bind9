@@ -120,8 +120,9 @@ static void usage(void) {
 	fprintf(stderr, "Press <Help> for complete list of options\n");
 }
 #else
-ISC_PLATFORM_NORETURN_PRE static void
-usage(void) ISC_PLATFORM_NORETURN_POST;
+ISC_ATTR_NORETURN
+static void
+usage(void);
 
 static void
 usage(void) {

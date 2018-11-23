@@ -65,8 +65,9 @@ static enum { progmode_check, progmode_compile } progmode;
 		} \
 	} while (0)
 
-ISC_PLATFORM_NORETURN_PRE static void
-usage(void) ISC_PLATFORM_NORETURN_POST;
+ISC_ATTR_NORETURN
+static void
+usage(void);
 
 static void
 usage(void) {

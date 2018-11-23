@@ -436,6 +436,12 @@ AC_TYPE_UINTPTR_T
 AC_HEADER_TIME
 
 #
+# check for __attributes__s
+#
+
+AX_C_FUNCTION_ATTRIBUTE([noreturn])
+
+#
 # check for uname library routine
 #
 AC_MSG_CHECKING([for uname])
@@ -456,20 +462,6 @@ AC_COMPILE_IFELSE(
   [AC_MSG_RESULT(no)
    AC_MSG_WARN([uname is not correctly supported])
   ])
-
-#
-# check for GCC noreturn attribute
-#
-AC_MSG_CHECKING(for GCC noreturn attribute)
-AC_TRY_COMPILE([],[void foo() __attribute__((noreturn));],
-	[AC_MSG_RESULT(yes)
-		ISC_PLATFORM_NORETURN_PRE="#define ISC_PLATFORM_NORETURN_PRE"
-		ISC_PLATFORM_NORETURN_POST="#define ISC_PLATFORM_NORETURN_POST __attribute__((noreturn))"],
-	[AC_MSG_RESULT(no)
-		ISC_PLATFORM_NORETURN_PRE="#define ISC_PLATFORM_NORETURN_PRE"
-		ISC_PLATFORM_NORETURN_POST="#define ISC_PLATFORM_NORETURN_POST"])
-AC_SUBST(ISC_PLATFORM_NORETURN_PRE)
-AC_SUBST(ISC_PLATFORM_NORETURN_POST)
 
 #
 # check if we have kqueue

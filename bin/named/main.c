@@ -181,9 +181,9 @@ named_main_earlyfatal(const char *format, ...) {
 	exit(1);
 }
 
-ISC_PLATFORM_NORETURN_PRE static void
+ISC_ATTR_NORETURN static void
 assertion_failed(const char *file, int line, isc_assertiontype_t type,
-		 const char *cond) ISC_PLATFORM_NORETURN_POST;
+		 const char *cond);
 
 static void
 assertion_failed(const char *file, int line, isc_assertiontype_t type,
@@ -254,10 +254,10 @@ assertion_failed(const char *file, int line, isc_assertiontype_t type,
 	exit(1);
 }
 
-ISC_PLATFORM_NORETURN_PRE static void
+ISC_ATTR_NORETURN static void
 library_fatal_error(const char *file, int line, const char *format,
 		    va_list args)
-ISC_FORMAT_PRINTF(3, 0) ISC_PLATFORM_NORETURN_POST;
+ISC_FORMAT_PRINTF(3, 0);
 
 static void
 library_fatal_error(const char *file, int line, const char *format,

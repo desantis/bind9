@@ -65,8 +65,9 @@
 const char *program = "dnssec-keygen";
 int verbose;
 
-ISC_PLATFORM_NORETURN_PRE static void
-usage(void) ISC_PLATFORM_NORETURN_POST;
+ISC_ATTR_NORETURN
+static void
+usage(void);
 
 static void progress(int p);
 

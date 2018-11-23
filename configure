@@ -755,8 +755,6 @@ PTHREAD_CC
 ax_pthread_config
 GEOIPLINKOBJS
 GEOIPLINKSRCS
-ISC_PLATFORM_NORETURN_POST
-ISC_PLATFORM_NORETURN_PRE
 expanded_sysconfdir
 PYTHON_INSTALL_LIB
 PYTHON_INSTALL_DIR
@@ -13738,6 +13736,70 @@ fi
 
 
 #
+# check for __attributes__s
+#
+
+
+
+
+    ac_ext=c
+ac_cpp='$CPP $CPPFLAGS'
+ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_c_compiler_gnu
+
+
+
+
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for __attribute__((noreturn))" >&5
+$as_echo_n "checking for __attribute__((noreturn))... " >&6; }
+if ${ax_cv_have_func_attribute_noreturn+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+        cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+
+                    void foo( void ) __attribute__((noreturn));
+
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+                                      if test -s conftest.err; then :
+  ax_cv_have_func_attribute_noreturn=no
+else
+  ax_cv_have_func_attribute_noreturn=yes
+fi
+else
+  ax_cv_have_func_attribute_noreturn=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_have_func_attribute_noreturn" >&5
+$as_echo "$ax_cv_have_func_attribute_noreturn" >&6; }
+
+    if test yes = $ax_cv_have_func_attribute_noreturn; then :
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_FUNCTION_ATTRIBUTE_NORETURN 1
+_ACEOF
+
+fi
+
+
+
+
+#
 # check for uname library routine
 #
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for uname" >&5
@@ -13775,37 +13837,6 @@ $as_echo "$as_me: WARNING: uname is not correctly supported" >&2;}
 
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-
-#
-# check for GCC noreturn attribute
-#
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for GCC noreturn attribute" >&5
-$as_echo_n "checking for GCC noreturn attribute... " >&6; }
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-int
-main ()
-{
-void foo() __attribute__((noreturn));
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
-$as_echo "yes" >&6; }
-		ISC_PLATFORM_NORETURN_PRE="#define ISC_PLATFORM_NORETURN_PRE"
-		ISC_PLATFORM_NORETURN_POST="#define ISC_PLATFORM_NORETURN_POST __attribute__((noreturn))"
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-		ISC_PLATFORM_NORETURN_PRE="#define ISC_PLATFORM_NORETURN_PRE"
-		ISC_PLATFORM_NORETURN_POST="#define ISC_PLATFORM_NORETURN_POST"
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-
-
 
 #
 # check if we have kqueue

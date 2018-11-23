@@ -434,8 +434,8 @@ const char *empty_zones[] = {
 	NULL
 };
 
-ISC_PLATFORM_NORETURN_PRE static void
-fatal(const char *msg, isc_result_t result) ISC_PLATFORM_NORETURN_POST;
+ISC_ATTR_NORETURN static void
+fatal(const char *msg, isc_result_t result);
 
 static void
 named_server_reload(isc_task_t *task, isc_event_t *event);

@@ -34,8 +34,8 @@
 
 const char *program = "nsec3hash";
 
-ISC_PLATFORM_NORETURN_PRE static void
-fatal(const char *format, ...) ISC_PLATFORM_NORETURN_POST;
+ISC_ATTR_NORETURN static void
+fatal(const char *format, ...);
 
 static void
 fatal(const char *format, ...) {

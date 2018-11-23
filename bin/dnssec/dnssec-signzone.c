@@ -3074,8 +3074,9 @@ print_version(FILE *fp) {
 	fprintf(fp, "; dnssec_signzone version " VERSION "\n");
 }
 
-ISC_PLATFORM_NORETURN_PRE static void
-usage(void) ISC_PLATFORM_NORETURN_POST;
+ISC_ATTR_NORETURN
+static void
+usage(void);
 
 static void
 usage(void) {

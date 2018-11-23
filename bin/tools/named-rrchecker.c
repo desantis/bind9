@@ -34,8 +34,8 @@ static isc_lex_t *lex;
 
 static isc_lexspecials_t specials;
 
-ISC_PLATFORM_NORETURN_PRE static void
-usage(void) ISC_PLATFORM_NORETURN_POST;
+ISC_ATTR_NORETURN static void
+usage(void);
 
 static void
 usage(void) {
@@ -51,8 +51,8 @@ usage(void) {
 	exit(0);
 }
 
-ISC_PLATFORM_NORETURN_PRE static void
-fatal(const char *format, ...) ISC_PLATFORM_NORETURN_POST;
+ISC_ATTR_NORETURN static void
+fatal(const char *format, ...);
 
 static void
 fatal(const char *format, ...) {

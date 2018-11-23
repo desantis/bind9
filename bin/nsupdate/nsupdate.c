@@ -190,9 +190,9 @@ sendrequest(isc_sockaddr_t *destaddr, dns_message_t *msg,
 static void
 send_update(dns_name_t *zonename, isc_sockaddr_t *master);
 
-ISC_PLATFORM_NORETURN_PRE static void
+ISC_ATTR_NORETURN static void
 fatal(const char *format, ...)
-ISC_FORMAT_PRINTF(1, 2) ISC_PLATFORM_NORETURN_POST;
+ISC_FORMAT_PRINTF(1, 2);
 
 static void
 debug(const char *format, ...) ISC_FORMAT_PRINTF(1, 2);

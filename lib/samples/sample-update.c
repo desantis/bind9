@@ -71,8 +71,9 @@ static void update_addordelete(isc_mem_t *mctx, char *cmdline,
 			       bool isdelete, dns_name_t *name);
 static void evaluate_prereq(isc_mem_t *mctx, char *cmdline, dns_name_t *name);
 
-ISC_PLATFORM_NORETURN_PRE static void
-usage(void) ISC_PLATFORM_NORETURN_POST;
+ISC_ATTR_NORETURN
+static void
+usage(void);
 
 static void
 usage(void) {

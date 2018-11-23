@@ -130,8 +130,9 @@ rcode_totext(dns_rcode_t rcode)
 	return totext.deconsttext;
 }
 
-ISC_PLATFORM_NORETURN_PRE static void
-show_usage(void) ISC_PLATFORM_NORETURN_POST;
+ISC_ATTR_NORETURN
+static void
+show_usage(void);
 
 static void
 show_usage(void) {
