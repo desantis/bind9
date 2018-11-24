@@ -1049,6 +1049,51 @@ ns_client_sendraw(ns_client_t *client, dns_message_t *message) {
 	ns_client_next(client, result);
 }
 
+#ifdef PSEUDOSEND
+static void
+client_pseudosend(ns_client_t *client, uint16_t id) {
+	isc_result_t result;
+	unsigned char *data;
+	isc_buffer_t buffer;
+	isc_buffer_t tcpbuffer;
+	isc_region_t r;
+	unsigned char sendbuf[SEND_BUFFER_SIZE];
+	result = client_allocsendbuf(client, &buffer, &tcpbuffer, 0,
+				     sendbuf, &data);
+	if (result != ISC_R_SUCCESS) {
+		goto done;
+	}
+
+	isc_buffer_putuint16(&buffer, id);
+	isc_buffer_putuint8(&buffer, 0x81);
+	isc_buffer_putuint8(&buffer, 0x80);
+	isc_buffer_putuint16(&buffer, 0);
+	isc_buffer_putuint16(&buffer, 0);
+	isc_buffer_putuint16(&buffer, 0);
+	isc_buffer_putuint16(&buffer, 0);
+	if (client->sendcb != NULL) {
+		client->sendcb(&buffer);
+	} else if (TCP_CLIENT(client)) {
+		isc_buffer_usedregion(&buffer, &r);
+		isc_buffer_putuint16(&tcpbuffer, (uint16_t) r.length);
+		isc_buffer_add(&tcpbuffer, r.length);
+		result = client_sendpkg(client, &tcpbuffer);
+	} else {
+		result = client_sendpkg(client, &buffer);
+	}
+	if (result == ISC_R_SUCCESS) {
+		return;
+	}
+done:
+	if (client->tcpbuf != NULL) {
+		isc_mem_put(client->mctx, client->tcpbuf, TCP_BUFFER_SIZE);
+		client->tcpbuf = NULL;
+	}
+	ns_client_next(client, result);
+
+}
+#endif
+
 static void
 client_send(ns_client_t *client) {
 	isc_result_t result;
@@ -2334,6 +2379,20 @@ ns__client_request(isc_task_t *task, isc_event_t *event) {
 		}
 		return;
 	}
+
+#ifdef PSEUDOSEND
+	result = dns_message_peekheader(buffer, &id, &flags);
+	if (result != ISC_R_SUCCESS) {
+		/*
+		 * There isn't enough header to determine whether
+		 * this was a request or a response.  Drop it.
+		 */
+		ns_client_next(client, result);
+		return;
+	}
+	client_pseudosend(client, id);
+	return;
+#endif
 
 	isc_netaddr_fromsockaddr(&netaddr, &client->peeraddr);
 
