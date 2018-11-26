@@ -772,7 +772,9 @@ watch_fd(isc__socketthread_t *thread, int fd, int msg) {
 static inline isc_result_t
 unwatch_fd(isc__socketthread_t *thread, int fd, int msg) {
 	isc_result_t result = ISC_R_SUCCESS;
-
+	if (fd <= 0) {
+		return (ISC_R_SUCCESS);
+	}
 #ifdef USE_KQUEUE
 	struct kevent evchange;
 
@@ -3177,7 +3179,6 @@ internal_recv(isc__socket_t *sock) {
 			send_recvdone_event(sock, &dev);
 			break;
 		}
-
 		dev = ISC_LIST_HEAD(sock->recv_list);
 	}
 
@@ -3218,7 +3219,6 @@ internal_send(isc__socket_t *sock) {
 			send_senddone_event(sock, &dev);
 			break;
 		}
-
 		dev = ISC_LIST_HEAD(sock->send_list);
 	}
 
@@ -4261,6 +4261,16 @@ socket_send(isc__socket_t *sock, isc_socketevent_t *dev, isc_task_t *task,
 			 * paying attention to it.
 			 */
 			bool do_poke = ISC_LIST_EMPTY(sock->send_list);
+			if (do_poke) {
+				io_state = doio_send(sock, dev);
+				if (io_state == DOIO_HARD || io_state == DOIO_SUCCESS) {
+					if ((flags & ISC_SOCKFLAG_IMMEDIATE) == 0) {
+						send_senddone_event(sock, &dev);
+					}
+					break;
+				}
+			}
+
 			ISC_LIST_ENQUEUE(sock->send_list, dev, ev_link);
 			if (do_poke) {
 				select_poke(sock->manager, sock->threadid,
