@@ -87,6 +87,8 @@
 #define ISC_TASKEVENT_TEST		(ISC_EVENTCLASS_TASK + 1)
 #define ISC_TASKEVENT_LASTEVENT		(ISC_EVENTCLASS_TASK + 65535)
 
+#define ISC_TASKCPU_NONE		-1
+#define ISC_TASKCPU_GREEDY		-2
 /*****
  ***** Tasks.
  *****/
