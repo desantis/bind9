@@ -24,6 +24,7 @@
 #include <isc/mem.h>
 #include <isc/once.h>
 #include <isc/print.h>
+#include <isc/refcount.h>
 #include <isc/region.h>
 #include <isc/util.h>
 
@@ -58,9 +59,9 @@ struct dns_sdb {
 	char				*zone;
 	dns_sdbimplementation_t		*implementation;
 	void				*dbdata;
-	isc_mutex_t			lock;
-	/* Locked */
-	unsigned int			references;
+
+	/* Atomic */
+	isc_refcount_t			references;
 };
 
 struct dns_sdblookup {
@@ -71,10 +72,10 @@ struct dns_sdblookup {
 	ISC_LIST(isc_buffer_t)		buffers;
 	dns_name_t			*name;
 	ISC_LINK(dns_sdblookup_t)	link;
-	isc_mutex_t			lock;
 	dns_rdatacallbacks_t		callbacks;
-	/* Locked */
-	unsigned int			references;
+
+	/* Atomic */
+	isc_refcount_t			references;
 };
 
 typedef struct dns_sdblookup dns_sdbnode_t;
@@ -531,10 +532,7 @@ attach(dns_db_t *source, dns_db_t **targetp) {
 
 	REQUIRE(VALID_SDB(sdb));
 
-	LOCK(&sdb->lock);
-	REQUIRE(sdb->references > 0);
-	sdb->references++;
-	UNLOCK(&sdb->lock);
+	isc_refcount_increment(&sdb->references);
 
 	*targetp = source;
 }
@@ -554,7 +552,6 @@ destroy(dns_sdb_t *sdb) {
 	}
 
 	isc_mem_free(mctx, sdb->zone);
-	isc_mutex_destroy(&sdb->lock);
 
 	sdb->common.magic = 0;
 	sdb->common.impmagic = 0;
@@ -568,20 +565,14 @@ destroy(dns_sdb_t *sdb) {
 static void
 detach(dns_db_t **dbp) {
 	dns_sdb_t *sdb = (dns_sdb_t *)(*dbp);
-	bool need_destroy = false;
 
 	REQUIRE(VALID_SDB(sdb));
-	LOCK(&sdb->lock);
-	REQUIRE(sdb->references > 0);
-	sdb->references--;
-	if (sdb->references == 0)
-		need_destroy = true;
-	UNLOCK(&sdb->lock);
-
-	if (need_destroy)
-		destroy(sdb);
 
 	*dbp = NULL;
+
+	if (isc_refcount_decrement(&sdb->references) == 1) {
+		destroy(sdb);
+	}
 }
 
 static isc_result_t
@@ -663,9 +654,10 @@ createnode(dns_sdb_t *sdb, dns_sdbnode_t **nodep) {
 	ISC_LIST_INIT(node->buffers);
 	ISC_LINK_INIT(node, link);
 	node->name = NULL;
-	isc_mutex_init(&node->lock);
 	dns_rdatacallbacks_init(&node->callbacks);
-	node->references = 1;
+
+	isc_refcount_init(&node->references, 1);
+
 	node->magic = SDBLOOKUP_MAGIC;
 
 	*nodep = node;
@@ -704,7 +696,7 @@ destroynode(dns_sdbnode_t *node) {
 		dns_name_free(node->name, mctx);
 		isc_mem_put(mctx, node->name, sizeof(dns_name_t));
 	}
-	isc_mutex_destroy(&node->lock);
+
 	node->magic = 0;
 	isc_mem_put(mctx, node, sizeof(dns_sdbnode_t));
 	detach((dns_db_t **) (void *)&sdb);
@@ -1003,11 +995,7 @@ attachnode(dns_db_t *db, dns_dbnode_t *source, dns_dbnode_t **targetp) {
 
 	UNUSED(sdb);
 
-	LOCK(&node->lock);
-	INSIST(node->references > 0);
-	node->references++;
-	INSIST(node->references != 0);		/* Catch overflow. */
-	UNLOCK(&node->lock);
+	isc_refcount_increment(&node->references);
 
 	*targetp = source;
 }
@@ -1016,7 +1004,6 @@ static void
 detachnode(dns_db_t *db, dns_dbnode_t **targetp) {
 	dns_sdb_t *sdb = (dns_sdb_t *)db;
 	dns_sdbnode_t *node;
-	bool need_destroy = false;
 
 	REQUIRE(VALID_SDB(sdb));
 	REQUIRE(targetp != NULL && *targetp != NULL);
@@ -1025,17 +1012,11 @@ detachnode(dns_db_t *db, dns_dbnode_t **targetp) {
 
 	node = (dns_sdbnode_t *)(*targetp);
 
-	LOCK(&node->lock);
-	INSIST(node->references > 0);
-	node->references--;
-	if (node->references == 0)
-		need_destroy = true;
-	UNLOCK(&node->lock);
-
-	if (need_destroy)
-		destroynode(node);
-
 	*targetp = NULL;
+
+	if (isc_refcount_decrement(&node->references) == 1) {
+		destroynode(node);
+	}
 }
 
 static isc_result_t
@@ -1325,8 +1306,6 @@ dns_sdb_create(isc_mem_t *mctx, const dns_name_t *origin, dns_dbtype_t type,
 
 	isc_mem_attach(mctx, &sdb->common.mctx);
 
-	isc_mutex_init(&sdb->lock);
-
 	result = dns_name_dupwithoffsets(origin, mctx, &sdb->common.origin);
 	if (result != ISC_R_SUCCESS)
 		goto cleanup_lock;
@@ -1353,7 +1332,7 @@ dns_sdb_create(isc_mem_t *mctx, const dns_name_t *origin, dns_dbtype_t type,
 			goto cleanup_zonestr;
 	}
 
-	sdb->references = 1;
+	isc_refcount_init(&sdb->references, 1);
 
 	sdb->common.magic = DNS_DB_MAGIC;
 	sdb->common.impmagic = SDB_MAGIC;
@@ -1367,7 +1346,6 @@ dns_sdb_create(isc_mem_t *mctx, const dns_name_t *origin, dns_dbtype_t type,
  cleanup_origin:
 	dns_name_free(&sdb->common.origin, mctx);
  cleanup_lock:
-	isc_mutex_destroy(&sdb->lock);
 	isc_mem_put(mctx, sdb, sizeof(dns_sdb_t));
 	isc_mem_detach(&mctx);
 

@@ -20,6 +20,7 @@
 #include <isc/log.h>
 #include <isc/mem.h>
 #include <isc/print.h>
+#include <isc/refcount.h>
 #include <isc/rwlock.h>
 #include <isc/string.h>
 #include <isc/task.h>
@@ -42,7 +43,7 @@ struct dns_nta {
 	unsigned int		magic;
 	isc_refcount_t		refcount;
 	dns_ntatable_t		*ntatable;
-	bool		forced;
+	bool			forced;
 	isc_timer_t		*timer;
 	dns_fetch_t		*fetch;
 	dns_rdataset_t		rdataset;
@@ -54,15 +55,6 @@ struct dns_nta {
 
 #define NTA_MAGIC		ISC_MAGIC('N', 'T', 'A', 'n')
 #define VALID_NTA(nn)	 	ISC_MAGIC_VALID(nn, NTA_MAGIC)
-
-/*
- * Obtain a reference to the nta object.  Released by
- * nta_detach.
- */
-static void
-nta_ref(dns_nta_t *nta) {
-	isc_refcount_increment(&nta->refcount);
-}
 
 static void
 nta_detach(isc_mem_t *mctx, dns_nta_t **ntap) {
@@ -135,7 +127,8 @@ dns_ntatable_create(dns_view_t *view,
 	ntatable->taskmgr = taskmgr;
 
 	ntatable->view = view;
-	ntatable->references = 1;
+
+	isc_refcount_init(&ntatable->references, 1);
 
 	ntatable->magic = NTATABLE_MAGIC;
 	*ntatablep = ntatable;
@@ -159,20 +152,13 @@ dns_ntatable_attach(dns_ntatable_t *source, dns_ntatable_t **targetp) {
 	REQUIRE(VALID_NTATABLE(source));
 	REQUIRE(targetp != NULL && *targetp == NULL);
 
-	RWLOCK(&source->rwlock, isc_rwlocktype_write);
-
-	INSIST(source->references > 0);
-	source->references++;
-	INSIST(source->references != 0);
-
-	RWUNLOCK(&source->rwlock, isc_rwlocktype_write);
+	isc_refcount_increment(&source->references);
 
 	*targetp = source;
 }
 
 void
 dns_ntatable_detach(dns_ntatable_t **ntatablep) {
-	bool destroy = false;
 	dns_ntatable_t *ntatable;
 
 	REQUIRE(ntatablep != NULL && VALID_NTATABLE(*ntatablep));
@@ -180,18 +166,12 @@ dns_ntatable_detach(dns_ntatable_t **ntatablep) {
 	ntatable = *ntatablep;
 	*ntatablep = NULL;
 
-	RWLOCK(&ntatable->rwlock, isc_rwlocktype_write);
-	INSIST(ntatable->references > 0);
-	ntatable->references--;
-	if (ntatable->references == 0)
-		destroy = true;
-	RWUNLOCK(&ntatable->rwlock, isc_rwlocktype_write);
-
-	if (destroy) {
+	if (isc_refcount_decrement(&ntatable->references) == 1) {
 		dns_rbt_destroy(&ntatable->table);
 		isc_rwlock_destroy(&ntatable->rwlock);
-		if (ntatable->task != NULL)
+		if (ntatable->task != NULL) {
 			isc_task_detach(&ntatable->task);
+		}
 		ntatable->timermgr = NULL;
 		ntatable->taskmgr = NULL;
 		ntatable->magic = 0;
@@ -267,7 +247,7 @@ checkbogus(isc_task_t *task, isc_event_t *event) {
 
 	isc_event_free(&event);
 
-	nta_ref(nta);
+	isc_refcount_increment(&nta->refcount);
 	result = dns_resolver_createfetch(view->resolver, nta->name,
 					  dns_rdatatype_nsec,
 					  NULL, NULL, NULL, NULL, 0,
@@ -276,8 +256,9 @@ checkbogus(isc_task_t *task, isc_event_t *event) {
 					  &nta->rdataset,
 					  &nta->sigrdataset,
 					  &nta->fetch);
-	if (result != ISC_R_SUCCESS)
+	if (result != ISC_R_SUCCESS) {
 		nta_detach(view->mctx, &nta);
+	}
 }
 
 static isc_result_t

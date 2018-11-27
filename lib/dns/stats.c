@@ -19,6 +19,7 @@
 
 #include <isc/magic.h>
 #include <isc/mem.h>
+#include <isc/refcount.h>
 #include <isc/stats.h>
 #include <isc/util.h>
 
@@ -68,11 +69,10 @@ struct dns_stats {
 	unsigned int	magic;
 	dns_statstype_t	type;
 	isc_mem_t	*mctx;
-	isc_mutex_t	lock;
 	isc_stats_t	*counters;
 
-	/*%  Locked by lock */
-	unsigned int	references;
+	/*% Atomic */
+	isc_refcount_t	references;
 };
 
 typedef struct rdatadumparg {
@@ -95,9 +95,7 @@ dns_stats_attach(dns_stats_t *stats, dns_stats_t **statsp) {
 	REQUIRE(DNS_STATS_VALID(stats));
 	REQUIRE(statsp != NULL && *statsp == NULL);
 
-	LOCK(&stats->lock);
-	stats->references++;
-	UNLOCK(&stats->lock);
+	isc_refcount_increment(&stats->references);
 
 	*statsp = stats;
 }
@@ -111,13 +109,8 @@ dns_stats_detach(dns_stats_t **statsp) {
 	stats = *statsp;
 	*statsp = NULL;
 
-	LOCK(&stats->lock);
-	stats->references--;
-	UNLOCK(&stats->lock);
-
-	if (stats->references == 0) {
+	if (isc_refcount_decrement(&stats->references) == 1) {
 		isc_stats_detach(&stats->counters);
-		isc_mutex_destroy(&stats->lock);
 		isc_mem_putanddetach(&stats->mctx, stats, sizeof(*stats));
 	}
 }
@@ -137,9 +130,8 @@ create_stats(isc_mem_t *mctx, dns_statstype_t type, int ncounters,
 		return (ISC_R_NOMEMORY);
 
 	stats->counters = NULL;
-	stats->references = 1;
 
-	isc_mutex_init(&stats->lock);
+	isc_refcount_init(&stats->references, 1);
 
 	result = isc_stats_create(mctx, &stats->counters, ncounters);
 	if (result != ISC_R_SUCCESS)
@@ -154,7 +146,6 @@ create_stats(isc_mem_t *mctx, dns_statstype_t type, int ncounters,
 	return (ISC_R_SUCCESS);
 
   clean_mutex:
-	isc_mutex_destroy(&stats->lock);
 	isc_mem_put(mctx, stats, sizeof(*stats));
 
 	return (result);

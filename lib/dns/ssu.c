@@ -19,6 +19,7 @@
 #include <isc/mem.h>
 #include <isc/netaddr.h>
 #include <isc/print.h>
+#include <isc/refcount.h>
 #include <isc/result.h>
 #include <isc/string.h>
 #include <isc/util.h>
@@ -53,8 +54,7 @@ struct dns_ssurule {
 struct dns_ssutable {
 	unsigned int magic;
 	isc_mem_t *mctx;
-	unsigned int references;
-	isc_mutex_t lock;
+	isc_refcount_t references;
 	dns_dlzdb_t *dlzdatabase;
 	ISC_LIST(dns_ssurule_t) rules;
 };
@@ -67,10 +67,10 @@ dns_ssutable_create(isc_mem_t *mctx, dns_ssutable_t **tablep) {
 	REQUIRE(mctx != NULL);
 
 	table = isc_mem_get(mctx, sizeof(dns_ssutable_t));
-	if (table == NULL)
+	if (table == NULL) {
 		return (ISC_R_NOMEMORY);
-	isc_mutex_init(&table->lock);
-	table->references = 1;
+	}
+	isc_refcount_init(&table->references, 1);
 	table->mctx = NULL;
 	isc_mem_attach(mctx, &table->mctx);
 	ISC_LIST_INIT(table->rules);
@@ -103,7 +103,7 @@ destroy(dns_ssutable_t *table) {
 		rule->magic = 0;
 		isc_mem_put(mctx, rule, sizeof(dns_ssurule_t));
 	}
-	isc_mutex_destroy(&table->lock);
+	isc_refcount_destroy(&table->references);
 	table->magic = 0;
 	isc_mem_putanddetach(&table->mctx, table, sizeof(dns_ssutable_t));
 }
@@ -113,13 +113,7 @@ dns_ssutable_attach(dns_ssutable_t *source, dns_ssutable_t **targetp) {
 	REQUIRE(VALID_SSUTABLE(source));
 	REQUIRE(targetp != NULL && *targetp == NULL);
 
-	LOCK(&source->lock);
-
-	INSIST(source->references > 0);
-	source->references++;
-	INSIST(source->references != 0);
-
-	UNLOCK(&source->lock);
+	isc_refcount_increment(&source->references);
 
 	*targetp = source;
 }
@@ -127,23 +121,15 @@ dns_ssutable_attach(dns_ssutable_t *source, dns_ssutable_t **targetp) {
 void
 dns_ssutable_detach(dns_ssutable_t **tablep) {
 	dns_ssutable_t *table;
-	bool done = false;
 
 	REQUIRE(tablep != NULL);
 	table = *tablep;
 	REQUIRE(VALID_SSUTABLE(table));
-
-	LOCK(&table->lock);
-
-	INSIST(table->references > 0);
-	if (--table->references == 0)
-		done = true;
-	UNLOCK(&table->lock);
-
 	*tablep = NULL;
 
-	if (done)
+	if (isc_refcount_decrement(&table->references) == 1) {
 		destroy(table);
+	}
 }
 
 isc_result_t

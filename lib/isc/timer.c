@@ -26,6 +26,7 @@
 #include <isc/once.h>
 #include <isc/platform.h>
 #include <isc/print.h>
+#include <isc/refcount.h>
 #include <isc/task.h>
 #include <isc/thread.h>
 #include <isc/time.h>
@@ -64,8 +65,9 @@ struct isc__timer {
 	isc_timer_t			common;
 	isc__timermgr_t *		manager;
 	isc_mutex_t			lock;
+	/* Atomic */
+	isc_refcount_t			references;
 	/*! Locked by timer lock. */
-	unsigned int			references;
 	isc_time_t			idle;
 	/*! Locked by manager lock. */
 	isc_timertype_t			type;
@@ -292,7 +294,8 @@ isc_timer_create(isc_timermgr_t *manager0, isc_timertype_t type,
 		return (ISC_R_NOMEMORY);
 
 	timer->manager = manager;
-	timer->references = 1;
+
+	isc_refcount_init(&timer->references, 1);
 
 	if (type == isc_timertype_once && !isc_interval_iszero(interval)) {
 		result = isc_time_add(&now, interval, &timer->idle);
@@ -488,9 +491,7 @@ isc_timer_attach(isc_timer_t *timer0, isc_timer_t **timerp) {
 	REQUIRE(VALID_TIMER(timer));
 	REQUIRE(timerp != NULL && *timerp == NULL);
 
-	LOCK(&timer->lock);
-	timer->references++;
-	UNLOCK(&timer->lock);
+	isc_refcount_increment(&timer->references);
 
 	*timerp = (isc_timer_t *)timer;
 }
@@ -498,7 +499,6 @@ isc_timer_attach(isc_timer_t *timer0, isc_timer_t **timerp) {
 void
 isc_timer_detach(isc_timer_t **timerp) {
 	isc__timer_t *timer;
-	bool free_timer = false;
 
 	/*
 	 * Detach *timerp from its timer.
@@ -508,17 +508,11 @@ isc_timer_detach(isc_timer_t **timerp) {
 	timer = (isc__timer_t *)*timerp;
 	REQUIRE(VALID_TIMER(timer));
 
-	LOCK(&timer->lock);
-	REQUIRE(timer->references > 0);
-	timer->references--;
-	if (timer->references == 0)
-		free_timer = true;
-	UNLOCK(&timer->lock);
-
-	if (free_timer)
-		destroy(timer);
-
 	*timerp = NULL;
+
+	if (isc_refcount_decrement(&timer->references) == 1) {
+		destroy(timer);
+	}
 }
 
 static void

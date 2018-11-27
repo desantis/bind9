@@ -94,7 +94,7 @@ struct ns_client {
 	int			nrecvs;
 	int			nupdates;
 	int			nctls;
-	int			references;
+	isc_refcount_t		references;
 	bool		needshutdown; 	/*
 						 * Used by clienttest to get
 						 * the client to go from
