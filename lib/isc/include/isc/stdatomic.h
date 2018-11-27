@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <inttypes.h>
+
 #if !defined(__has_feature)
 #define __has_feature(x) 0
 #endif
