@@ -6981,7 +6981,6 @@ resume_dslookup(isc_task_t *task, isc_event_t *event) {
 	fetchctx_t *fctx;
 	isc_result_t result;
 	bool bucket_empty;
-	unsigned int bucketnum;
 	dns_rdataset_t nameservers;
 	dns_fixedname_t fixed;
 	dns_name_t *domain;
