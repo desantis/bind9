@@ -30,7 +30,7 @@ struct isc_counter {
 	unsigned int		magic;
 	isc_mem_t		*mctx;
 	isc_refcount_t		references;
-	atomic_uint_least32_t	limit;
+	atomic_uint_fast32_t	limit;
 	isc_refcount_t		used;
 };
 
