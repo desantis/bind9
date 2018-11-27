@@ -1740,7 +1740,7 @@ isc_taskmgr_renderxml(isc_taskmgr_t *mgr0, xmlTextWriterPtr writer) {
 
 		TRY0(xmlTextWriterStartElement(writer,
 					       ISC_XMLCHAR "references"));
-		TRY0(xmlTextWriterWriteFormatString(writer, "%d",
+		TRY0(xmlTextWriterWriteFormatString(writer, "%" PRIu32,
 						    isc_refcount_current(&task->references)));
 		TRY0(xmlTextWriterEndElement(writer)); /* references */
 
