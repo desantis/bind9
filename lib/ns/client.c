@@ -930,8 +930,6 @@ client_sendpkg(ns_client_t *client, isc_buffer_t *buffer) {
 	isc_region_t r;
 	isc_sockaddr_t *address;
 	isc_socket_t *sock;
-	isc_netaddr_t netaddr;
-	int match;
 	unsigned int sockflags = ISC_SOCKFLAG_IMMEDIATE;
 	isc_dscp_t dispdscp = -1;
 
@@ -939,21 +937,8 @@ client_sendpkg(ns_client_t *client, isc_buffer_t *buffer) {
 		sock = client->tcpsocket;
 		address = NULL;
 	} else {
-		dns_aclenv_t *env =
-			ns_interfacemgr_getaclenv(client->interface->mgr);
-
 		sock = client->udpsocket;
 		address = &client->peeraddr;
-
-		isc_netaddr_fromsockaddr(&netaddr, &client->peeraddr);
-		if (client->sctx->blackholeacl != NULL &&
-		    (dns_acl_match(&netaddr, NULL, client->sctx->blackholeacl,
-				   env, &match, NULL) == ISC_R_SUCCESS) &&
-		    match > 0)
-		{
-			return (DNS_R_BLACKHOLED);
-		}
-		sockflags |= ISC_SOCKFLAG_NORETRY;
 	}
 
 	if ((client->attributes & NS_CLIENTATTR_PKTINFO) != 0 &&
