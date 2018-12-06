@@ -189,6 +189,7 @@ help(void) {
 "                 +[no]ednsnegotiation (Set EDNS version negotiation)\n"
 "                 +ednsopt=###[:value] (Send specified EDNS option)\n"
 "                 +noednsopt          (Clear list of +ednsopt options)\n"
+"                 +[no]expandaaaa     (Expand AAAA records)\n"
 "                 +[no]expire         (Request time to expire)\n"
 "                 +[no]fail           (Don't try next server on SERVFAIL)\n"
 "                 +[no]header-only    (Send query without a question section)\n"
@@ -475,6 +476,8 @@ printmessage(dig_query_t *query, dns_message_t *msg, bool headers) {
 		styleflags |= DNS_STYLEFLAG_NO_CLASS;
 	if (query->lookup->nocrypto)
 		styleflags |= DNS_STYLEFLAG_NOCRYPTO;
+	if (query->lookup->expandaaaa)
+		styleflags |= DNS_STYLEFLAG_EXPANDAAAA;
 	if (query->lookup->multiline) {
 		styleflags |= DNS_STYLEFLAG_OMIT_OWNER;
 		styleflags |= DNS_STYLEFLAG_OMIT_CLASS;
@@ -1036,8 +1039,24 @@ plus_option(char *option, bool is_batchfile,
 			}
 			break;
 		case 'x':
-			FULLCHECK("expire");
-			lookup->expire = state;
+			switch (cmd[2]) {
+			case 'p':
+				switch(cmd[3]) {
+				case 'a':
+					FULLCHECK("expandaaaa");
+					lookup->expandaaaa = state;
+					break;
+				case 'i':
+					FULLCHECK("expire");
+					lookup->expire = state;
+					break;
+				default:
+					goto invalid_option;
+				}
+				break;
+			default:
+				goto invalid_option;
+			}
 			break;
 		default:
 			goto invalid_option;
