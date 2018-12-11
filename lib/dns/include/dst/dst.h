@@ -50,7 +50,6 @@ typedef struct dst_context 	dst_context_t;
 #define DST_ALG_RSA		DST_ALG_RSAMD5	/*%< backwards compatibility */
 #define DST_ALG_DH		2
 #define DST_ALG_DSA		3
-#define DST_ALG_ECC		4
 #define DST_ALG_RSASHA1		5
 #define DST_ALG_NSEC3DSA	6
 #define DST_ALG_NSEC3RSASHA1	7
