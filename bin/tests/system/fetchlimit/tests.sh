@@ -27,7 +27,7 @@ burst() {
 }
 
 stat() {
-    clients=`$RNDCCMD status | grep "recursive clients" | 
+    clients=`$RNDCCMD status | grep "recursive clients" |
             sed 's;.*: \([^/][^/]*\)/.*;\1;'`
     echo_i "clients: $clients"
     [ "$clients" = "" ] && return 1
@@ -162,11 +162,13 @@ ret=0
 fail=0
 exceeded=0
 success=0
+softlimit=1000
+limit=$((softlimit*9722/10000)) # the quota cannot drop below 2.78% of fetches-per-server
 touch ans4/norespond
 for try in 1 2 3 4 5; do
-    burst b $try 400
+    burst b $try $softlimit
     $DIG @10.53.0.3 -p ${PORT}  a ${try}.example > dig.out.ns3.$try
-    stat 380 || exceeded=`expr $exceeded + 1`
+    stat $limit || exceeded=`expr $exceeded + 1`
     grep "status: NOERROR" dig.out.ns3.$try > /dev/null 2>&1 && \
             success=`expr $success + 1`
     grep "status: SERVFAIL" dig.out.ns3.$try > /dev/null 2>&1 && \
@@ -177,7 +179,7 @@ echo_i "$success successful valid queries (expected 5)"
 [ "$success" -eq 5 ] || { echo_i "failed"; ret=1; }
 echo_i "$fail SERVFAIL responses (expected 0)"
 [ "$fail" -eq 0 ] || { echo_i "failed"; ret=1; }
-echo_i "clients count exceeded 380 on $exceeded trials (expected 0)"
+echo_i "clients count exceeded $limit on $exceeded trials (expected 0)"
 [ "$exceeded" -eq 0 ] || { echo_i "failed"; ret=1; }
 if [ $ret != 0 ]; then echo_i "failed"; fi
 status=`expr $status + $ret`
