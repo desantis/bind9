@@ -334,3 +334,12 @@ cp $infile $zonefile
 ksk=`$KEYGEN -q -a RSASHA1 -3 -fk $zone 2> kg.out` || dumpit kg.out
 $KEYGEN -q -a RSASHA1 -3 $zone > kg.out 2>&1 || dumpit kg.out
 $DSFROMKEY $ksk.key > dsset-${zone}$TP
+
+#
+# A zone that starts with some unsigned NSEC3 records and no signatures.
+#
+setup partialnsec3.example
+cp $infile $zonefile
+ksk=`$KEYGEN -a NSEC3RSASHA1 -3 -q -fk $zone 2> kg.out` || dumpit kg.out
+$KEYGEN -a NSEC3RSASHA1 -3 -q $zone > kg.out 2>&1 || dumpit kg.out
+$DSFROMKEY $ksk.key > dsset-${zone}$TP

@@ -1,0 +1,43 @@
+; Copyright (C) Internet Systems Consortium, Inc. ("ISC")
+;
+; This Source Code Form is subject to the terms of the Mozilla Public
+; License, v. 2.0. If a copy of the MPL was not distributed with this
+; file, You can obtain one at http://mozilla.org/MPL/2.0/.
+;
+; See the COPYRIGHT file distributed with this work for additional
+; information regarding copyright ownership.
+
+$TTL 300	; 5 minutes
+@			IN SOA	mname1. . (
+				2000042407 ; serial
+				20         ; refresh (20 seconds)
+				20         ; retry (20 seconds)
+				1814400    ; expire (3 weeks)
+				3600       ; minimum (1 hour)
+				)
+			NS	ns
+			NSEC3PARAM 1 0 1 D399EAAB
+ns			A	10.53.0.3
+
+a			A	10.0.0.1
+b			A	10.0.0.2
+d			A	10.0.0.4
+z			A	10.0.0.26
+a.a.a.a			A	10.0.0.3
+child			NS	ns2.example.
+insecure		NS	ns.insecure
+ns.insecure 		A	10.53.0.3
+secure			NS	ns.secure
+ns.secure 		A	10.53.0.3
+nsec3			NS	ns.nsec3
+ns.nsec3 		A	10.53.0.3
+optout			NS	ns.optout
+ns.optout 		A	10.53.0.3
+;
+; Some precomputed NSEC3 records that form a NSEC3 chain that is in the process of being built.
+;
+GEM086NTU6MT7CN45ATEBFC473U77CGS 3600 IN NSEC3 1 0 1 D399EAAB HPUJ4AVM0DHBBQGS3CCS9IO72VC9RVL8 A RRSIG
+HPUJ4AVM0DHBBQGS3CCS9IO72VC9RVL8 3600 IN NSEC3 1 0 1 D399EAAB OS76SJMB4GB8RM465M6RBPOU6KFUC75C A RRSIG
+OS76SJMB4GB8RM465M6RBPOU6KFUC75C 3600 IN NSEC3 1 0 1 D399EAAB PG32CM31KNS5VP0D6POA66ASP7GQSM42 A RRSIG
+PG32CM31KNS5VP0D6POA66ASP7GQSM42 3600 IN NSEC3 1 0 1 D399EAAB TBJCRM4C31K8CT7H2PJ17GU2BETVFBC2 A RRSIG
+TBJCRM4C31K8CT7H2PJ17GU2BETVFBC2 3600 IN NSEC3 1 0 1 D399EAAB GEM086NTU6MT7CN45ATEBFC473U77CGS

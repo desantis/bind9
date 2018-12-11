@@ -1467,5 +1467,16 @@ n=`expr $n + 1`
 if [ $ret != 0 ]; then echo_i "failed"; fi
 status=`expr $status + $ret`
 
+echo_i "check that zone with a partial unsigned NSEC3 chain gets signed ($n)"
+$DIG $DIGOPTS @10.53.0.3 axfr partialnsec3.example > dig.out.ns3.test$n || ret=1
+for hash in GEM086NTU6MT7CN45ATEBFC473U77CGS HPUJ4AVM0DHBBQGS3CCS9IO72VC9RVL8 \
+	    OS76SJMB4GB8RM465M6RBPOU6KFUC75C PG32CM31KNS5VP0D6POA66ASP7GQSM42
+do
+	grep "^$hash.*IN RRSIG NSEC3.*" dig.out.ns3.test$n > /dev/null || ret=1
+done
+n=`expr $n + 1`
+if [ $ret != 0 ]; then echo_i "failed"; fi
+status=`expr $status + $ret`
+
 echo_i "exit status: $status"
 [ $status -eq 0 ] || exit 1

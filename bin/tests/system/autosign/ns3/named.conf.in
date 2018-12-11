@@ -296,4 +296,11 @@ zone "dname-at-apex-nsec3.example" {
 	auto-dnssec maintain;
 };
 
+zone "partialnsec3.example" {
+	type master;
+	file "partialnsec3.example.db";
+	allow-update { any; };
+	auto-dnssec maintain;
+};
+
 include "trusted.conf";

@@ -51,6 +51,7 @@ rm -f ns3/oldsigs.example.db
 rm -f ns3/optout.example.db
 rm -f ns3/optout.nsec3.example.db
 rm -f ns3/optout.optout.example.db
+rm -f ns3/partialnsec3.example.db
 rm -f ns3/prepub.example.db
 rm -f ns3/prepub.example.db.in
 rm -f ns3/reconf.example.db
