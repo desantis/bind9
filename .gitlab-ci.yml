@@ -275,14 +275,14 @@ sid:amd64:build:
   <<: *debian_sid_amd64_image
   <<: *build_job
 
-asan:sid:amd64:build:
-  variables:
-    CC: gcc
-    CFLAGS: "-Wall -Wextra -O2 -g -fsanitize=address,undefined -DISC_MEM_USE_INTERNAL_MALLOC=0"
-    LDFLAGS: "-fsanitize=address,undefined"
-    EXTRA_CONFIGURE: "--with-libidn2"
-  <<: *debian_sid_amd64_image
-  <<: *build_job
+#asan:sid:amd64:build:
+#  variables:
+#    CC: gcc
+#    CFLAGS: "-Wall -Wextra -O2 -g -fsanitize=address,undefined -DISC_MEM_USE_INTERNAL_MALLOC=0"
+#    LDFLAGS: "-fsanitize=address,undefined"
+#    EXTRA_CONFIGURE: "--with-libidn2"
+#  <<: *debian_sid_amd64_image
+#  <<: *build_job
 
 clang:stretch:i386:build:
   variables:
@@ -329,11 +329,11 @@ unit:sid:amd64:
   dependencies:
     - sid:amd64:build
 
-unit:asan:sid:amd64:
-  <<: *debian_sid_amd64_image
-  <<: *unit_test_job
-  dependencies:
-    - asan:sid:amd64:build
+#unit:asan:sid:amd64:
+#  <<: *debian_sid_amd64_image
+#  <<: *unit_test_job
+#  dependencies:
+#    - asan:sid:amd64:build
 
 unit:clang:stretch:amd64:
   <<: *debian_stretch_amd64_image
@@ -377,11 +377,11 @@ system:sid:amd64:
   dependencies:
     - sid:amd64:build
 
-system:asan:sid:amd64:
-  <<: *debian_sid_amd64_image
-  <<: *system_test_job
-  dependencies:
-    - asan:sid:amd64:build
+#system:asan:sid:amd64:
+#  <<: *debian_sid_amd64_image
+#  <<: *system_test_job
+#  dependencies:
+#    - asan:sid:amd64:build
 
 system:sid:i386:
   <<: *debian_sid_i386_image
@@ -395,45 +395,25 @@ install:sid:amd64:
   dependencies:
     - sid:amd64:build
 
-pkcs11:sid:amd64:build:
-  variables:
-    CC: gcc
-    CFLAGS: "-Wall -Wextra -O2 -g"
-    EXTRA_CONFIGURE: "--enable-native-pkcs11 --with-pkcs11=/usr/lib/softhsm/libsofthsm2.so"
-  <<: *debian_sid_amd64_image
-  <<: *build_job
-
-pkcs11:unit:sid:amd64:
-  <<: *debian_sid_amd64_image
-  <<: *unit_test_job
-  dependencies:
-    - pkcs11:sid:amd64:build
-
-pkcs11:system:sid:amd64:
-  <<: *debian_sid_amd64_image
-  <<: *system_test_job
-  dependencies:
-    - pkcs11:sid:amd64:build
-
-noassert:sid:amd64:build:
-  variables:
-    CC: gcc
-    CFLAGS: "-Wall -Wextra -O2 -g -DISC_CHECK_NONE=1"
-    EXTRA_CONFIGURE: "--with-libidn2"
-  <<: *debian_sid_amd64_image
-  <<: *build_job
-
-noassert:unit:sid:amd64:
-  <<: *debian_sid_amd64_image
-  <<: *unit_test_job
-  dependencies:
-    - noassert:sid:amd64:build
-
-noassert:system:sid:amd64:
-  <<: *debian_sid_amd64_image
-  <<: *system_test_job
-  dependencies:
-    - noassert:sid:amd64:build
+#pkcs11:sid:amd64:build:
+#  variables:
+#    CC: gcc
+#    CFLAGS: "-Wall -Wextra -O2 -g"
+#    EXTRA_CONFIGURE: "--enable-native-pkcs11 --with-pkcs11=/usr/lib/softhsm/libsofthsm2.so"
+#  <<: *debian_sid_amd64_image
+#  <<: *build_job
+#
+#pkcs11:unit:sid:amd64:
+#  <<: *debian_sid_amd64_image
+#  <<: *unit_test_job
+#  dependencies:
+#    - pkcs11:sid:amd64:build
+#
+#pkcs11:system:sid:amd64:
+#  <<: *debian_sid_amd64_image
+#  <<: *system_test_job
+#  dependencies:
+#    - pkcs11:sid:amd64:build
 
 xenial:amd64:build:
   variables:
