@@ -136,7 +136,6 @@ stages:
   before_script:
     - rm -rf .ccache
     - bash -x bin/tests/system/ifconfig.sh up
-    - bash -x util/prepare-softhsm2.sh
   script:
     - ( cd bin/tests && make -j${TEST_PARALLEL_JOBS:-1} -k test V=1 )
     - test -s bin/tests/system/systests.output
@@ -149,7 +148,6 @@ stages:
   stage: test
   before_script:
     - export KYUA_RESULT="$CI_PROJECT_DIR/kyua.results"
-    - bash -x util/prepare-softhsm2.sh
   script:
     - make unit
   after_script:
