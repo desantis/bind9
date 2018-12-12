@@ -116,8 +116,9 @@ stages:
     - test -w "${CCACHE_DIR}" && export PATH="/usr/lib/ccache:${PATH}"
 #    - ./autogen.sh
   script:
+    - echo BUILD_PARALLEL_JOBS=${BUILD_PARALLEL_JOBS}
     - ./configure --enable-developer --with-libtool --disable-static --with-cmocka --prefix=$HOME/.local --without-make-clean $EXTRA_CONFIGURE || cat config.log
-    - make -j${PARALLEL_JOBS_BUILD:-1} -k all V=1
+    - make -j${BUILD_PARALLEL_JOBS:-1} -k all V=1
   artifacts:
     paths:
     - doc/
@@ -137,6 +138,7 @@ stages:
     - rm -rf .ccache
     - bash -x bin/tests/system/ifconfig.sh up
   script:
+    - echo TEST_PARALLEL_JOBS=${TEST_PARALLEL_JOBS}
     - ( cd bin/tests && make -j${TEST_PARALLEL_JOBS:-1} -k test V=1 )
     - test -s bin/tests/system/systests.output
   artifacts:
