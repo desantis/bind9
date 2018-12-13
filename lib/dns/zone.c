@@ -192,7 +192,7 @@ struct dns_zone {
 	unsigned int		magic;
 	isc_mutex_t		lock;
 #ifdef DNS_ZONE_CHECKLOCK
-	bool		locked;
+	bool			locked;
 #endif
 	isc_mem_t		*mctx;
 	isc_refcount_t		erefs;
@@ -250,7 +250,7 @@ struct dns_zone {
 	isc_sockaddr_t		*masters;
 	isc_dscp_t		*masterdscps;
 	dns_name_t		**masterkeynames;
-	bool		*mastersok;
+	bool			*mastersok;
 	unsigned int		masterscnt;
 	unsigned int		curmaster;
 	isc_sockaddr_t		masteraddr;
@@ -284,8 +284,8 @@ struct dns_zone {
 	dns_acl_t		*query_acl;
 	dns_acl_t		*queryon_acl;
 	dns_acl_t		*xfr_acl;
-	bool		update_disabled;
-	bool		zero_no_soa_ttl;
+	bool			update_disabled;
+	bool			zero_no_soa_ttl;
 	dns_severity_t		check_names;
 	ISC_LIST(dns_notify_t)	notifies;
 	dns_request_t		*request;
@@ -325,7 +325,7 @@ struct dns_zone {
 	 * module.
 	 */
 	dns_zonestat_level_t	statlevel;
-	bool		requeststats_on;
+	bool			requeststats_on;
 	isc_stats_t		*requeststats;
 	dns_stats_t		*rcvquerystats;
 	uint32_t		notifydelay;
@@ -396,12 +396,12 @@ struct dns_zone {
 	/*%
 	 * whether ixfr is requested
 	 */
-	bool		requestixfr;
+	bool			requestixfr;
 
 	/*%
 	 * whether EDNS EXPIRE is requested
 	 */
-	bool		requestexpire;
+	bool			requestexpire;
 
 	/*%
 	 * Outstanding forwarded UPDATE requests.
@@ -411,7 +411,7 @@ struct dns_zone {
 	dns_zone_t		*raw;
 	dns_zone_t		*secure;
 
-	bool		sourceserialset;
+	bool			sourceserialset;
 	uint32_t		sourceserial;
 
 	/*%
@@ -632,7 +632,7 @@ struct dns_forward {
 struct dns_io {
 	unsigned int	magic;
 	dns_zonemgr_t	*zmgr;
-	bool	high;
+	bool		high;
 	isc_task_t	*task;
 	ISC_LINK(dns_io_t) link;
 	isc_event_t	*event;
@@ -648,8 +648,8 @@ struct dns_signing {
 	dns_dbiterator_t	*dbiterator;
 	dns_secalg_t		algorithm;
 	uint16_t		keyid;
-	bool		deleteit;
-	bool		done;
+	bool			deleteit;
+	bool			done;
 	ISC_LINK(dns_signing_t)	link;
 };
 
@@ -659,10 +659,10 @@ struct dns_nsec3chain {
 	dns_dbiterator_t		*dbiterator;
 	dns_rdata_nsec3param_t		nsec3param;
 	unsigned char			salt[255];
-	bool			done;
-	bool			seen_nsec;
-	bool			delete_nsec;
-	bool			save_delete_nsec;
+	bool				done;
+	bool				seen_nsec;
+	bool				delete_nsec;
+	bool				save_delete_nsec;
 	ISC_LINK(dns_nsec3chain_t)	link;
 };
 /*%<
