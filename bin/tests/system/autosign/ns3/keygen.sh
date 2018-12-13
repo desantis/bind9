@@ -202,7 +202,7 @@ $KEYGEN -a RSASHA1 -3 -q $zone > kg.out 2>&1 || dumpit kg.out
 cp $infile $zonefile
 
 # default key TTL should be used
-setup ttl2.example 
+setup ttl2.example
 $KEYGEN -a RSASHA1 -3 -q -fk -L 60 $zone > kg.out 2>&1 || dumpit kg.out
 $KEYGEN -a RSASHA1 -3 -q -L 60 $zone > kg.out 2>&1 || dumpit kg.out
 cp $infile $zonefile
@@ -336,10 +336,14 @@ $KEYGEN -q -a RSASHA1 -3 $zone > kg.out 2>&1 || dumpit kg.out
 $DSFROMKEY $ksk.key > dsset-${zone}$TP
 
 #
-# A zone that starts with some unsigned NSEC3 records and no signatures.
+# A zone that starts with partial signed zone (soa only) and
+# with a partial NSEC3 chain
 #
 setup partialnsec3.example
-cp $infile $zonefile
 ksk=`$KEYGEN -a NSEC3RSASHA1 -3 -q -fk $zone 2> kg.out` || dumpit kg.out
-$KEYGEN -a NSEC3RSASHA1 -3 -q $zone > kg.out 2>&1 || dumpit kg.out
+zsk=`$KEYGEN -a NSEC3RSASHA1 -3 -q $zone 2> kg.out` || dumpit kg.out
+cp "$infile" "$zonefile"
+"$SIGNER" -S -P -3 D399EAAB -H 1 -O full -u -o "$zone" "$zonefile" > /dev/null 2>&1
+grep "IN.RRSIG.SOA" "$zonefile.signed" > "$zonefile"
+cat "$infile" "${ksk}.key" "${zsk}.key" >> "$zonefile"
 $DSFROMKEY $ksk.key > dsset-${zone}$TP
