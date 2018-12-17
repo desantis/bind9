@@ -22,16 +22,16 @@ sendcmd() {
 }
 
 dig_with_opts() {
-    "$DIG" -p "$PORT" "$@"
+    "$DIG" -p "$PORT" "$@" | sed -b -e 's/\r$//'
 }
 
 mdig_with_opts() {
-    "$MDIG" -p "$PORT" "$@"
+    "$MDIG" -p "$PORT" "$@" | sed -b -e 's/\r$//'
 }
 
 # using delv insecure mode as not testing dnssec here
 delv_with_opts() {
-    "$DELV" -i -p "$PORT" "$@"
+    "$DELV" -i -p "$PORT" "$@" | sed -b -e 's/\r$//'
 }
 
 KEYID="$(cat ns2/keyid)"

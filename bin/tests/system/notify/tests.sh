@@ -12,8 +12,17 @@
 SYSTEMTESTTOP=..
 . $SYSTEMTESTTOP/conf.sh
 
-DIGOPTS="+tcp +noadd +nosea +nostat +noquest +nocomm +nocmd -p ${PORT}"
-RNDCCMD="$RNDC -c $SYSTEMTESTTOP/common/rndc.conf -p ${CONTROLPORT} -s"
+tcp_dig() {
+    $DIG +tcp -p "${PORT}" "$@" | sed -b -e 's/\r$//'
+}
+
+dig_with_opts() {
+    $DIG +tcp +noadd +nosea +nostat +noquest +nocomm +nocmd -p "${PORT}" "$@" | sed -b -e 's/\r$//'
+}
+
+rndc_with_opts() {
+    $RNDC -c "$SYSTEMTESTTOP/common/rndc.conf" -p "${CONTROLPORT}" -s "$@" | sed -b -e 's/\r$//'
+}
 
 status=0
 n=0
@@ -24,10 +33,10 @@ n=0
 for i in 1 2 3 4 5 6 7 8 9 10
 do
 	ret=0
-	$DIG +tcp -p ${PORT} example @10.53.0.2 soa > dig.out.ns2.test$n || ret=1
+	tcp_dig example @10.53.0.2 soa > dig.out.ns2.test$n || ret=1
 	grep "status: NOERROR" dig.out.ns2.test$n > /dev/null || ret=1
 	grep "flags:.* aa[ ;]" dig.out.ns2.test$n > /dev/null || ret=1
-	$DIG +tcp -p ${PORT} example @10.53.0.3 soa > dig.out.ns3.test$n || ret=1
+	tcp_dig example @10.53.0.3 soa > dig.out.ns3.test$n || ret=1
 	grep "status: NOERROR" dig.out.ns3.test$n > /dev/null || ret=1
 	grep "flags:.* aa[ ;]" dig.out.ns3.test$n > /dev/null || ret=1
         nr=`grep 'x[0-9].*sending notify to' ns2/named.run | wc -l`
@@ -39,10 +48,10 @@ done
 n=`expr $n + 1`
 echo_i "checking initial status ($n)"
 ret=0
-$DIG $DIGOPTS a.example. @10.53.0.2 a > dig.out.ns2.test$n || ret=1
+dig_with_opts a.example. @10.53.0.2 a > dig.out.ns2.test$n || ret=1
 grep "10.0.0.1" dig.out.ns2.test$n > /dev/null || ret=1
 
-$DIG $DIGOPTS a.example. @10.53.0.3 a > dig.out.ns3.test$n || ret=1
+dig_with_opts a.example. @10.53.0.3 a > dig.out.ns3.test$n || ret=1
 grep "10.0.0.1" dig.out.ns3.test$n > /dev/null || ret=1
 
 digcomp dig.out.ns2.test$n dig.out.ns3.test$n || ret=1
@@ -116,7 +125,7 @@ status=`expr $ret + $status`
 n=`expr $n + 1`
 echo_i "checking example2 loaded ($n)"
 ret=0
-$DIG $DIGOPTS a.example. @10.53.0.2 a > dig.out.ns2.test$n || ret=1
+dig_with_opts a.example. @10.53.0.2 a > dig.out.ns2.test$n || ret=1
 grep "10.0.0.2" dig.out.ns2.test$n > /dev/null || ret=1
 
 [ $ret = 0 ] || echo_i "failed"
@@ -125,10 +134,10 @@ status=`expr $ret + $status`
 n=`expr $n + 1`
 echo_i "checking example2 contents have been transferred after HUP reload ($n)"
 ret=0
-$DIG $DIGOPTS a.example. @10.53.0.2 a > dig.out.ns2.test$n || ret=1
+dig_with_opts a.example. @10.53.0.2 a > dig.out.ns2.test$n || ret=1
 grep "10.0.0.2" dig.out.ns2.test$n > /dev/null || ret=1
 
-$DIG $DIGOPTS a.example. @10.53.0.3 a > dig.out.ns3.test$n || ret=1
+dig_with_opts a.example. @10.53.0.3 a > dig.out.ns3.test$n || ret=1
 grep "10.0.0.2" dig.out.ns3.test$n > /dev/null || ret=1
 
 digcomp dig.out.ns2.test$n dig.out.ns3.test$n || ret=1
@@ -163,7 +172,7 @@ status=`expr $ret + $status`
 n=`expr $n + 1`
 echo_i "checking example4 loaded ($n)"
 ret=0
-$DIG $DIGOPTS a.example. @10.53.0.2 a > dig.out.ns2.test$n || ret=1
+dig_with_opts a.example. @10.53.0.2 a > dig.out.ns2.test$n || ret=1
 grep "10.0.0.4" dig.out.ns2.test$n > /dev/null || ret=1
 
 [ $ret = 0 ] || echo_i "failed"
@@ -172,10 +181,10 @@ status=`expr $ret + $status`
 n=`expr $n + 1`
 echo_i "checking example4 contents have been transfered after restart ($n)"
 ret=0
-$DIG $DIGOPTS a.example. @10.53.0.2 a > dig.out.ns2.test$n || ret=1
+dig_with_opts a.example. @10.53.0.2 a > dig.out.ns2.test$n || ret=1
 grep "10.0.0.4" dig.out.ns2.test$n > /dev/null || ret=1
 
-$DIG $DIGOPTS a.example. @10.53.0.3 a > dig.out.ns3.test$n || ret=1
+dig_with_opts a.example. @10.53.0.3 a > dig.out.ns3.test$n || ret=1
 grep "10.0.0.4" dig.out.ns3.test$n > /dev/null || ret=1
 
 digcomp dig.out.ns2.test$n dig.out.ns3.test$n || ret=1
@@ -193,7 +202,7 @@ send
 EOF
 for i in 1 2 3 4 5 6 7 8 9
 do
-	$DIG $DIGOPTS added.x21. @10.53.0.4 txt -p $EXTRAPORT1 > dig.out.ns4.test$n || ret=1
+	dig_with_opts added.x21. @10.53.0.4 txt -p $EXTRAPORT1 > dig.out.ns4.test$n || ret=1
 	grep "test string" dig.out.ns4.test$n > /dev/null && break
 	sleep 1
 done
@@ -215,9 +224,9 @@ EOF
 
 for i in 1 2 3 4 5 6 7 8 9
 do
-	$DIG $DIGOPTS added.x21. -y b:bbbbbbbbbbbbbbbbbbbb @10.53.0.5 \
+	dig_with_opts added.x21. -y b:bbbbbbbbbbbbbbbbbbbb @10.53.0.5 \
 		txt > dig.out.b.ns5.test$n || ret=1
-	$DIG $DIGOPTS added.x21. -y c:cccccccccccccccccccc @10.53.0.5 \
+	dig_with_opts added.x21. -y c:cccccccccccccccccccc @10.53.0.5 \
 		txt > dig.out.c.ns5.test$n || ret=1
 	grep "test string" dig.out.b.ns5.test$n > /dev/null &&
 	grep "test string" dig.out.c.ns5.test$n > /dev/null &&

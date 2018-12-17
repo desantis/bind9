@@ -12,7 +12,9 @@
 SYSTEMTESTTOP=..
 . $SYSTEMTESTTOP/conf.sh
 
-DIGOPTS="+tcp +noadd +nosea +nostat +noquest +noauth +nocomm +nocmd -p ${PORT}"
+dig_with_opts() {
+    $DIG +tcp +noadd +nosea +nostat +noquest +noauth +nocomm +nocmd -p "${PORT}" "$@" | sed -b -e 's/\r$//'
+}
 
 status=0
 
@@ -26,7 +28,7 @@ a.example.		300	IN	A	1.1.1.3
 a.example.		300	IN	A	1.1.1.2
 a.example.		300	IN	A	1.1.1.4
 EOF
-$DIG $DIGOPTS a.example. @10.53.0.1 -b 10.53.0.1 >test1.dig
+dig_with_opts a.example. @10.53.0.1 -b 10.53.0.1 >test1.dig
 # Note that this can't use digcomp.pl because here, the ordering of the
 # result RRs is significant.
 $DIFF test1.dig test1.good || status=1
@@ -36,13 +38,13 @@ echo_i "test 1-element sortlist statement and undocumented BIND 8 features"
 b.example.		300	IN	A	10.53.0.$n
 EOF
 
-$DIG $DIGOPTS b.example. @10.53.0.1 -b 10.53.0.2 | sed 1q | \
+dig_with_opts b.example. @10.53.0.1 -b 10.53.0.2 | sed 1q | \
         egrep '10.53.0.(2|3)$' > test2.out &&
-$DIG $DIGOPTS b.example. @10.53.0.1 -b 10.53.0.3 | sed 1q | \
+dig_with_opts b.example. @10.53.0.1 -b 10.53.0.3 | sed 1q | \
         egrep '10.53.0.(2|3)$' >> test2.out &&
-$DIG $DIGOPTS b.example. @10.53.0.1 -b 10.53.0.4 | sed 1q | \
+dig_with_opts b.example. @10.53.0.1 -b 10.53.0.4 | sed 1q | \
         egrep '10.53.0.4$' >> test2.out &&
-$DIG $DIGOPTS b.example. @10.53.0.1 -b 10.53.0.5 | sed 1q | \
+dig_with_opts b.example. @10.53.0.1 -b 10.53.0.5 | sed 1q | \
         egrep '10.53.0.5$' >> test2.out || status=1
 
 echo_i "exit status: $status"
