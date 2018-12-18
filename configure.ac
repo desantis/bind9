@@ -3086,27 +3086,6 @@ AC_CONFIG_FILES([
 
 AC_OUTPUT
 
-#
-# Now that the Makefiles exist we can ensure that everything is rebuilt.
-#
-AC_ARG_WITH(make-clean,
-	    AS_HELP_STRING([--with-make-clean],
-			   [run "make clean" at end of configure [yes|no]]),
-    make_clean="$withval", make_clean="yes")
-case "$make_clean" in
-yes)
-	if test "yes" != "$no_create"
-	then
-		if test "yes" = "$silent"
-		then
-			make clean > /dev/null
-		else
-			make clean
-		fi
-	fi
-	;;
-esac
-
 AC_ARG_ENABLE(full-report,
 	      AS_HELP_STRING([--enable-full-report],
 			     [report values of all configure options]))

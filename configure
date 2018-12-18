@@ -940,7 +940,6 @@ with_dlz_filesystem
 with_dlz_ldap
 with_dlz_odbc
 with_dlz_stub
-with_make_clean
 enable_full_report
 '
       ac_precious_vars='build_alias
@@ -1676,7 +1675,6 @@ Optional Packages:
                           to use ODBC with DLZ)
   --with-dlz-stub=ARG     Build with stub DLZ driver [yes|no]. (Required to
                           use stub driver with DLZ)
-  --with-make-clean       run "make clean" at end of configure [yes|no]
 
 Some influential environment variables:
   CC          C compiler command
@@ -23848,31 +23846,6 @@ if test -n "$ac_unrecognized_opts" && test "$enable_option_checking" != no; then
 $as_echo "$as_me: WARNING: unrecognized options: $ac_unrecognized_opts" >&2;}
 fi
 
-
-#
-# Now that the Makefiles exist we can ensure that everything is rebuilt.
-#
-
-# Check whether --with-make-clean was given.
-if test "${with_make_clean+set}" = set; then :
-  withval=$with_make_clean; make_clean="$withval"
-else
-  make_clean="yes"
-fi
-
-case "$make_clean" in
-yes)
-	if test "yes" != "$no_create"
-	then
-		if test "yes" = "$silent"
-		then
-			make clean > /dev/null
-		else
-			make clean
-		fi
-	fi
-	;;
-esac
 
 # Check whether --enable-full-report was given.
 if test "${enable_full_report+set}" = set; then :
