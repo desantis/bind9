@@ -959,7 +959,7 @@ push_readyq(isc__taskmgr_t *manager, isc__task_t *task, int c) {
 }
 
 static void
-dispatch(isc__taskmgr_t *manager, unsigned int threadid) {
+dispatch(isc__taskmgr_t *manager, unsigned int threadid) __attribute__((no_sanitize("thread"))) {
 	isc__task_t *task;
 
 	REQUIRE(VALID_MANAGER(manager));

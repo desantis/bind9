@@ -869,7 +869,7 @@ unwatch_fd(isc__socketthread_t *thread, int fd, int msg) {
  * on a fd provided
  */
 static void
-wakeup_socket(isc__socketthread_t *thread, int fd, int msg) {
+wakeup_socket(isc__socketthread_t *thread, int fd, int msg) __attribute__((no_sanitize("thread"))) {
 	isc_result_t result;
 	int lockid = FDLOCK_ID(fd);
 
