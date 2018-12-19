@@ -383,6 +383,56 @@ unit:gcc:bionic:amd64:
   dependencies:
     - gcc:bionic:amd64
 
+# Jobs for Clang builds with TSAN enabled on Debian Sid (amd64)
+
+.tsan-triggering-rules: &tsan_triggering_rules
+  only:
+    - web
+    - master@isc-projects/bind9
+    - /^v9_[1-9][0-9]$/@isc-projects/bind9
+  allow_failure: true
+
+tsan:sid:amd64:
+  variables:
+    CC: clang
+    CFLAGS: "-Wall -Wextra -O1 -g -fsanitize=thread -fno-omit-frame-pointer -fno-optimize-sibling-calls -DISC_MEM_USE_INTERNAL_MALLOC=0"
+    LDFLAGS: "-fsanitize=thread"
+    EXTRA_CONFIGURE: "--with-libidn2"
+  <<: *debian_sid_amd64_image
+  <<: *build_job
+  <<: *tsan_triggering_rules
+
+system:tsan:sid:amd64:
+  <<: *debian_sid_amd64_image
+  <<: *system_test_job
+  <<: *tsan_triggering_rules
+  dependencies:
+    - tsan:sid:amd64
+  script:
+    - ( cd bin/tests && make -j${TEST_PARALLEL_JOBS:-1} -k test V=1 ) | tee make_test.log
+    - "grep 'SUMMARY: ThreadSanitizer:' make_test.log | sort -u > tsan.log"
+  artifacts:
+    paths:
+    - tsan.log
+    expire_in: '6 months'
+    when: always
+
+unit:tsan:sid:amd64:
+  <<: *debian_sid_amd64_image
+  <<: *unit_test_job
+  <<: *tsan_triggering_rules
+  dependencies:
+    - tsan:sid:amd64
+  script:
+    - make unit
+  artifacts:
+    paths:
+    - kyua.log
+    - kyua.results
+    - kyua_html/
+    expire_in: '6 months'
+    when: always
+
 # Jobs for GCC builds with ASAN enabled on Debian Sid (amd64)
 
 asan:sid:amd64:
