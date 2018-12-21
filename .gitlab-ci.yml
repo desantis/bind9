@@ -364,30 +364,6 @@ system:centos6:amd64:
   dependencies:
     - centos6:amd64:build
 
-system:centos7:amd64:
-  <<: *centos_centos7_amd64_image
-  <<: *system_test_job
-  dependencies:
-    - centos7:amd64:build
-
-system:jessie:amd64:
-  <<: *debian_jessie_amd64_image
-  <<: *system_test_job
-  dependencies:
-    - jessie:amd64:build
-
-system:stretch:amd64:
-  <<: *debian_stretch_amd64_image
-  <<: *system_test_job
-  dependencies:
-    - stretch:amd64:build
-
-system:sid:amd64:
-  <<: *debian_sid_amd64_image
-  <<: *system_test_job
-  dependencies:
-    - sid:amd64:build
-
 system:asan:sid:amd64:
   <<: *debian_sid_amd64_image
   <<: *system_test_job
@@ -440,12 +416,6 @@ noassert:unit:sid:amd64:
   dependencies:
     - noassert:sid:amd64:build
 
-noassert:system:sid:amd64:
-  <<: *debian_sid_amd64_image
-  <<: *system_test_job
-  dependencies:
-    - noassert:sid:amd64:build
-
 xenial:amd64:build:
   variables:
     CC: gcc
@@ -456,12 +426,6 @@ xenial:amd64:build:
 unit:xenial:amd64:
   <<: *ubuntu_xenial_amd64_image
   <<: *unit_test_job
-  dependencies:
-    - xenial:amd64:build
-
-system:xenial:amd64:
-  <<: *ubuntu_xenial_amd64_image
-  <<: *system_test_job
   dependencies:
     - xenial:amd64:build
 
@@ -476,11 +440,5 @@ bionic:amd64:build:
 unit:bionic:amd64:
   <<: *ubuntu_bionic_amd64_image
   <<: *unit_test_job
-  dependencies:
-    - bionic:amd64:build
-
-system:bionic:amd64:
-  <<: *ubuntu_bionic_amd64_image
-  <<: *system_test_job
   dependencies:
     - bionic:amd64:build
