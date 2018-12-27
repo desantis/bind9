@@ -609,7 +609,7 @@ AC_SUBST(GEOIPLINKOBJS)
 #
 # Do we have arc4random(), etc ?
 #
-AC_CHECK_FUNCS(arc4random arc4random_buf arc4random_uniform getrandom)
+AC_CHECK_FUNCS(arc4random)
 
 AX_PTHREAD
 
@@ -659,7 +659,7 @@ AC_CHECK_FUNCS([sched_yield pthread_yield pthread_yield_np])
 
 AC_CHECK_HEADERS([sys/cpuset.h])
 AC_CHECK_HEADERS([sys/procset.h])
-AC_CHECK_FUNCS([pthread_setaffinity_np cpuset_setaffinity processor_bind sched_setaffinity])
+AC_CHECK_FUNCS([pthread_setaffinity_np cpuset_setaffinity processor_bind])
 
 # Look for functions relating to thread naming
 AC_CHECK_FUNCS([pthread_setname_np pthread_set_name_np])
@@ -748,7 +748,7 @@ AC_CHECK_FUNCS([HMAC_CTX_new HMAC_CTX_free HMAC_CTX_reset HMAC_CTX_get_md])
 # Check for algorithm support in OpenSSL
 #
 
-AC_CHECK_FUNCS([ECDSA_sign ECDSA_verify], [:],
+AC_CHECK_FUNCS([ECDSA_do_sign ECDSA_do_verify], [:],
 	       [AC_MSG_FAILURE([ECDSA support in OpenSSL is mandatory.])])
 
 AC_MSG_CHECKING([for ECDSA P-256 support])
@@ -1920,7 +1920,7 @@ AC_COMPILE_IFELSE(
 #
 AC_CHECK_FUNCS([if_nametoindex])
 
-AC_CHECK_FUNCS(nanosleep usleep explicit_bzero)
+AC_CHECK_FUNCS(nanosleep usleep)
 
 ISC_ATOMIC_LIBS=""
 AC_CHECK_HEADERS(
@@ -2598,7 +2598,7 @@ AS_IF([test "$pic_mode" = "no"],
 AS_CASE([$with_dlopen],
 	[auto|yes],[
 	  AC_SEARCH_LIBS([dlopen],[dl])
-	  AC_CHECK_FUNCS([dlopen dlclose dlsym],
+	  AC_CHECK_FUNCS([dlopen dlclose],
 			 [with_dlopen="yes"],
 			 [with_dlopen="no"])
 	])
