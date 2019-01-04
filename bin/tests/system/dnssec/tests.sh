@@ -3637,6 +3637,72 @@ n=$((n+1))
 test "$ret" -eq 0 || echo_i "failed"
 status=$((status+ret))
 
+echo_i "checking that supported DNSKEY algorithm trusted key validates as secure ($n)"
+ret=0
+dig_with_opts @10.53.0.3 a.secure.trusted A > dig.out.ns3.test$n
+dig_with_opts @10.53.0.8 a.secure.trusted A > dig.out.ns8.test$n
+grep "status: NOERROR," dig.out.ns3.test$n > /dev/null || ret=1
+grep "status: NOERROR," dig.out.ns8.test$n > /dev/null || ret=1
+grep "flags:.*ad.*QUERY" dig.out.ns8.test$n > /dev/null || ret=1
+n=$((n+1))
+test "$ret" -eq 0 || echo_i "failed"
+status=$((status+ret))
+
+echo_i "checking that supported DNSKEY algorithm managed key validates as secure ($n)"
+ret=0
+dig_with_opts @10.53.0.3 a.secure.managed A > dig.out.ns3.test$n
+dig_with_opts @10.53.0.8 a.secure.managed A > dig.out.ns8.test$n
+grep "status: NOERROR," dig.out.ns3.test$n > /dev/null || ret=1
+grep "status: NOERROR," dig.out.ns8.test$n > /dev/null || ret=1
+grep "flags:.*ad.*QUERY" dig.out.ns8.test$n > /dev/null || ret=1
+n=$((n+1))
+test "$ret" -eq 0 || echo_i "failed"
+status=$((status+ret))
+
+echo_i "checking that unsupported DNSKEY algorithm trusted key validates as insecure ($n)"
+ret=0
+dig_with_opts @10.53.0.3 a.unsupported.trusted A > dig.out.ns3.test$n
+dig_with_opts @10.53.0.8 a.unsupported.trusted A > dig.out.ns8.test$n
+grep "status: NOERROR," dig.out.ns3.test$n > /dev/null || ret=1
+grep "status: NOERROR," dig.out.ns8.test$n > /dev/null || ret=1
+grep "flags:.*ad.*QUERY" dig.out.ns8.test$n > /dev/null && ret=1
+n=$((n+1))
+test "$ret" -eq 0 || echo_i "failed"
+status=$((status+ret))
+
+echo_i "checking that unsupported DNSKEY algorithm managed key validates as insecure ($n)"
+ret=0
+dig_with_opts @10.53.0.3 a.unsupported.managed A > dig.out.ns3.test$n
+dig_with_opts @10.53.0.8 a.unsupported.managed A > dig.out.ns8.test$n
+grep "status: NOERROR," dig.out.ns3.test$n > /dev/null || ret=1
+grep "status: NOERROR," dig.out.ns8.test$n > /dev/null || ret=1
+grep "flags:.*ad.*QUERY" dig.out.ns8.test$n > /dev/null && ret=1
+n=$((n+1))
+test "$ret" -eq 0 || echo_i "failed"
+status=$((status+ret))
+
+echo_i "checking that disabled DNSKEY algorithm trusted key validates as insecure ($n)"
+ret=0
+dig_with_opts @10.53.0.3 a.disabled.trusted A > dig.out.ns3.test$n
+dig_with_opts @10.53.0.8 a.disabled.trusted A > dig.out.ns8.test$n
+grep "status: NOERROR," dig.out.ns3.test$n > /dev/null || ret=1
+grep "status: NOERROR," dig.out.ns8.test$n > /dev/null || ret=1
+grep "flags:.*ad.*QUERY" dig.out.ns8.test$n > /dev/null && ret=1
+n=$((n+1))
+test "$ret" -eq 0 || echo_i "failed"
+status=$((status+ret))
+
+echo_i "checking that disabled DNSKEY algorithm managed key validates as insecure ($n)"
+ret=0
+dig_with_opts @10.53.0.3 a.disabled.managed A > dig.out.ns3.test$n
+dig_with_opts @10.53.0.8 a.disabled.managed A > dig.out.ns8.test$n
+grep "status: NOERROR," dig.out.ns3.test$n > /dev/null || ret=1
+grep "status: NOERROR," dig.out.ns8.test$n > /dev/null || ret=1
+grep "flags:.*ad.*QUERY" dig.out.ns8.test$n > /dev/null && ret=1
+n=$((n+1))
+test "$ret" -eq 0 || echo_i "failed"
+status=$((status+ret))
+
 # Note: after this check, ns4 will not be validating any more; do not add any
 # further validation tests employing ns4 below this check.
 echo_i "check that validation defaults to off when dnssec-enable is off ($n)"

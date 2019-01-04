@@ -26,6 +26,9 @@ cp "../ns2/dsset-example$TP" .
 cp "../ns2/dsset-dlv$TP" .
 cp "../ns2/dsset-in-addr.arpa$TP" .
 
+cp "../ns3/trusted-ns8.conf" "../ns8/trusted.conf"
+cp "../ns3/managed-ns8.conf" "../ns8/managed.conf"
+
 grep "$DEFAULT_ALGORITHM_NUMBER [12] " "../ns2/dsset-algroll$TP" > "dsset-algroll$TP"
 cp "../ns6/dsset-optout-tld$TP" .
 

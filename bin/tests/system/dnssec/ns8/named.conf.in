@@ -22,7 +22,7 @@ options {
 	listen-on-v6 { none; };
 	recursion yes;
 	dnssec-enable yes;
-	dnssec-validation auto;
+	dnssec-validation yes;
 	minimal-responses no;
 	disable-algorithms "." { @DISABLED_ALGORITHM@; };
 };
@@ -41,14 +41,5 @@ zone "." {
 	file "../../common/root.hint";
 };
 
-trusted-keys {
-	good.trusted. 257 3 8 "AwEAAcVxGU5FLg+I9jMwZ8tt+E9E7Cs42Tk6XxjqomRT4nN6UYgft2kcVUe/OZEiCIajmoNP9oy9nDsnAF4SmVxY8KRLWt/B5plZKip/ubJB1TV6ArNHJ+CRm1NsskI52+vA6mfScwyJHvYBaxod1XBqsOlp7l1yGPpQXa+JnimOiYy/";
-	unsupported.trusted. 257 3 255 "BYoq4Gj1khC9ue6a8f2KAN27qaw70tlqj7MMKUZ4BT8nlGR0XNsCA56ti1NnwE0M4XFhSK0gLJmXBis67xYoRwam+i5+1H3bQ4a0QdIukxhGQqsEXA7X1+8UaMtyGmBKH7cdCXxDz/4Lz0LlwMnxy/wWEPGQxqcp6ibWn7NE7+1wRZP3dlIuGIB8KgnW5bTpsT8YVXCzvfSllJJpGpt8HpduidrRSV89ngNNsbqR4l588LmNM+rigooFpyNHK8ianEk5u+prS9r8i3Kd7XtCnvpECIBCtO6t4+z65gV/Cw/S0J4Ni6HsD2Rq2KqNwaQ7x88qAjrDsk8UdOjpGdS1C9uSB7u03/U3XZ4BwGgGR61cv8oF4GNvIXDujPIc6hnb08KvQKBHsKZwkgdlVjog5BjyyoUumn1+1Vw54SmzSmG3RA8CRF9IUaOtLYrP";
-	disabled.trusted. 257 3 @DISABLED_ALGORITHM_NUMBER@ "kTyP5tMY+LGut/wvnqa9bPW0QTQPyjn26clYVCBjBtYUKWtCaVHJpUeVhEi/KocKMknxPDzNeFmE52MuqilGw8nM/2siGyghpnhg8JYZNdzENoIWe2KMLCnOwmT6wU3P";
-};
-
-managed-keys {
-	good.managed. initial-key 257 3 8 "AwEAAcVxGU5FLg+I9jMwZ8tt+E9E7Cs42Tk6XxjqomRT4nN6UYgft2kcVUe/OZEiCIajmoNP9oy9nDsnAF4SmVxY8KRLWt/B5plZKip/ubJB1TV6ArNHJ+CRm1NsskI52+vA6mfScwyJHvYBaxod1XBqsOlp7l1yGPpQXa+JnimOiYy/";
-	unsupported.managed. initial-key 257 3 255 "BYoq4Gj1khC9ue6a8f2KAN27qaw70tlqj7MMKUZ4BT8nlGR0XNsCA56ti1NnwE0M4XFhSK0gLJmXBis67xYoRwam+i5+1H3bQ4a0QdIukxhGQqsEXA7X1+8UaMtyGmBKH7cdCXxDz/4Lz0LlwMnxy/wWEPGQxqcp6ibWn7NE7+1wRZP3dlIuGIB8KgnW5bTpsT8YVXCzvfSllJJpGpt8HpduidrRSV89ngNNsbqR4l588LmNM+rigooFpyNHK8ianEk5u+prS9r8i3Kd7XtCnvpECIBCtO6t4+z65gV/Cw/S0J4Ni6HsD2Rq2KqNwaQ7x88qAjrDsk8UdOjpGdS1C9uSB7u03/U3XZ4BwGgGR61cv8oF4GNvIXDujPIc6hnb08KvQKBHsKZwkgdlVjog5BjyyoUumn1+1Vw54SmzSmG3RA8CRF9IUaOtLYrP";
-	disabled.managed. initial-key 257 3 @DISABLED_ALGORITHM_NUMBER@ "kTyP5tMY+LGut/wvnqa9bPW0QTQPyjn26clYVCBjBtYUKWtCaVHJpUeVhEi/KocKMknxPDzNeFmE52MuqilGw8nM/2siGyghpnhg8JYZNdzENoIWe2KMLCnOwmT6wU3P";
-};
+include "managed.conf";
+include "trusted.conf";

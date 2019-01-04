@@ -69,6 +69,7 @@ rm -f ./ns3/inline.example.db.signed
 rm -f ./ns3/kskonly.example.db
 rm -f ./ns3/lower.example.db ./ns3/upper.example.db ./ns3/upper.example.db.lower
 rm -f ./ns3/managed-future.example.db
+rm -f ./ns3/managed-ns8.conf ./ns3/trusted-ns8.conf
 rm -f ./ns3/multiple.example.db ./ns3/nsec3-unknown.example.db ./ns3/nsec3.example.db
 rm -f ./ns3/nsec3.nsec3.example.db
 rm -f ./ns3/nsec3.optout.example.db

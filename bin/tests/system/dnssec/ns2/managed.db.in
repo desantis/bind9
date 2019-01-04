@@ -29,7 +29,7 @@ secure			NS	ns3.secure
 ns3.secure		A	10.53.0.3
 
 ; A subdomain that is signed with an unsupported algorithm
-unsupported		NS	ns3.insecure
+unsupported		NS	ns3.unsupported
 ns3.unsupported		A	10.53.0.3
 
 ; A secure subdomain with a disabled algorithm
