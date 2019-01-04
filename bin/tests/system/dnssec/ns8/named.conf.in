@@ -1,0 +1,54 @@
+/*
+ * Copyright (C) Internet Systems Consortium, Inc. ("ISC")
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ * See the COPYRIGHT file distributed with this work for additional
+ * information regarding copyright ownership.
+ */
+
+// NS8
+
+options {
+	query-source address 10.53.0.8 dscp 4;
+	notify-source 10.53.0.8 dscp 5;
+	transfer-source 10.53.0.8 dscp 6;
+	dscp 16;
+	port @PORT@;
+	pid-file "named.pid";
+	listen-on { 10.53.0.8; };
+	listen-on-v6 { none; };
+	recursion yes;
+	dnssec-enable yes;
+	dnssec-validation auto;
+	minimal-responses no;
+	disable-algorithms "." { @DISABLED_ALGORITHM@; };
+};
+
+key rndc_key {
+	secret "1234abcd8765";
+	algorithm hmac-sha256;
+};
+
+controls {
+	inet 10.53.0.8 port @CONTROLPORT@ allow { any; } keys { rndc_key; };
+};
+
+zone "." {
+	type hint;
+	file "../../common/root.hint";
+};
+
+trusted-keys {
+	good.trusted. 257 3 8 "AwEAAcVxGU5FLg+I9jMwZ8tt+E9E7Cs42Tk6XxjqomRT4nN6UYgft2kcVUe/OZEiCIajmoNP9oy9nDsnAF4SmVxY8KRLWt/B5plZKip/ubJB1TV6ArNHJ+CRm1NsskI52+vA6mfScwyJHvYBaxod1XBqsOlp7l1yGPpQXa+JnimOiYy/";
+	unsupported.trusted. 257 3 255 "BYoq4Gj1khC9ue6a8f2KAN27qaw70tlqj7MMKUZ4BT8nlGR0XNsCA56ti1NnwE0M4XFhSK0gLJmXBis67xYoRwam+i5+1H3bQ4a0QdIukxhGQqsEXA7X1+8UaMtyGmBKH7cdCXxDz/4Lz0LlwMnxy/wWEPGQxqcp6ibWn7NE7+1wRZP3dlIuGIB8KgnW5bTpsT8YVXCzvfSllJJpGpt8HpduidrRSV89ngNNsbqR4l588LmNM+rigooFpyNHK8ianEk5u+prS9r8i3Kd7XtCnvpECIBCtO6t4+z65gV/Cw/S0J4Ni6HsD2Rq2KqNwaQ7x88qAjrDsk8UdOjpGdS1C9uSB7u03/U3XZ4BwGgGR61cv8oF4GNvIXDujPIc6hnb08KvQKBHsKZwkgdlVjog5BjyyoUumn1+1Vw54SmzSmG3RA8CRF9IUaOtLYrP";
+	disabled.trusted. 257 3 @DISABLED_ALGORITHM_NUMBER@ "kTyP5tMY+LGut/wvnqa9bPW0QTQPyjn26clYVCBjBtYUKWtCaVHJpUeVhEi/KocKMknxPDzNeFmE52MuqilGw8nM/2siGyghpnhg8JYZNdzENoIWe2KMLCnOwmT6wU3P";
+};
+
+managed-keys {
+	good.managed. initial-key 257 3 8 "AwEAAcVxGU5FLg+I9jMwZ8tt+E9E7Cs42Tk6XxjqomRT4nN6UYgft2kcVUe/OZEiCIajmoNP9oy9nDsnAF4SmVxY8KRLWt/B5plZKip/ubJB1TV6ArNHJ+CRm1NsskI52+vA6mfScwyJHvYBaxod1XBqsOlp7l1yGPpQXa+JnimOiYy/";
+	unsupported.managed. initial-key 257 3 255 "BYoq4Gj1khC9ue6a8f2KAN27qaw70tlqj7MMKUZ4BT8nlGR0XNsCA56ti1NnwE0M4XFhSK0gLJmXBis67xYoRwam+i5+1H3bQ4a0QdIukxhGQqsEXA7X1+8UaMtyGmBKH7cdCXxDz/4Lz0LlwMnxy/wWEPGQxqcp6ibWn7NE7+1wRZP3dlIuGIB8KgnW5bTpsT8YVXCzvfSllJJpGpt8HpduidrRSV89ngNNsbqR4l588LmNM+rigooFpyNHK8ianEk5u+prS9r8i3Kd7XtCnvpECIBCtO6t4+z65gV/Cw/S0J4Ni6HsD2Rq2KqNwaQ7x88qAjrDsk8UdOjpGdS1C9uSB7u03/U3XZ4BwGgGR61cv8oF4GNvIXDujPIc6hnb08KvQKBHsKZwkgdlVjog5BjyyoUumn1+1Vw54SmzSmG3RA8CRF9IUaOtLYrP";
+	disabled.managed. initial-key 257 3 @DISABLED_ALGORITHM_NUMBER@ "kTyP5tMY+LGut/wvnqa9bPW0QTQPyjn26clYVCBjBtYUKWtCaVHJpUeVhEi/KocKMknxPDzNeFmE52MuqilGw8nM/2siGyghpnhg8JYZNdzENoIWe2KMLCnOwmT6wU3P";
+};
