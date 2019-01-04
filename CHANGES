@@ -1,3 +1,6 @@
+5122.	[bug]		Ignore disabled algorithm trusted and managed keys.
+			[GL #806]
+
 5121.	[contrib]	dlz_stub_driver.c fails to return ISC_R_NOTFOUND on none
 			matching zone names. [GL !1299]
 
