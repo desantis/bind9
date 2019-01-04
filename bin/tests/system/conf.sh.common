@@ -240,6 +240,28 @@ nextpartpeek() {
 	nextpartread $1 2> /dev/null
 }
 
+# wait_for_log: wait up to 10 seconds for a log message to appear in
+# the logfile.  A quick usage example:
+#
+#     $ wait_for_log "failure" named.log
+#
+# This will read named.log and look for the string "failure".  If the
+# string is not found, retry in a second.  If the string is found,
+# return with a return status of 0.  If after 10 seconds the string is
+# still not found, abort and return with a status of 1.
+#
+# The search string may include regular expressions.
+wait_for_log() {
+	msg=$1
+	file=$2
+	for i in 1 2 3 4 5 6 7 8 9 10; do
+		nextpart "$file" | grep "$msg" > /dev/null && return
+		sleep 1
+	done
+	echo_i "exceeded time limit waiting for '$msg' in $file"
+	ret=1
+}
+
 rndc_reload() {
     echo_i "`$RNDC -c ../common/rndc.conf -s $2 -p ${CONTROLPORT} reload $3 2>&1 | sed 's/^/'$1' /'`"
     # reloading single zone is synchronous, if we're reloading whole server
