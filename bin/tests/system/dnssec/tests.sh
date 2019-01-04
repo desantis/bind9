@@ -3625,6 +3625,18 @@ n=$((n+1))
 test "$ret" -eq 0 || echo_i "failed"
 status=$((status+ret))
 
+echo_i "check that keys with unsupported algorithms and disabled algorithms are ignored ($n)"
+ret=0
+grep "trusted key for 'disabled\.trusted\.': algorithm is disabled" ns8/named.run > /dev/null || ret=1
+grep "skipping trusted key for 'disabled\.trusted\.': algorithm is unsupported" ns8/named.run > /dev/null || ret=1
+grep "skipping trusted key for 'unsupported\.trusted\.': algorithm is unsupported" ns8/named.run > /dev/null || ret=1
+grep "managed key for 'disabled\.managed\.': algorithm is disabled" ns8/named.run > /dev/null || ret=1
+grep "skipping managed key for 'disabled\.managed\.': algorithm is unsupported" ns8/named.run > /dev/null || ret=1
+grep "skipping managed key for 'unsupported\.managed\.': algorithm is unsupported" ns8/named.run > /dev/null || ret=1
+n=$((n+1))
+test "$ret" -eq 0 || echo_i "failed"
+status=$((status+ret))
+
 # Note: after this check, ns4 will not be validating any more; do not add any
 # further validation tests employing ns4 below this check.
 echo_i "check that validation defaults to off when dnssec-enable is off ($n)"

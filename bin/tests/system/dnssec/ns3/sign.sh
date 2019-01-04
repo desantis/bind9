@@ -14,6 +14,49 @@
 
 set -e
 
+for tld in trusted managed
+do
+	zone=secure.${tld}
+	infile=${zone}.db.in
+	zonefile=${zone}.db
+
+	keyname=$("$KEYGEN" -q -a "$DEFAULT_ALGORITHM" -b "$DEFAULT_BITS" -n zone "$zone")
+
+	cat "$infile" "$keyname.key" > "$zonefile"
+
+	"$SIGNER" -P -3 - -o "$zone" -O full -f ${zonefile}.signed "$zonefile" > /dev/null 2>&1
+
+	DSFILE="dsset-$(echo ${zone} |sed -e "s/\\.$//g")$TP"
+	$DSFROMKEY -A -f ${zonefile}.signed "$zone" > "$DSFILE"
+
+	zone=disabled.${tld}
+	infile=${zone}.db.in
+	zonefile=${zone}.db
+
+	keyname=$("$KEYGEN" -q -a "$DISABLED_ALGORITHM" -b "$DISABLED_BITS" -n zone "$zone")
+
+	cat "$infile" "$keyname.key" > "$zonefile"
+
+	"$SIGNER" -P -3 - -o "$zone" -O full -f ${zonefile}.signed "$zonefile" > /dev/null 2>&1
+
+	DSFILE="dsset-$(echo ${zone} |sed -e "s/\\.$//g")$TP"
+	$DSFROMKEY -A -f ${zonefile}.signed "$zone" > "$DSFILE"
+
+	zone=unsupported.${tld}
+	infile=${zone}.db.in
+	zonefile=${zone}.db
+
+	keyname=$("$KEYGEN" -q -a "$DEFAULT_ALGORITHM" -b "$DEFAULT_BITS" -n zone "$zone")
+
+	cat "$infile" "$keyname.key" > "$zonefile"
+
+	"$SIGNER" -P -3 - -o "$zone" -O full -f ${zonefile}.tmp "$zonefile" > /dev/null 2>&1
+	awk '$4 == "DNSKEY" { $7 = 255; print } $4 == "RRSIG" { $6 = 255; print } { print }' ${zonefile}.tmp > ${zonefile}.signed
+
+	DSFILE="dsset-$(echo ${zone} |sed -e "s/\\.$//g")$TP"
+	$DSFROMKEY -A -f ${zonefile}.signed "$zone" > "$DSFILE"
+done
+
 zone=secure.example.
 infile=secure.example.db.in
 zonefile=secure.example.db
@@ -246,8 +289,10 @@ zsk=$("$KEYGEN" -q -a "$DEFAULT_ALGORITHM" -b "$DEFAULT_BITS" -n zone "$zone")
 
 cat "$infile" "$ksk.key" "$zsk.key" unsupported-algorithm.key > "$zonefile"
 
-# "$SIGNER" -P -3 - -o "$zone" -f ${zonefile}.signed "$zonefile" > /dev/null 2>&1
-"$SIGNER" -P -3 - -o "$zone" -f ${zonefile}.signed "$zonefile"
+"$SIGNER" -P -3 - -o "$zone" -f ${zonefile}.signed "$zonefile" > /dev/null 2>&1
+
+DSFILE="dsset-$(echo ${zone} |sed -e "s/\\.$//g")$TP"
+$DSFROMKEY -A -f ${zonefile}.signed "$zone" > "$DSFILE"
 
 #
 # A zone with a unknown DNSKEY algorithm + unknown NSEC3 hash algorithm (-U).
