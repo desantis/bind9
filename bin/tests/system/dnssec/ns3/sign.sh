@@ -42,14 +42,26 @@ do
 	DSFILE="dsset-$(echo ${zone} |sed -e "s/\\.$//g")$TP"
 	$DSFROMKEY -A -f ${zonefile}.signed "$zone" > "$DSFILE"
 
+	zone=enabled.${tld}
+	infile=${zone}.db.in
+	zonefile=${zone}.db
+
+	keyname3=$("$KEYGEN" -f KSK -q -a "$DISABLED_ALGORITHM" -b "$DISABLED_BITS" -n zone "$zone")
+
+	cat "$infile" "$keyname3.key" > "$zonefile"
+
+	"$SIGNER" -z -P -3 - -o "$zone" -O full -f ${zonefile}.signed "$zonefile" > /dev/null 2>&1
+
+	DSFILE="dsset-$(echo ${zone} |sed -e "s/\\.$//g")$TP"
+	$DSFROMKEY -A -f ${zonefile}.signed "$zone" > "$DSFILE"
+
 	zone=unsupported.${tld}
 	infile=${zone}.db.in
 	zonefile=${zone}.db
 
-	keyname3=$("$KEYGEN" -f KSK -q -a "$DEFAULT_ALGORITHM" -b "$DEFAULT_BITS" -n zone "$zone")
+	keyname4=$("$KEYGEN" -f KSK -q -a "$DEFAULT_ALGORITHM" -b "$DEFAULT_BITS" -n zone "$zone")
 
-	cat "$infile" "$keyname3.key" > "$zonefile"
-	mv ${keyname3}.key ${keyname3}.tmp
+	cat "$infile" "$keyname4.key" > "$zonefile"
 
 	"$SIGNER" -z -P -3 - -o "$zone" -O full -f ${zonefile}.tmp "$zonefile" > /dev/null 2>&1
 	awk '$4 == "DNSKEY" { $7 = 255; print } $4 == "RRSIG" { $6 = 255; print } { print }' ${zonefile}.tmp > ${zonefile}.signed
@@ -57,14 +69,15 @@ do
 	DSFILE="dsset-$(echo ${zone} |sed -e "s/\\.$//g")$TP"
 	$DSFROMKEY -A -f ${zonefile}.signed "$zone" > "$DSFILE"
 
+	mv ${keyname4}.key ${keyname4}.tmp
 	if [ $tld == "trusted" ]; then
-		awk '$1 == "unsupported.trusted." { $6 = 255; print } { print }' ${keyname3}.tmp > ${keyname3}.key
-		keyfile_to_trusted_keys $keyname1 $keyname2 $keyname3 > trusted-ns8.conf
+		awk '$1 == "unsupported.trusted." { $6 = 255; print } { print }' ${keyname4}.tmp > ${keyname4}.key
+		keyfile_to_trusted_keys $keyname1 $keyname2 $keyname3 $keyname4 > trusted-ns8.conf
 	fi
 
 	if [ $tld == "managed" ]; then
-		awk '$1 == "unsupported.managed." { $6 = 255; print } { print }' ${keyname3}.tmp > ${keyname3}.key
-		keyfile_to_managed_keys $keyname1 $keyname2 $keyname3 > managed-ns8.conf
+		awk '$1 == "unsupported.managed." { $6 = 255; print } { print }' ${keyname4}.tmp > ${keyname4}.key
+		keyfile_to_managed_keys $keyname1 $keyname2 $keyname3 $keyname4 > managed-ns8.conf
 	fi
 
 done

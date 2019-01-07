@@ -24,7 +24,8 @@ options {
 	dnssec-enable yes;
 	dnssec-validation yes;
 	minimal-responses no;
-	disable-algorithms "." { @DISABLED_ALGORITHM@; };
+	disable-algorithms "disabled.managed." { @DISABLED_ALGORITHM@; };
+	disable-algorithms "disabled.trusted." { @DISABLED_ALGORITHM@; };
 };
 
 key rndc_key {

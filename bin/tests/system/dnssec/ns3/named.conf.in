@@ -324,6 +324,11 @@ zone "disabled.managed" {
 	file "disabled.managed.db.signed";
 };
 
+zone "enabled.managed" {
+	type master;
+	file "enabled.managed.db.signed";
+};
+
 zone "unsupported.managed" {
 	type master;
 	file "unsupported.managed.db.signed";
@@ -337,6 +342,11 @@ zone "secure.trusted" {
 zone "disabled.trusted" {
 	type master;
 	file "disabled.trusted.db.signed";
+};
+
+zone "enabled.trusted" {
+	type master;
+	file "enabled.trusted.db.signed";
 };
 
 zone "unsupported.trusted" {

@@ -3703,6 +3703,28 @@ n=$((n+1))
 test "$ret" -eq 0 || echo_i "failed"
 status=$((status+ret))
 
+echo_i "checking that disabled algorithm trusted key not in bailiwick validates as secure ($n)"
+ret=0
+dig_with_opts @10.53.0.3 a.enabled.trusted A > dig.out.ns3.test$n
+dig_with_opts @10.53.0.8 a.enabled.trusted A > dig.out.ns8.test$n
+grep "status: NOERROR," dig.out.ns3.test$n > /dev/null || ret=1
+grep "status: NOERROR," dig.out.ns8.test$n > /dev/null || ret=1
+grep "flags:.*ad.*QUERY" dig.out.ns8.test$n > /dev/null || ret=1
+n=$((n+1))
+test "$ret" -eq 0 || echo_i "failed"
+status=$((status+ret))
+
+echo_i "checking that disabled algorithm managed key not in bailiwick validates as secure ($n)"
+ret=0
+dig_with_opts @10.53.0.3 a.enabled.managed A > dig.out.ns3.test$n
+dig_with_opts @10.53.0.8 a.enabled.managed A > dig.out.ns8.test$n
+grep "status: NOERROR," dig.out.ns3.test$n > /dev/null || ret=1
+grep "status: NOERROR," dig.out.ns8.test$n > /dev/null || ret=1
+grep "flags:.*ad.*QUERY" dig.out.ns8.test$n > /dev/null || ret=1
+n=$((n+1))
+test "$ret" -eq 0 || echo_i "failed"
+status=$((status+ret))
+
 # Note: after this check, ns4 will not be validating any more; do not add any
 # further validation tests employing ns4 below this check.
 echo_i "check that validation defaults to off when dnssec-enable is off ($n)"

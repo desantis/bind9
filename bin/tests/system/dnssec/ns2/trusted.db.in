@@ -35,3 +35,7 @@ ns3.unsupported		A	10.53.0.3
 ; A secure subdomain with a disabled algorithm
 disabled		NS	ns3.disabled
 ns3.disabled		A	10.53.0.3
+
+; A secure subdomain with a disabled algorithm, but not in bailiwick
+enabled                 NS      ns3.enabled
+ns3.enabled             A       10.53.0.3

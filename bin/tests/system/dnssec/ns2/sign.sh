@@ -18,7 +18,7 @@ set -e
 ( cd ../ns3 && $SHELL sign.sh )
 
 # Get the DS records for the trusted. and managed. zones.
-for subdomain in secure unsupported disabled
+for subdomain in secure unsupported disabled enabled
 do
 	cp "../ns3/dsset-$subdomain.managed$TP" .
 	cp "../ns3/dsset-$subdomain.trusted$TP" .

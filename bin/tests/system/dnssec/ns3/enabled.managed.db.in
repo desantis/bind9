@@ -15,27 +15,9 @@ $TTL 300	; 5 minutes
 				1814400    ; expire (3 weeks)
 				3600       ; minimum (1 hour)
 				)
-			NS	ns2
 			NS	ns3
-ns2			A	10.53.0.2
 ns3			A	10.53.0.3
 
 a			A	10.0.0.1
 b			A	10.0.0.2
-d			A	10.0.0.4
-
-; A secure subdomain
-secure			NS	ns3.secure
-ns3.secure		A	10.53.0.3
-
-; A subdomain that is signed with an unsupported algorithm
-unsupported		NS	ns3.unsupported
-ns3.unsupported		A	10.53.0.3
-
-; A secure subdomain with a disabled algorithm
-disabled		NS	ns3.disabled
-ns3.disabled		A	10.53.0.3
-
-; A secure subdomain with a disabled algorithm, but not in bailiwick
-enabled			NS	ns3.enabled
-ns3.enabled		A	10.53.0.3
+c			A	10.0.0.3
