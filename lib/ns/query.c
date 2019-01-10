@@ -499,9 +499,6 @@ query_addwildcardproof(query_ctx_t *qctx, bool ispositive, bool nodata);
 static void
 query_addauth(query_ctx_t *qctx);
 
-static isc_result_t
-query_done(query_ctx_t *qctx);
-
 static void
 prefetch_done(isc_task_t *task, isc_event_t *event);
 
@@ -510,7 +507,7 @@ free_devent(ns_client_t *client, isc_event_t **eventp,
 	    dns_fetchevent_t **deventp);
 
 static isc_result_t
-query_addadditional(void *arg, const dns_name_t *name, dns_rdatatype_t qtype);
+query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype);
 
 /*%
  * Increment query statistics counters.
@@ -1496,7 +1493,7 @@ additional_done(isc_task_t *task, isc_event_t *event) {
 	 * Add new fetches before remove this fetch.
 	 */
 	if (devent->result == ISC_R_SUCCESS || devent->result == DNS_R_CNAME) {
-		query_addadditional(client,
+		query_additional_cb(client,
 				    dns_fixedname_name(&devent->foundname),
 				    devent->qtype);
 	}
@@ -1580,8 +1577,8 @@ query_fetch_additional(ns_client_t *client, const dns_name_t *name,
 	}
 
 	if (client->recursionquota != NULL) {
-		rdataset = query_newrdataset(client);
-		sigrdataset = query_newrdataset(client);
+		rdataset = ns_client_newrdataset(client);
+		sigrdataset = ns_client_newrdataset(client);
 	}
 	if (rdataset != NULL && sigrdataset != NULL) {
 		if (!TCP(client)) {
@@ -1599,16 +1596,16 @@ query_fetch_additional(ns_client_t *client, const dns_name_t *name,
 						  action, client, rdataset,
 						  sigrdataset, fetchp);
 		if (result != ISC_R_SUCCESS) {
-			query_putrdataset(client, &rdataset);
-			query_putrdataset(client, &sigrdataset);
+			ns_client_putrdataset(client, &rdataset);
+			ns_client_putrdataset(client, &sigrdataset);
 			ns_client_detach(&dummy);
 		}
 	} else {
 		if (rdataset != NULL) {
-			query_putrdataset(client, &rdataset);
+			ns_client_putrdataset(client, &rdataset);
 		}
 		if (sigrdataset != NULL) {
-			query_putrdataset(client, &sigrdataset);
+			ns_client_putrdataset(client, &sigrdataset);
 		}
 	}
 }
@@ -1769,7 +1766,7 @@ query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
 
 	dns_cache_updatestats(client->view->cache, result);
 	if (!WANTDNSSEC(client))
-		query_putrdataset(client, &sigrdataset);
+		ns_client_putrdataset(client, &sigrdataset);
 	if (result == ISC_R_SUCCESS || result == DNS_R_CNAME) {
 		goto found;
 	}
@@ -2096,7 +2093,7 @@ query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
 			{
 				if (mname != fname) {
 					if (mname != NULL) {
-						query_releasename(client,
+						ns_client_releasename(client,
 								  &fname);
 						fname = mname;
 					} else {
@@ -2178,8 +2175,8 @@ query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
 			dns_rdataset_current(trdataset, &rdata);
 			result = dns_rdata_tostruct(&rdata, &cname, NULL);
 			RUNTIME_CHECK(result == ISC_R_SUCCESS);
-			/* call query_addadditional with the CNAME target */
-			eresult = query_addadditional(arg, &cname.cname,
+			/* call query_additional_cb with the CNAME target */
+			eresult = query_additional_cb(arg, &cname.cname,
 						      qtype);
 		}
 	}
@@ -2192,7 +2189,7 @@ query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
 		if (result == ISC_R_SUCCESS) {
 			dns_rdataset_current(trdataset, &rdata);
 			dns_rdata_tostruct(&rdata, &cname);
-			euresult = query_addadditional(argc, &dname.dname,
+			euresult = query_additional_cb(argc, &dname.dname,
 						       qtype);
 		}
 	}
