@@ -2005,15 +2005,7 @@ query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
 			bool invalid = false;
 			mname = NULL;
 			have_aaaa = true;
-			/*
-			 * There's an A; check whether we're filtering AAAA
-			 */
-			if (have_a &&
-			    (client->filter_aaaa == dns_aaaa_break_dnssec ||
-			    (client->filter_aaaa == dns_aaaa_filter &&
-			     (!WANTDNSSEC(client) || sigrdataset == NULL ||
-			      !dns_rdataset_isassociated(sigrdataset)))))
-				goto addname;
+
 			if (additionaltype ==
 			    dns_rdatasetadditional_fromcache &&
 			    (DNS_TRUST_PENDING(rdataset->trust) ||
