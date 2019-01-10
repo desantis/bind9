@@ -1834,7 +1834,7 @@ query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
 				rdataset, sigrdataset);
 	if (!(result == ISC_R_SUCCESS ||
 	      result == DNS_R_ZONECUT ||
-	      result == DNS_R_GLUE))
+	      result == DNS_R_GLUE)) {
 		goto cleanup;
 	}
 
