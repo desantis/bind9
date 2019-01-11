@@ -3063,6 +3063,7 @@ resign_fromlist(dns_rdatalist_t *this, dns_loadctx_t *lctx) {
 	}
 	default:
 		INSIST(0);
+		ISC_UNREACHABLE();
 	}
 	return (when);
 }
