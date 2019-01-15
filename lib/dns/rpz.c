@@ -1448,6 +1448,7 @@ dns_rpz_new_zones(dns_rpz_zones_t **rpzsp, char *rps_cstr,
 		goto cleanup_rwlock;
 
 	isc_mutex_init(&zones->maint_lock);
+	LOCK(&zones->maint_lock);
 	isc_refcount_init(&zones->refs, 1);
 
 	zones->rps_cstr = rps_cstr;
@@ -1468,14 +1469,16 @@ dns_rpz_new_zones(dns_rpz_zones_t **rpzsp, char *rps_cstr,
 		goto cleanup_rbt;
 
 	result = isc_task_create(taskmgr, 0, &zones->updater);
-	if (result != ISC_R_SUCCESS)
+	if (result != ISC_R_SUCCESS) {
 		goto cleanup_task;
+	}
 
 	isc_mem_attach(mctx, &zones->mctx);
 	zones->timermgr = timermgr;
 	zones->taskmgr = taskmgr;
 
 	*rpzsp = zones;
+	UNLOCK(&zones->maint_lock);
 	return (ISC_R_SUCCESS);
 
 cleanup_task:
@@ -1485,6 +1488,7 @@ cleanup_rbt:
 	INSIST(isc_refcount_decrement(&zones->refs) > 0);
 	isc_refcount_destroy(&zones->refs);
 
+	UNLOCK(&zones->maint_lock);
 	isc_mutex_destroy(&zones->maint_lock);
 
 	isc_rwlock_destroy(&zones->search_lock);
@@ -2066,6 +2070,7 @@ rpz_detach(dns_rpz_zone_t **rpzp, dns_rpz_zones_t *rpzs) {
 	if (isc_refcount_decrement(&rpz->refs) != 1) {
 		return;
 	}
+	LOCK(&rpzs->maint_lock);
 
 	isc_refcount_destroy(&rpz->refs);
 
@@ -2104,8 +2109,10 @@ rpz_detach(dns_rpz_zone_t **rpzp, dns_rpz_zones_t *rpzs) {
 			rpz->db, dns_rpz_dbupdate_callback, rpz);
 		dns_db_detach(&rpz->db);
 	}
-	if (rpz->updaterunning) {
+	if (ISC_LINK_LINKED(&rpz->updateevent, ev_link)) {
 		isc_task_purgeevent(rpz->rpzs->updater, &rpz->updateevent);
+	}
+	if (rpz->updaterunning) {
 		if (rpz->updbit != NULL) {
 			dns_dbiterator_destroy(&rpz->updbit);
 		}
@@ -2122,6 +2129,7 @@ rpz_detach(dns_rpz_zone_t **rpzp, dns_rpz_zones_t *rpzs) {
 
 	isc_ht_destroy(&rpz->nodes);
 	isc_mem_put(rpzs->mctx, rpz, sizeof(*rpz));
+	UNLOCK(&rpzs->maint_lock);
 }
 
 void
@@ -2142,12 +2150,6 @@ dns_rpz_detach_rpzs(dns_rpz_zones_t **rpzsp) {
 
 	if (isc_refcount_decrement(&rpzs->refs) == 1) {
 		/*
-		 * Destroy the task first, so that nothing runs
-		 * in the background that might race with us.
-		 */
-		isc_task_destroy(&rpzs->updater);
-
-		/*
 		 * Forget the last of view's rpz machinery after
 		 * the last reference.
 		 */
@@ -2161,6 +2163,12 @@ dns_rpz_detach_rpzs(dns_rpz_zones_t **rpzsp) {
 				rpz_detach(&rpz, rpzs);
 			}
 		}
+
+		/*
+		 * When we detached all the RPZs we've purged all the
+		 * events, now we can destroy the task.
+		 */
+		isc_task_destroy(&rpzs->updater);
 
 		if (rpzs->rps_cstr_size != 0) {
 #ifdef USE_DNSRPS
