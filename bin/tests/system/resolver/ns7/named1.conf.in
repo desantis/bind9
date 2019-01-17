@@ -29,6 +29,7 @@ options {
 	 */
 	prefetch 0;
 	querylog yes;
+	prefetch-additional no;
 };
 
 key rndc_key {

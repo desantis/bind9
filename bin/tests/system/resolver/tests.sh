@@ -317,9 +317,6 @@ grep "ANSWER: 0" dig.ns7.out.${n} > /dev/null || ret=4
 if [ $ret != 0 ]; then echo_i "failed"; ret=1; fi
 status=`expr $status + $ret`
 
-if [ $ret != 0 ]; then echo_i "failed"; ret=1; fi
-status=`expr $status + $ret`
-
 n=`expr $n + 1`
 echo_i "checking that update a nameservers address has immediate effects ($n)"
 ret=0
