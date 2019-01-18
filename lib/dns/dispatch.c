@@ -24,6 +24,7 @@
 #include <isc/portset.h>
 #include <isc/print.h>
 #include <isc/random.h>
+#include <isc/refcount.h>
 #include <isc/socket.h>
 #include <isc/stats.h>
 #include <isc/string.h>
@@ -74,9 +75,10 @@ struct dns_dispatchmgr {
 	/* locked by buffer_lock */
 	dns_qid_t			*qid;
 	isc_mutex_t			buffer_lock;
-	unsigned int			buffers;    /*%< allocated buffers */
 	unsigned int			buffersize; /*%< size of each buffer */
-	unsigned int			maxbuffers; /*%< max buffers */
+	/* not locked */
+	isc_refcount_t			buffers;    /*%< allocated buffers */
+	isc_refcount_t			maxbuffers; /*%< max buffers */
 
 	/* Locked internally. */
 	isc_mutex_t			depool_lock;
@@ -898,9 +900,8 @@ free_buffer(dns_dispatch_t *disp, void *buf, unsigned int len) {
 		break;
 	case isc_sockettype_udp:
 		LOCK(&disp->mgr->buffer_lock);
-		INSIST(disp->mgr->buffers > 0);
 		INSIST(len == disp->mgr->buffersize);
-		disp->mgr->buffers--;
+		INSIST(isc_refcount_decrement(&disp->mgr->buffers) > 0);
 		bpool = disp->mgr->bpool;
 		UNLOCK(&disp->mgr->buffer_lock);
 		isc_mempool_put(bpool, buf);
@@ -916,17 +917,15 @@ allocate_udp_buffer(dns_dispatch_t *disp) {
 	isc_mempool_t *bpool;
 	void *temp;
 
+	isc_refcount_increment(&disp->mgr->buffers);
 	LOCK(&disp->mgr->buffer_lock);
 	bpool = disp->mgr->bpool;
-	disp->mgr->buffers++;
 	UNLOCK(&disp->mgr->buffer_lock);
 
 	temp = isc_mempool_get(bpool);
 
 	if (temp == NULL) {
-		LOCK(&disp->mgr->buffer_lock);
-		disp->mgr->buffers--;
-		UNLOCK(&disp->mgr->buffer_lock);
+		isc_refcount_decrement(&disp->mgr->buffers);
 	}
 
 	return (temp);
@@ -1047,9 +1046,10 @@ udp_recv(isc_event_t *ev_in, dns_dispatch_t *disp, dispsocket_t *dispsock) {
 	mgr = disp->mgr;
 	qid = mgr->qid;
 
-	dispatch_log(disp, LVL(90),
-		     "got packet: requests %d, buffers %d, recvs %d",
-		     disp->requests, disp->mgr->buffers, disp->recv_pending);
+	dispatch_log(disp, LVL(90), "got packet: requests %d, "
+		     "buffers %" PRIuFAST32 ", recvs %d",
+		     disp->requests, isc_refcount_current(&disp->mgr->buffers),
+		     disp->recv_pending);
 
 	if (dispsock == NULL && ev->ev_type == ISC_SOCKEVENT_RECVDONE) {
 		/*
@@ -1336,11 +1336,11 @@ tcp_recv(isc_task_t *task, isc_event_t *ev_in) {
 
 	qid = disp->qid;
 
+	LOCK(&disp->lock);
+
 	dispatch_log(disp, LVL(90),
 		     "got TCP packet: requests %d, buffers %d, recvs %d",
 		     disp->requests, disp->tcpbuffers, disp->recv_pending);
-
-	LOCK(&disp->lock);
 
 	INSIST(disp->recv_pending != 0);
 	disp->recv_pending = 0;
@@ -1491,26 +1491,33 @@ startrecv(dns_dispatch_t *disp, dispsocket_t *dispsock) {
 	isc_region_t region;
 	isc_socket_t *sock;
 
-	if (disp->shutting_down == 1)
+	if (disp->shutting_down == 1) {
 		return (ISC_R_SUCCESS);
+	}
 
-	if ((disp->attributes & DNS_DISPATCHATTR_NOLISTEN) != 0)
+	if ((disp->attributes & DNS_DISPATCHATTR_NOLISTEN) != 0) {
 		return (ISC_R_SUCCESS);
+	}
 
-	if (disp->recv_pending != 0 && dispsock == NULL)
+	if (disp->recv_pending != 0 && dispsock == NULL) {
 		return (ISC_R_SUCCESS);
+	}
 
-	if (disp->mgr->buffers >= disp->mgr->maxbuffers)
+	if (isc_refcount_current(&disp->mgr->buffers) >=
+	    isc_refcount_current(&disp->mgr->maxbuffers)) {
 		return (ISC_R_NOMEMORY);
+	}
 
 	if ((disp->attributes & DNS_DISPATCHATTR_EXCLUSIVE) != 0 &&
-	    dispsock == NULL)
+	    dispsock == NULL) {
 		return (ISC_R_SUCCESS);
+	}
 
-	if (dispsock != NULL)
+	if (dispsock != NULL) {
 		sock = dispsock->socket;
-	else
+	} else {
 		sock = disp->socket;
+	}
 	INSIST(sock != NULL);
 
 	switch (disp->socktype) {
@@ -1805,9 +1812,9 @@ dns_dispatchmgr_create(isc_mem_t *mctx, dns_dispatchmgr_t **mgrp)
 	isc_mempool_associatelock(mgr->dpool, &mgr->dpool_lock);
 	isc_mempool_setfillcount(mgr->dpool, 32);
 
-	mgr->buffers = 0;
+	isc_refcount_init(&mgr->buffers, 0);
 	mgr->buffersize = 0;
-	mgr->maxbuffers = 0;
+	isc_refcount_init(&mgr->maxbuffers, 0);
 	mgr->bpool = NULL;
 	mgr->spool = NULL;
 	mgr->qid = NULL;
@@ -2041,7 +2048,7 @@ dns_dispatchmgr_setudp(dns_dispatchmgr_t *mgr,
 		goto cleanup;
 
 	mgr->buffersize = buffersize;
-	mgr->maxbuffers = maxbuffers;
+	isc_refcount_init(&mgr->maxbuffers, maxbuffers);
 	UNLOCK(&mgr->buffer_lock);
 	return (ISC_R_SUCCESS);
 
