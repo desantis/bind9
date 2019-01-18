@@ -678,9 +678,11 @@ dec_stats(isc_stats_t *stats, isc_statscounter_t counterid) {
 static inline isc_result_t
 watch_fd(isc__socketthread_t *thread, int fd, int msg) {
 	isc_result_t result = ISC_R_SUCCESS;
+	int lockid = FDLOCK_ID(fd);
 
 #ifdef USE_KQUEUE
 	struct kevent evchange;
+	(void) lockid;
 
 	memset(&evchange, 0, sizeof(evchange));
 	if (msg == SELECT_POKE_READ) {
@@ -701,12 +703,14 @@ watch_fd(isc__socketthread_t *thread, int fd, int msg) {
 	int ret;
 	int op;
 
+	LOCK(&thread->fdlock[lockid]);
 	oldevents = thread->epoll_events[fd];
 	if (msg == SELECT_POKE_READ) {
 		thread->epoll_events[fd] |= EPOLLIN;
 	} else {
 		thread->epoll_events[fd] |= EPOLLOUT;
 	}
+	UNLOCK(&thread->fdlock[lockid]);
 
 	event.events = thread->epoll_events[fd];
 	memset(&event.data, 0, sizeof(event.data));
@@ -726,8 +730,8 @@ watch_fd(isc__socketthread_t *thread, int fd, int msg) {
 	return (result);
 #elif defined(USE_DEVPOLL)
 	struct pollfd pfd;
-	int lockid = FDLOCK_ID(fd);
 
+	LOCK(&thread->fdlock[lockid]);
 	memset(&pfd, 0, sizeof(pfd));
 	if (msg == SELECT_POKE_READ) {
 		pfd.events = POLLIN;
@@ -745,6 +749,7 @@ watch_fd(isc__socketthread_t *thread, int fd, int msg) {
 			thread->fdpollinfo[fd].want_write = 1;
 		}
 	}
+	UNLOCK(&thread->fdlock[lockid]);
 
 	return (result);
 #elif defined(USE_SELECT)
@@ -764,9 +769,11 @@ watch_fd(isc__socketthread_t *thread, int fd, int msg) {
 static inline isc_result_t
 unwatch_fd(isc__socketthread_t *thread, int fd, int msg) {
 	isc_result_t result = ISC_R_SUCCESS;
+	int lockid = FDLOCK_ID(fd);
 
 #ifdef USE_KQUEUE
 	struct kevent evchange;
+	(void) lockid;
 
 	memset(&evchange, 0, sizeof(evchange));
 	if (msg == SELECT_POKE_READ) {
@@ -786,6 +793,7 @@ unwatch_fd(isc__socketthread_t *thread, int fd, int msg) {
 	int ret;
 	int op;
 
+	LOCK(&thread->fdlock[lockid]);
 	if (msg == SELECT_POKE_READ) {
 		thread->epoll_events[fd] &= ~(EPOLLIN);
 	} else {
@@ -795,6 +803,7 @@ unwatch_fd(isc__socketthread_t *thread, int fd, int msg) {
 	event.events = thread->epoll_events[fd];
 	memset(&event.data, 0, sizeof(event.data));
 	event.data.fd = fd;
+	UNLOCK(&thread->fdlock[lockid]);
 
 	op = (event.events == 0U) ? EPOLL_CTL_DEL : EPOLL_CTL_MOD;
 	ret = epoll_ctl(thread->epoll_fd, op, fd, &event);
@@ -809,7 +818,6 @@ unwatch_fd(isc__socketthread_t *thread, int fd, int msg) {
 #elif defined(USE_DEVPOLL)
 	struct pollfd pfds[2];
 	size_t writelen = sizeof(pfds[0]);
-	int lockid = FDLOCK_ID(fd);
 
 	memset(pfds, 0, sizeof(pfds));
 	pfds[0].events = POLLREMOVE;
@@ -820,6 +828,8 @@ unwatch_fd(isc__socketthread_t *thread, int fd, int msg) {
 	 * only provides a way of canceling per FD, we may need to re-poll the
 	 * socket for the other operation.
 	 */
+
+	LOCK(&thread->fdlock[lockid]);
 	if (msg == SELECT_POKE_READ &&
 	    thread->fdpollinfo[fd].want_write == 1)
 	{
@@ -844,6 +854,7 @@ unwatch_fd(isc__socketthread_t *thread, int fd, int msg) {
 			thread->fdpollinfo[fd].want_write = 0;
 		}
 	}
+	UNLOCK(&thread->fdlock[lockid]);
 
 	return (result);
 #elif defined(USE_SELECT)
@@ -876,17 +887,17 @@ wakeup_socket(isc__socketthread_t *thread, int fd, int msg) {
 
 	INSIST(fd >= 0 && fd < (int)thread->manager->maxsocks);
 
+	LOCK(&thread->fdlock[lockid]);
 	if (msg == SELECT_POKE_CLOSE) {
-		/* No one should be updating fdstate, so no need to lock it */
 		INSIST(thread->fdstate[fd] == CLOSE_PENDING);
 		thread->fdstate[fd] = CLOSED;
+		UNLOCK(&thread->fdlock[lockid]);
 		(void)unwatch_fd(thread, fd, SELECT_POKE_READ);
 		(void)unwatch_fd(thread, fd, SELECT_POKE_WRITE);
 		(void)close(fd);
 		return;
 	}
 
-	LOCK(&thread->fdlock[lockid]);
 	if (thread->fdstate[fd] == CLOSE_PENDING) {
 		UNLOCK(&thread->fdlock[lockid]);
 
@@ -1833,6 +1844,7 @@ destroy(isc__socket_t **sockp) {
 
 	socket_log(sock, NULL, CREATION, "destroying");
 
+	LOCK(&sock->lock);
 	INSIST(ISC_LIST_EMPTY(sock->connect_list));
 	INSIST(ISC_LIST_EMPTY(sock->accept_list));
 	INSIST(ISC_LIST_EMPTY(sock->recv_list));
@@ -1846,6 +1858,7 @@ destroy(isc__socket_t **sockp) {
 		sock->threadid = -1;
 		socketclose(thread, sock, fd);
 	}
+	UNLOCK(&sock->lock);
 
 	LOCK(&manager->lock);
 
@@ -3153,6 +3166,7 @@ process_fd(isc__socketthread_t *thread, int fd, bool readable,
 	   bool writeable)
 {
 	isc__socket_t *sock;
+	bool listener, connecting;
 	int lockid = FDLOCK_ID(fd);
 
 	/*
@@ -3181,9 +3195,15 @@ process_fd(isc__socketthread_t *thread, int fd, bool readable,
 		UNLOCK(&thread->fdlock[lockid]);
 		return;
 	}
+	UNLOCK(&thread->fdlock[lockid]);
+
+	LOCK(&sock->lock);
+	listener = sock->listener;
+	connecting = sock->connecting;
+	UNLOCK(&sock->lock);
 
 	if (readable) {
-		if (sock->listener) {
+		if (listener) {
 			internal_accept(sock);
 		} else {
 			internal_recv(sock);
@@ -3191,14 +3211,13 @@ process_fd(isc__socketthread_t *thread, int fd, bool readable,
 	}
 
 	if (writeable) {
-		if (sock->connecting) {
+		if (connecting) {
 			internal_connect(sock);
 		} else {
 			internal_send(sock);
 		}
 	}
 
-	UNLOCK(&thread->fdlock[lockid]);
 	if (isc_refcount_decrement(&sock->references) == 1) {
 		destroy(&sock);
 	}
