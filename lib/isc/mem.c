@@ -142,7 +142,7 @@ struct isc__mem {
 	size_t			hi_water;
 	size_t			lo_water;
 	bool		hi_called;
-	bool		is_overmem;
+	atomic_bool		is_overmem;
 	isc_mem_water_t		water;
 	void *			water_arg;
 	ISC_LIST(isc__mempool_t) pools;
@@ -770,7 +770,7 @@ isc_mem_createx(size_t init_max_size, size_t target_size,
 	ctx->hi_water = 0;
 	ctx->lo_water = 0;
 	ctx->hi_called = false;
-	ctx->is_overmem = false;
+	atomic_store_relaxed(&ctx->is_overmem, false);
 	ctx->water = NULL;
 	ctx->water_arg = NULL;
 	ctx->common.impmagic = MEM_MAGIC;
@@ -1043,7 +1043,7 @@ isc___mem_get(isc_mem_t *ctx0, size_t size FLARG) {
 	ADD_TRACE(ctx, ptr, size, file, line);
 
 	if (ctx->hi_water != 0U && ctx->inuse > ctx->hi_water) {
-		ctx->is_overmem = true;
+		atomic_store_relaxed(&ctx->is_overmem, true);
 		if (!ctx->hi_called)
 			call_water = true;
 	}
@@ -1103,7 +1103,7 @@ isc___mem_put(isc_mem_t *ctx0, void *ptr, size_t size FLARG) {
 	 * isc_mem_setwater() called with 0 for hi_water and lo_water.
 	 */
 	if ((ctx->inuse < ctx->lo_water) || (ctx->lo_water == 0U)) {
-		ctx->is_overmem = false;
+		atomic_store_relaxed(&ctx->is_overmem, false);
 		if (ctx->hi_called)
 			call_water = true;
 	}
@@ -1269,9 +1269,8 @@ isc___mem_allocate(isc_mem_t *ctx0, size_t size FLARG) {
 		mem_getstats(ctx, si[-1].u.size);
 
 	ADD_TRACE(ctx, si, si[-1].u.size, file, line);
-	if (ctx->hi_water != 0U && ctx->inuse > ctx->hi_water &&
-	    !ctx->is_overmem) {
-		ctx->is_overmem = true;
+	if (ctx->hi_water != 0U && ctx->inuse > ctx->hi_water) {
+		atomic_store_relaxed(&ctx->is_overmem, true);
 	}
 
 	if (ctx->hi_water != 0U && !ctx->hi_called &&
@@ -1371,9 +1370,8 @@ isc___mem_free(isc_mem_t *ctx0, void *ptr FLARG) {
 	 * when the context was pushed over hi_water but then had
 	 * isc_mem_setwater() called with 0 for hi_water and lo_water.
 	 */
-	if (ctx->is_overmem &&
-	    (ctx->inuse < ctx->lo_water || ctx->lo_water == 0U)) {
-		ctx->is_overmem = false;
+	if (ctx->inuse < ctx->lo_water || ctx->lo_water == 0U) {
+		atomic_store_relaxed(&ctx->is_overmem, false);
 	}
 
 	if (ctx->hi_called &&
@@ -1518,7 +1516,7 @@ isc_mem_isovermem(isc_mem_t *ctx0) {
 	 * necessary (and even if we locked the context the returned value
 	 * could be different from the actual state when it's used anyway)
 	 */
-	return (ctx->is_overmem);
+	return (atomic_load_relaxed(&ctx->is_overmem));
 }
 
 void
