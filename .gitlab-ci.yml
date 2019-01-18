@@ -13,6 +13,7 @@ stages:
   - build
   - test
   - push
+  - compare
 
 ### Runner Tag Templates
 
@@ -432,6 +433,18 @@ unit:tsan:sid:amd64:
     - kyua_html/
     expire_in: '6 months'
     when: always
+
+compare:tsan:sid:amd64:
+  stage: compare
+  <<: *debian_sid_amd64_image
+  <<: *tsan_triggering_rules
+  dependencies:
+    - system:tsan:sid:amd64
+  script:
+    - curl -sSL -O tsan-old.log "$CI_MERGE_REQUEST_SOURCE_PROJECT_URL/-/jobs/artifacts/$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME/file/tsan.log?job=system:tsan:sid:amd64"
+    - if [ -f tsan-old.log ]; then sort tsan.log > "tsan-$CI_MERGE_REQUEST_TARGET_BRANCH_NAME.log"; fi
+    - if [ -f tsan-old.log ]; then sort tsan-old.log > "tsan-$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME.log"; fi
+    - if [ -f tsan-old.log ]; then diff -urNap tsan-old.log tsan.log; fi
 
 # Jobs for GCC builds with ASAN enabled on Debian Sid (amd64)
 
