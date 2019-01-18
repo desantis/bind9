@@ -76,9 +76,10 @@ struct dns_dispatchmgr {
 	/* locked by buffer_lock */
 	dns_qid_t			*qid;
 	isc_mutex_t			buffer_lock;
-	unsigned int			buffers;    /*%< allocated buffers */
 	unsigned int			buffersize; /*%< size of each buffer */
-	unsigned int			maxbuffers; /*%< max buffers */
+	/* not locked */
+	atomic_uint_fast32_t		buffers;    /*%< allocated buffers */
+	atomic_uint_fast32_t		maxbuffers; /*%< max buffers */
 
 	/* Locked internally. */
 	isc_mutex_t			depool_lock;
@@ -900,9 +901,8 @@ free_buffer(dns_dispatch_t *disp, void *buf, unsigned int len) {
 		break;
 	case isc_sockettype_udp:
 		LOCK(&disp->mgr->buffer_lock);
-		INSIST(disp->mgr->buffers > 0);
 		INSIST(len == disp->mgr->buffersize);
-		disp->mgr->buffers--;
+		INSIST(atomic_fetch_sub(&disp->mgr->buffers, 1) > 0);
 		bpool = disp->mgr->bpool;
 		UNLOCK(&disp->mgr->buffer_lock);
 		isc_mempool_put(bpool, buf);
@@ -918,17 +918,15 @@ allocate_udp_buffer(dns_dispatch_t *disp) {
 	isc_mempool_t *bpool;
 	void *temp;
 
+	atomic_fetch_add(&disp->mgr->buffers, 1);
 	LOCK(&disp->mgr->buffer_lock);
 	bpool = disp->mgr->bpool;
-	disp->mgr->buffers++;
 	UNLOCK(&disp->mgr->buffer_lock);
 
 	temp = isc_mempool_get(bpool);
 
 	if (temp == NULL) {
-		LOCK(&disp->mgr->buffer_lock);
-		disp->mgr->buffers--;
-		UNLOCK(&disp->mgr->buffer_lock);
+		atomic_fetch_sub(&disp->mgr->buffers, 1);
 	}
 
 	return (temp);
@@ -1050,8 +1048,9 @@ udp_recv(isc_event_t *ev_in, dns_dispatch_t *disp, dispsocket_t *dispsock) {
 	qid = mgr->qid;
 
 	dispatch_log(disp, LVL(90),
-		     "got packet: requests %d, buffers %d, recvs %d",
-		     disp->requests, disp->mgr->buffers, disp->recv_pending);
+		     "got packet: requests %d, buffers %lu, recvs %d",
+		     disp->requests, atomic_load(&disp->mgr->buffers),
+		     disp->recv_pending);
 
 	if (dispsock == NULL && ev->ev_type == ISC_SOCKEVENT_RECVDONE) {
 		/*
@@ -1338,11 +1337,12 @@ tcp_recv(isc_task_t *task, isc_event_t *ev_in) {
 
 	qid = disp->qid;
 
+
+	LOCK(&disp->lock);
+
 	dispatch_log(disp, LVL(90),
 		     "got TCP packet: requests %d, buffers %d, recvs %d",
 		     disp->requests, disp->tcpbuffers, disp->recv_pending);
-
-	LOCK(&disp->lock);
 
 	INSIST(disp->recv_pending != 0);
 	disp->recv_pending = 0;
@@ -1493,26 +1493,33 @@ startrecv(dns_dispatch_t *disp, dispsocket_t *dispsock) {
 	isc_region_t region;
 	isc_socket_t *sock;
 
-	if (disp->shutting_down == 1)
+	if (disp->shutting_down == 1) {
 		return (ISC_R_SUCCESS);
+	}
 
-	if ((disp->attributes & DNS_DISPATCHATTR_NOLISTEN) != 0)
+	if ((disp->attributes & DNS_DISPATCHATTR_NOLISTEN) != 0) {
 		return (ISC_R_SUCCESS);
+	}
 
-	if (disp->recv_pending != 0 && dispsock == NULL)
+	if (disp->recv_pending != 0 && dispsock == NULL) {
 		return (ISC_R_SUCCESS);
+	}
 
-	if (disp->mgr->buffers >= disp->mgr->maxbuffers)
+	if (atomic_load(&disp->mgr->buffers) >=
+	    atomic_load(&disp->mgr->maxbuffers)) {
 		return (ISC_R_NOMEMORY);
+	}
 
 	if ((disp->attributes & DNS_DISPATCHATTR_EXCLUSIVE) != 0 &&
-	    dispsock == NULL)
+	    dispsock == NULL) {
 		return (ISC_R_SUCCESS);
+	}
 
-	if (dispsock != NULL)
+	if (dispsock != NULL) {
 		sock = dispsock->socket;
-	else
+	} else {
 		sock = disp->socket;
+	}
 	INSIST(sock != NULL);
 
 	switch (disp->socktype) {
@@ -1807,9 +1814,9 @@ dns_dispatchmgr_create(isc_mem_t *mctx, dns_dispatchmgr_t **mgrp)
 	isc_mempool_associatelock(mgr->dpool, &mgr->dpool_lock);
 	isc_mempool_setfillcount(mgr->dpool, 32);
 
-	mgr->buffers = 0;
+	atomic_store(&mgr->buffers, 0);
 	mgr->buffersize = 0;
-	mgr->maxbuffers = 0;
+	atomic_store(&mgr->maxbuffers, 0);
 	mgr->bpool = NULL;
 	mgr->spool = NULL;
 	mgr->qid = NULL;
@@ -2043,7 +2050,7 @@ dns_dispatchmgr_setudp(dns_dispatchmgr_t *mgr,
 		goto cleanup;
 
 	mgr->buffersize = buffersize;
-	mgr->maxbuffers = maxbuffers;
+	atomic_store(&mgr->maxbuffers, maxbuffers);
 	UNLOCK(&mgr->buffer_lock);
 	return (ISC_R_SUCCESS);
 
