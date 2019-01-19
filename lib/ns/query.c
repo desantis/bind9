@@ -1449,6 +1449,7 @@ query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
 	isc_result_t result, eresult = ISC_R_SUCCESS;
 	dns_dbnode_t *node = NULL;
 	dns_db_t *db = NULL;
+	dns_zone_t *zone = NULL;
 	dns_name_t *fname = NULL, *mname = NULL;
 	dns_rdataset_t *rdataset = NULL, *sigrdataset = NULL;
 	dns_rdataset_t *trdataset = NULL;
@@ -1462,6 +1463,7 @@ query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
 	dns_clientinfo_t ci;
 	dns_rdatasetadditional_t additionaltype =
 		dns_rdatasetadditional_fromauth;
+	bool authdone = false;
 
 	REQUIRE(NS_CLIENT_VALID(client));
 	REQUIRE(qtype != dns_rdatatype_any);
@@ -1515,57 +1517,80 @@ query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
 	}
 
 	/*
-	 * Look within the same zone database for authoritative
+	 * First, look within the same zone database for authoritative
 	 * additional data.
 	 */
-	if (!client->query.authdbset || client->query.authdb == NULL) {
+	if (client->query.authdbset && client->query.authdb != NULL) {
+		dbversion = ns_client_findversion(client, client->query.authdb);
+	}
+	if (dbversion != NULL) {
+		dns_db_attach(client->query.authdb, &db);
+		version = dbversion->version;
+	} else {
 		goto try_cache;
 	}
-
-	dbversion = ns_client_findversion(client, client->query.authdb);
-	if (dbversion == NULL) {
-		goto try_cache;
-	}
-
-	dns_db_attach(client->query.authdb, &db);
-	version = dbversion->version;
 
 	CTRACE(ISC_LOG_DEBUG(3), "query_additional_cb: db_find");
 
-	/*
-	 * Since we are looking for authoritative data, we do not set
-	 * the GLUEOK flag.  Glue will be looked for later, but not
-	 * necessarily in the same database.
-	 */
-	result = dns_db_findext(db, name, version, type,
-				client->query.dboptions,
-				client->now, &node, fname, &cm, &ci,
-				rdataset, sigrdataset);
-	if (result == ISC_R_SUCCESS) {
-		if (sigrdataset != NULL && !dns_db_issecure(db) &&
+	while (true) {
+		/*
+		 * Since we are looking for authoritative data, we do not set
+		 * the GLUEOK flag.  Glue will be looked for later, but not
+		 * necessarily in the same database.
+		 */
+		result = dns_db_findext(db, name, version, type,
+					client->query.dboptions,
+					client->now, &node, fname, &cm, &ci,
+					rdataset, sigrdataset);
+		if (result == ISC_R_SUCCESS) {
+			if (sigrdataset != NULL && !dns_db_issecure(db) &&
+			    dns_rdataset_isassociated(sigrdataset))
+			{
+				dns_rdataset_disassociate(sigrdataset);
+			}
+			goto found;
+		}
+
+		if (dns_rdataset_isassociated(rdataset)) {
+			dns_rdataset_disassociate(rdataset);
+		}
+		if (sigrdataset != NULL &&
 		    dns_rdataset_isassociated(sigrdataset))
 		{
 			dns_rdataset_disassociate(sigrdataset);
 		}
-		goto found;
-	}
+		if (node != NULL) {
+			dns_db_detachnode(db, &node);
+		}
+		version = NULL;
+		dns_db_detach(&db);
 
-	if (dns_rdataset_isassociated(rdataset)) {
-		dns_rdataset_disassociate(rdataset);
+		/*
+		 * If we aren't doing response minimization and
+		 * recursion is allowed, we can try and see if any
+		 * other zone matches.
+		 */
+		if (!authdone &&
+		    qctx->view->minimalresponses == dns_minimal_no &&
+		    RECURSIONOK(client))
+		{
+			authdone = true;
+			result = query_getzonedb(client, name, qtype,
+						 DNS_GETDB_NOLOG, &zone,
+						 &db, &version);
+			if (result != ISC_R_SUCCESS) {
+				goto try_cache;
+			}
+
+			continue;
+		}
+
+		break;
 	}
-	if (sigrdataset != NULL && dns_rdataset_isassociated(sigrdataset)) {
-		dns_rdataset_disassociate(sigrdataset);
-	}
-	if (node != NULL) {
-		dns_db_detachnode(db, &node);
-	}
-	version = NULL;
-	dns_db_detach(&db);
 
 	/*
 	 * No authoritative data was found.  The cache is our next best bet.
 	 */
-
  try_cache:
 	if (!qctx->view->recursion) {
 		goto try_glue;
@@ -1919,6 +1944,9 @@ query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
 	}
 	if (db != NULL) {
 		dns_db_detach(&db);
+	}
+	if (zone != NULL) {
+		dns_zone_detach(&zone);
 	}
 
 	CTRACE(ISC_LOG_DEBUG(3), "query_additional_cb: done");
