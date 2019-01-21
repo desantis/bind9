@@ -26,12 +26,12 @@
 #include <sys/epoll.h>
 #endif
 
-#include <isc/platform.h>
 #include <isc/app.h>
+#include <isc/atomic.h>
 #include <isc/condition.h>
+#include <isc/event.h>
 #include <isc/mem.h>
 #include <isc/mutex.h>
-#include <isc/event.h>
 #include <isc/platform.h>
 #include <isc/strerr.h>
 #include <isc/string.h>
@@ -48,7 +48,7 @@
  * as an event loop dispatching various events.
  */
 static pthread_t		blockedthread;
-static bool			is_running;
+static atomic_bool		is_running;
 
 /*
  * The application context of this module.  This implementation actually
@@ -68,13 +68,13 @@ typedef struct isc__appctx {
 	/*!
 	 * We assume that 'want_shutdown' can be read and written atomically.
 	 */
-	bool		want_shutdown;
+	atomic_bool		want_shutdown;
 	/*
 	 * We assume that 'want_reload' can be read and written atomically.
 	 */
-	bool		want_reload;
+	atomic_bool		want_reload;
 
-	bool		blocked;
+	atomic_bool		blocked;
 
 	isc_taskmgr_t		*taskmgr;
 	isc_socketmgr_t		*socketmgr;
@@ -89,13 +89,13 @@ static isc__appctx_t isc_g_appctx;
 static void
 exit_action(int arg) {
 	UNUSED(arg);
-	isc_g_appctx.want_shutdown = true;
+	atomic_store(&isc_g_appctx.want_shutdown, true);
 }
 
 static void
 reload_action(int arg) {
 	UNUSED(arg);
-	isc_g_appctx.want_reload = true;
+	atomic_store(&isc_g_appctx.want_reload, true);
 }
 #endif
 
@@ -143,9 +143,9 @@ isc_app_ctxstart(isc_appctx_t *ctx0) {
 
 	ctx->shutdown_requested = false;
 	ctx->running = false;
-	ctx->want_shutdown = false;
-	ctx->want_reload = false;
-	ctx->blocked = false;
+	atomic_init(&ctx->want_shutdown, false);
+	atomic_init(&ctx->want_reload, false);
+	atomic_init(&ctx->blocked, false);
 
 #ifndef HAVE_SIGWAIT
 	/*
@@ -335,7 +335,7 @@ isc_app_ctxrun(isc_appctx_t *ctx0) {
 	 * simply be made pending and we will get it when we call
 	 * sigwait().
 	 */
-	while (!ctx->want_shutdown) {
+	while (!atomic_load(&ctx->want_shutdown)) {
 #ifdef HAVE_SIGWAIT
 		if (isc_bind9) {
 			/*
@@ -355,10 +355,11 @@ isc_app_ctxrun(isc_appctx_t *ctx0) {
 
 			result = sigwait(&sset, &sig);
 			if (result == 0) {
-				if (sig == SIGINT || sig == SIGTERM)
-					ctx->want_shutdown = true;
-				else if (sig == SIGHUP)
-					ctx->want_reload = true;
+				if (sig == SIGINT || sig == SIGTERM) {
+					atomic_store(&ctx->want_shutdown, true);
+				} else if (sig == SIGHUP) {
+					atomic_store(&ctx->want_reload, true);
+				}
 			}
 
 		} else {
@@ -367,12 +368,12 @@ isc_app_ctxrun(isc_appctx_t *ctx0) {
 			 * wait until woken up.
 			 */
 			LOCK(&ctx->readylock);
-			if (ctx->want_shutdown) {
+			if (atomic_load(&ctx->want_shutdown)) {
 				/* shutdown() won the race. */
 				UNLOCK(&ctx->readylock);
 				break;
 			}
-			if (!ctx->want_reload)
+			if (!atomic_load(&ctx->want_reload))
 				WAIT(&ctx->ready, &ctx->readylock);
 			UNLOCK(&ctx->readylock);
 		}
@@ -410,24 +411,27 @@ isc_app_ctxrun(isc_appctx_t *ctx0) {
 			 * wait until woken up.
 			 */
 			LOCK(&ctx->readylock);
-			if (ctx->want_shutdown) {
+			if (atomic_load(&ctx->want_shutdown)) {
 				/* shutdown() won the race. */
 				UNLOCK(&ctx->readylock);
 				break;
 			}
-			if (!ctx->want_reload)
+			if (!atomic_load(&ctx->want_reload)) {
 				WAIT(&ctx->ready, &ctx->readylock);
+			}
 			UNLOCK(&ctx->readylock);
 		}
 #endif /* HAVE_SIGWAIT */
 
-		if (ctx->want_reload) {
-			ctx->want_reload = false;
+		if (atomic_load(&ctx->want_reload)) {
+			atomic_store(&ctx->want_reload, false);
 			return (ISC_R_RELOAD);
 		}
 
-		if (ctx->want_shutdown && ctx->blocked)
+		if (atomic_load(&ctx->want_shutdown) &&
+		    atomic_load(&ctx->blocked)) {
 			exit(1);
+		}
 	}
 
 	return (ISC_R_SUCCESS);
@@ -437,16 +441,16 @@ isc_result_t
 isc_app_run(void) {
 	isc_result_t result;
 
-	is_running = true;
+	atomic_store(&is_running, true);
 	result = isc_app_ctxrun((isc_appctx_t *)&isc_g_appctx);
-	is_running = false;
+	atomic_store(&is_running, false);
 
 	return (result);
 }
 
 bool
 isc_app_isrunning() {
-	return (is_running);
+	return (atomic_load(&is_running));
 }
 
 isc_result_t
@@ -471,7 +475,7 @@ isc_app_ctxshutdown(isc_appctx_t *ctx0) {
 	if (want_kill) {
 		if (isc_bind9 && ctx != &isc_g_appctx)
 			/* BIND9 internal, but using multiple contexts */
-			ctx->want_shutdown = true;
+			atomic_store(&ctx->want_shutdown, true);
 		else {
 			if (isc_bind9) {
 				/* BIND9 internal, single context */
@@ -487,7 +491,7 @@ isc_app_ctxshutdown(isc_appctx_t *ctx0) {
 			else {
 				/* External, multiple contexts */
 				LOCK(&ctx->readylock);
-				ctx->want_shutdown = true;
+				atomic_store(&ctx->want_shutdown, true);
 				UNLOCK(&ctx->readylock);
 				SIGNAL(&ctx->ready);
 			}
@@ -525,9 +529,9 @@ isc_app_ctxsuspend(isc_appctx_t *ctx0) {
 	if (want_kill) {
 		if (isc_bind9 && ctx != &isc_g_appctx)
 			/* BIND9 internal, but using multiple contexts */
-			ctx->want_reload = true;
+			atomic_store(&ctx->want_reload, true);
 		else {
-			ctx->want_reload = true;
+			atomic_store(&ctx->want_reload, true);
 			if (isc_bind9) {
 				/* BIND9 internal, single context */
 				if (kill(getpid(), SIGHUP) < 0) {
@@ -542,7 +546,7 @@ isc_app_ctxsuspend(isc_appctx_t *ctx0) {
 			else {
 				/* External, multiple contexts */
 				LOCK(&ctx->readylock);
-				ctx->want_reload = true;
+				atomic_store(&ctx->want_reload, true);
 				UNLOCK(&ctx->readylock);
 				SIGNAL(&ctx->ready);
 			}
@@ -575,9 +579,9 @@ void
 isc_app_block(void) {
 	sigset_t sset;
 	REQUIRE(isc_g_appctx.running);
-	REQUIRE(!isc_g_appctx.blocked);
+	REQUIRE(!atomic_load(&isc_g_appctx.blocked));
 
-	isc_g_appctx.blocked = true;
+	atomic_store(&isc_g_appctx.blocked, true);
 	blockedthread = pthread_self();
 	RUNTIME_CHECK(sigemptyset(&sset) == 0 &&
 		      sigaddset(&sset, SIGINT) == 0 &&
