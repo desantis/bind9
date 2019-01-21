@@ -83,9 +83,9 @@ print_lock(const char *operation, isc_rwlock_t *rwl, isc_rwlocktype_t type) {
 		"write_granted=%u, write_quota=%u\n",
 		rwl, isc_thread_self(), operation,
 		(type == isc_rwlocktype_read ? "read" : "write"),
-		atomic_load_explicit(&rwl->write_requests, memory_order_relaxed),
-		atomic_load_explicit(&rwl->write_completions, memory_order_relaxed),
-		atomic_load_explicit(&rwl->cnt_and_flag, memory_order_relaxed),
+		atomic_load_relaxed(&rwl->write_requests),
+		atomic_load_relaxed(&rwl->write_completions),
+		atomic_load_relaxed(&rwl->cnt_and_flag),
 		rwl->readers_waiting,
 		rwl->write_granted, rwl->write_quota);
 }
@@ -103,7 +103,7 @@ isc_rwlock_init(isc_rwlock_t *rwl, unsigned int read_quota,
 	 */
 	rwl->magic = 0;
 
-	rwl->spins = 0;
+	atomic_init(&rwl->spins, 0);
 	atomic_init(&rwl->write_requests, 0);
 	atomic_init(&rwl->write_completions, 0);
 	atomic_init(&rwl->cnt_and_flag, 0);
@@ -131,9 +131,9 @@ void
 isc_rwlock_destroy(isc_rwlock_t *rwl) {
 	REQUIRE(VALID_RWLOCK(rwl));
 
-	REQUIRE(atomic_load_explicit(&rwl->write_requests, memory_order_relaxed) ==
-		atomic_load_explicit(&rwl->write_completions, memory_order_relaxed) &&
-		atomic_load_explicit(&rwl->cnt_and_flag, memory_order_relaxed) == 0 && rwl->readers_waiting == 0);
+	REQUIRE(atomic_load_relaxed(&rwl->write_requests) ==
+		atomic_load_relaxed(&rwl->write_completions) &&
+		atomic_load_relaxed(&rwl->cnt_and_flag) == 0 && rwl->readers_waiting == 0);
 
 	rwl->magic = 0;
 	(void)isc_condition_destroy(&rwl->readable);
@@ -217,13 +217,13 @@ isc__rwlock_lock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
 #endif
 
 	if (type == isc_rwlocktype_read) {
-		if (atomic_load_explicit(&rwl->write_requests, memory_order_relaxed) !=
-		    atomic_load_explicit(&rwl->write_completions, memory_order_relaxed))
+		if (atomic_load_relaxed(&rwl->write_requests) !=
+		    atomic_load_relaxed(&rwl->write_completions))
 		{
 			/* there is a waiting or active writer */
 			LOCK(&rwl->lock);
-			if (atomic_load_explicit(&rwl->write_requests, memory_order_relaxed) !=
-			    atomic_load_explicit(&rwl->write_completions, memory_order_relaxed)) {
+			if (atomic_load_relaxed(&rwl->write_requests) !=
+			    atomic_load_relaxed(&rwl->write_completions)) {
 				rwl->readers_waiting++;
 				WAIT(&rwl->readable, &rwl->lock);
 				rwl->readers_waiting--;
@@ -236,13 +236,16 @@ isc__rwlock_lock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
 						    memory_order_relaxed);
 		POST(cntflag);
 		while (1) {
-			if ((atomic_load_explicit(&rwl->cnt_and_flag, memory_order_relaxed) & WRITER_ACTIVE) == 0)
+			if ((atomic_load_relaxed(&rwl->cnt_and_flag) &
+			     WRITER_ACTIVE) == 0) {
 				break;
+			}
 
 			/* A writer is still working */
 			LOCK(&rwl->lock);
 			rwl->readers_waiting++;
-			if ((atomic_load_explicit(&rwl->cnt_and_flag, memory_order_relaxed) & WRITER_ACTIVE) != 0) {
+			if ((atomic_load_relaxed(&rwl->cnt_and_flag)
+			     & WRITER_ACTIVE) != 0) {
 				WAIT(&rwl->readable, &rwl->lock);
 			}
 			rwl->readers_waiting--;
@@ -279,16 +282,18 @@ isc__rwlock_lock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
 		 * quota, reset the condition (race among readers doesn't
 		 * matter).
 		 */
-		rwl->write_granted = 0;
+		atomic_store_relaxed(&rwl->write_granted, 0);
 	} else {
 		int32_t prev_writer;
 
 		/* enter the waiting queue, and wait for our turn */
 		prev_writer = atomic_fetch_add_explicit(&rwl->write_requests, 1,
 							memory_order_relaxed);
-		while (atomic_load_explicit(&rwl->write_completions, memory_order_relaxed) != prev_writer) {
+		while (atomic_load_relaxed(&rwl->write_completions) != 
+					   prev_writer) {
 			LOCK(&rwl->lock);
-			if (atomic_load_explicit(&rwl->write_completions, memory_order_relaxed) != prev_writer) {
+			if (atomic_load_relaxed(&rwl->write_completions) !=
+			    prev_writer) {
 				WAIT(&rwl->writeable, &rwl->lock);
 				UNLOCK(&rwl->lock);
 				continue;
@@ -308,13 +313,14 @@ isc__rwlock_lock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
 
 			/* Another active reader or writer is working. */
 			LOCK(&rwl->lock);
-			if (atomic_load_explicit(&rwl->cnt_and_flag, memory_order_relaxed) != 0) {
+			if (atomic_load_relaxed(&rwl->cnt_and_flag) != 0) {
 				WAIT(&rwl->writeable, &rwl->lock);
 			}
 			UNLOCK(&rwl->lock);
 		}
 
-		INSIST((atomic_load_explicit(&rwl->cnt_and_flag, memory_order_relaxed) & WRITER_ACTIVE));
+		INSIST((atomic_load_relaxed(&rwl->cnt_and_flag) &
+			WRITER_ACTIVE));
 		rwl->write_granted++;
 	}
 
@@ -328,7 +334,8 @@ isc__rwlock_lock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
 isc_result_t
 isc_rwlock_lock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
 	int32_t cnt = 0;
-	int32_t max_cnt = rwl->spins * 2 + 10;
+	int32_t max_cnt = atomic_load_relaxed(&rwl->spins) * 2 + 10;
+	int32_t spins;
 	isc_result_t result = ISC_R_SUCCESS;
 
 	if (max_cnt > RWLOCK_MAX_ADAPTIVE_COUNT)
@@ -342,7 +349,9 @@ isc_rwlock_lock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
 		isc_rwlock_pause();
 	} while (isc_rwlock_trylock(rwl, type) != ISC_R_SUCCESS);
 
-	rwl->spins += (cnt - rwl->spins) / 8;
+	spins = atomic_load_relaxed(&rwl->spins);
+	spins += (cnt - spins) / 8;
+	atomic_store_relaxed(&rwl->spins, spins);
 
 	return (result);
 }
@@ -359,8 +368,8 @@ isc_rwlock_trylock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
 
 	if (type == isc_rwlocktype_read) {
 		/* If a writer is waiting or working, we fail. */
-		if (atomic_load_explicit(&rwl->write_requests, memory_order_relaxed) !=
-		    atomic_load_explicit(&rwl->write_completions, memory_order_relaxed))
+		if (atomic_load_relaxed(&rwl->write_requests) !=
+		    atomic_load_relaxed(&rwl->write_completions))
 			return (ISC_R_LOCKBUSY);
 
 		/* Otherwise, be ready for reading. */
@@ -380,8 +389,8 @@ isc_rwlock_trylock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
 			 * new writers in this short period, wake them up.
 			 */
 			if (cntflag == READER_INCR &&
-			    atomic_load_explicit(&rwl->write_completions, memory_order_relaxed) !=
-			    atomic_load_explicit(&rwl->write_requests, memory_order_relaxed)) {
+			    atomic_load_relaxed(&rwl->write_completions) !=
+			    atomic_load_relaxed(&rwl->write_requests)) {
 				LOCK(&rwl->lock);
 				BROADCAST(&rwl->writeable);
 				UNLOCK(&rwl->lock);
@@ -406,7 +415,8 @@ isc_rwlock_trylock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
 		atomic_fetch_sub_explicit(&rwl->write_completions, 1,
 					  memory_order_relaxed);
 
-		rwl->write_granted++;
+		atomic_fetch_add_explicit(&rwl->write_granted, 1,
+					  memory_order_relaxed);
 	}
 
 #ifdef ISC_RWLOCK_TRACE
@@ -497,8 +507,8 @@ isc_rwlock_unlock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
 		 * FIFO order.
 		 */
 		if (prev_cnt == READER_INCR &&
-		    atomic_load_explicit(&rwl->write_completions, memory_order_relaxed) !=
-		    atomic_load_explicit(&rwl->write_requests, memory_order_relaxed)) {
+		    atomic_load_relaxed(&rwl->write_completions) !=
+		    atomic_load_relaxed(&rwl->write_requests)) {
 			LOCK(&rwl->lock);
 			BROADCAST(&rwl->writeable);
 			UNLOCK(&rwl->lock);
@@ -516,9 +526,9 @@ isc_rwlock_unlock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
 					  memory_order_relaxed);
 
 		if (rwl->write_granted >= rwl->write_quota ||
-		    (atomic_load_explicit(&rwl->write_requests, memory_order_relaxed) ==
-		    atomic_load_explicit(&rwl->write_completions, memory_order_relaxed)) ||
-		    (atomic_load_explicit(&rwl->cnt_and_flag, memory_order_relaxed) & ~WRITER_ACTIVE)) {
+		    (atomic_load_relaxed(&rwl->write_requests) ==
+		    atomic_load_relaxed(&rwl->write_completions)) ||
+		    (atomic_load_relaxed(&rwl->cnt_and_flag) & ~WRITER_ACTIVE)) {
 			/*
 			 * We have passed the write quota, no writer is
 			 * waiting, or some readers are almost ready, pending
@@ -535,8 +545,8 @@ isc_rwlock_unlock(isc_rwlock_t *rwl, isc_rwlocktype_t type) {
 			UNLOCK(&rwl->lock);
 		}
 
-		if ((atomic_load_explicit(&rwl->write_requests, memory_order_relaxed) !=
-		     atomic_load_explicit(&rwl->write_completions, memory_order_relaxed)) &&
+		if ((atomic_load_relaxed(&rwl->write_requests) !=
+		     atomic_load_relaxed(&rwl->write_completions)) &&
 		    wakeup_writers) {
 			LOCK(&rwl->lock);
 			BROADCAST(&rwl->writeable);
