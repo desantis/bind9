@@ -710,14 +710,30 @@ watch_fd(isc__socketthread_t *thread, int fd, int msg) {
 	} else {
 		thread->epoll_events[fd] |= EPOLLOUT;
 	}
-	UNLOCK(&thread->fdlock[lockid]);
-
+#if __SANITIZE_THREAD__
+	isc__socket_t *sock = thread->fds[fd];
+#endif
 	event.events = thread->epoll_events[fd];
 	memset(&event.data, 0, sizeof(event.data));
 	event.data.fd = fd;
 
+	UNLOCK(&thread->fdlock[lockid]);
+
 	op = (oldevents == 0U) ? EPOLL_CTL_ADD : EPOLL_CTL_MOD;
+#if __SANITIZE_THREAD__
+	/*
+	 * This is to suppress TSAN warnings about epoll_ctl operating on
+	 * on an unlocked socket - lock it if it's lockable and not locked.
+	 */
+	bool unlock = (sock != NULL &&
+		       isc_mutex_trylock(&sock->lock) == ISC_R_SUCCESS);
+#endif
 	ret = epoll_ctl(thread->epoll_fd, op, fd, &event);
+#if __SANITIZE_THREAD__
+	if (unlock) {
+		UNLOCK(&sock->lock);
+	}
+#endif
 	if (ret == -1) {
 		if (errno == EEXIST) {
 			UNEXPECTED_ERROR(__FILE__, __LINE__,
@@ -803,10 +819,29 @@ unwatch_fd(isc__socketthread_t *thread, int fd, int msg) {
 	event.events = thread->epoll_events[fd];
 	memset(&event.data, 0, sizeof(event.data));
 	event.data.fd = fd;
+#if __SANITIZE_THREAD__
+	isc__socket_t *sock = thread->fds[fd];
+#endif
 	UNLOCK(&thread->fdlock[lockid]);
+
+#if __SANITIZE_THREAD__
+	/*
+	 * This is to suppress TSAN warnings about epoll_ctl operating on
+	 * on an unlocked socket - lock it if it's lockable and not locked.
+	 */
+	bool unlock = (sock != NULL &&
+		       isc_mutex_trylock(&sock->lock) == ISC_R_SUCCESS);
+#endif
 
 	op = (event.events == 0U) ? EPOLL_CTL_DEL : EPOLL_CTL_MOD;
 	ret = epoll_ctl(thread->epoll_fd, op, fd, &event);
+
+#if __SANITIZE_THREAD__
+	if (unlock) {
+		UNLOCK(&sock->lock);
+	}
+#endif
+
 	if (ret == -1 && errno != ENOENT) {
 		char strbuf[ISC_STRERRORSIZE];
 		strerror_r(errno, strbuf, sizeof(strbuf));
