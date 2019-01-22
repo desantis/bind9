@@ -10137,16 +10137,16 @@ prime_done(isc_task_t *task, isc_event_t *event) {
 
 	UNUSED(task);
 
+	LOCK(&res->primelock);
 	LOCK(&res->lock);
 
 	INSIST(res->priming);
 	res->priming = false;
-	LOCK(&res->primelock);
 	fetch = res->primefetch;
 	res->primefetch = NULL;
-	UNLOCK(&res->primelock);
 
 	UNLOCK(&res->lock);
+	UNLOCK(&res->primelock);
 
 	if (fevent->result == ISC_R_SUCCESS &&
 	    res->view->cache != NULL && res->view->hints != NULL) {
