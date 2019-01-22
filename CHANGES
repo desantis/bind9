@@ -1,3 +1,8 @@
+5140.	[cleanup]	Removed "configure --disable-rpz-nsip" and
+			"--disable-rpz-nsdname" options. "nsip-enable"
+			and "nsdname-enable" both now default to yes,
+			regardless of compile-time settings. [GL #824]
+
 5139.	[bug]		If possible, don't use forwarders when priming.
 			This ensures we can get root server IP addresses
 			from priming query response glue, which may not

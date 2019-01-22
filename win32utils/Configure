@@ -194,8 +194,6 @@ my %configdefh;
 my @substdefh = ("AES_CC",
                  "CONFIGARGS",
                  "DNS_RDATASET_FIXED",
-                 "ENABLE_RPZ_NSDNAME",
-                 "ENABLE_RPZ_NSIP",
                  "HAVE_GEOIP",
                  "HAVE_GEOIP_CITY_V6",
                  "HAVE_GEOIP_V6",
@@ -1269,19 +1267,9 @@ if ($enable_fixed_rrset eq "yes") {
     $configdefh{"DNS_RDATASET_FIXED"} = 1;
 }
 
-# enable-rpz-nsip
-if ($enable_rpz_nsip ne "no") {
-    $configdefh{"ENABLE_RPZ_NSIP"} = 1;
-}
-
 # enable-querytrace
 if ($enable_querytrace eq "yes") {
     $configdefh{"WANT_QUERYTRACE"} = 1;
-}
-
-# enable-rpz-nsdname
-if ($enable_rpz_nsdname ne "no") {
-    $configdefh{"ENABLE_RPZ_NSDNAME"} = 1;
 }
 
 # with-tests
