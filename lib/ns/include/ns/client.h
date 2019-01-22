@@ -204,7 +204,7 @@ typedef ISC_LIST(ns_client_t) client_list_t;
  */
 #define NS_FAILCACHE_CD		0x01
 
-LIBNS_EXTERNAL_DATA extern unsigned int ns_client_requests;
+LIBNS_EXTERNAL_DATA extern atomic_uint_fast32_t ns_client_requests;
 
 /***
  *** Functions

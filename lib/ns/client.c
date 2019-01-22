@@ -227,7 +227,7 @@ struct ns_clientmgr {
 #define NS_CLIENT_DROPPORT 1
 #endif
 
-LIBNS_EXTERNAL_DATA unsigned int ns_client_requests;
+LIBNS_EXTERNAL_DATA atomic_uint_fast32_t ns_client_requests;
 
 static void read_settimeout(ns_client_t *client, bool newconn);
 static void client_read(ns_client_t *client, bool newconn);
@@ -2251,7 +2251,7 @@ ns__client_request(isc_task_t *task, isc_event_t *event) {
 				       NS_CLIENTSTATE_READING :
 				       NS_CLIENTSTATE_READY));
 
-	ns_client_requests++;
+	atomic_fetch_add_relaxed(&ns_client_requests, 1);
 
 	if (event->ev_type == ISC_SOCKEVENT_RECVDONE) {
 		INSIST(!TCP_CLIENT(client));
