@@ -75,7 +75,7 @@ static isccc_region_t secret;
 static bool failed = false;
 static bool c_flag = false;
 static isc_mem_t *rndc_mctx;
-static int sends, recvs, connects;
+static atomic_uint_fast32_t sends, recvs, connects;
 static char *command;
 static char *args;
 static char program[256];
@@ -273,11 +273,11 @@ rndc_senddone(isc_task_t *task, isc_event_t *event) {
 
 	UNUSED(task);
 
-	sends--;
+	atomic_fetch_sub(&sends, 1);
 	if (sevent->result != ISC_R_SUCCESS)
 		fatal("send failed: %s", isc_result_totext(sevent->result));
 	isc_event_free(&event);
-	if (sends == 0 && recvs == 0) {
+	if (atomic_load(&sends) == 0 && atomic_load(&recvs) == 0) {
 		isc_socket_detach(&sock);
 		isc_task_shutdown(task);
 		RUNTIME_CHECK(isc_app_shutdown() == ISC_R_SUCCESS);
@@ -346,7 +346,7 @@ rndc_recvdone(isc_task_t *task, isc_event_t *event) {
 
 	isc_event_free(&event);
 	isccc_sexpr_free(&response);
-	if (sends == 0 && recvs == 0) {
+	if (atomic_load(&sends) == 0 && atomic_load(&recvs) == 0) {
 		isc_socket_detach(&sock);
 		isc_task_shutdown(task);
 		RUNTIME_CHECK(isc_app_shutdown() == ISC_R_SUCCESS);
@@ -430,7 +430,7 @@ rndc_recvnonce(isc_task_t *task, isc_event_t *event) {
 	recvs++;
 	DO("send message", isc_socket_send(sock, &r, task, rndc_senddone,
 					   NULL));
-	sends++;
+	atomic_fetch_add(&sends, 1);
 
 	isc_event_free(&event);
 	isccc_sexpr_free(&response);
@@ -498,7 +498,7 @@ rndc_connected(isc_task_t *task, isc_event_t *event) {
 	recvs++;
 	DO("send message", isc_socket_send(sock, &r, task, rndc_senddone,
 					   NULL));
-	sends++;
+	atomic_fetch_add(&sends, 1);
 	isc_event_free(&event);
 	isccc_sexpr_free(&request);
 }
@@ -999,8 +999,10 @@ main(int argc, char **argv) {
 	if (result != ISC_R_SUCCESS)
 		fatal("isc_app_run() failed: %s", isc_result_totext(result));
 
-	if (connects > 0 || sends > 0 || recvs > 0)
+	if (atomic_load(&connects) > 0 || atomic_load(&sends) > 0 ||
+	    atomic_load(&recvs) > 0) {
 		isc_socket_cancel(sock, task, ISC_SOCKCANCEL_ALL);
+	}
 
 	isc_task_detach(&task);
 	isc_taskmgr_destroy(&taskmgr);
