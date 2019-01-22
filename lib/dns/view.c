@@ -2432,20 +2432,24 @@ dns_view_loadnta(dns_view_t *view) {
 void
 dns_view_setviewcommit(dns_view_t *view) {
 	REQUIRE(DNS_VIEW_VALID(view));
+	dns_zone_t *redirect, *managed_keys;
+	dns_zt_t *zonetable;
 
 	LOCK(&view->lock);
-
-	if (view->redirect != NULL) {
-		dns_zone_setviewcommit(view->redirect);
-	}
-	if (view->managed_keys != NULL) {
-		dns_zone_setviewcommit(view->managed_keys);
-	}
-	if (view->zonetable != NULL) {
-		dns_zt_setviewcommit(view->zonetable);
-	}
-
+	redirect = view->redirect;
+	managed_keys = view->managed_keys;
+	zonetable = view->zonetable;
 	UNLOCK(&view->lock);
+
+	if (redirect != NULL) {
+		dns_zone_setviewcommit(redirect);
+	}
+	if (managed_keys != NULL) {
+		dns_zone_setviewcommit(managed_keys);
+	}
+	if (zonetable != NULL) {
+		dns_zt_setviewcommit(zonetable);
+	}
 }
 
 void
