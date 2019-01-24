@@ -358,9 +358,7 @@ my @enablelist = ("developer",
                   "isc-spnego",
                   "native-pkcs11",
                   "openssl-hash",
-                  "querytrace",
-                  "rpz-nsdname",
-                  "rpz-nsip");
+                  "querytrace");
 
 # with-xxx/without-xxx
 
@@ -417,8 +415,6 @@ my @help = (
 "  enable-fixed-rrset    enable fixed rrset ordering [default=no]\n",
 "  enable-developer      enable developer build settings [default=no]\n",
 "  enable-querytrace     enable very verbose query trace [default=no]\n",
-"  enable-rpz-nsip       enable rpz-nsip rules [default=yes]\n",
-"  enable-rpz-nsdname    enable rpz-nsdname rules [default=yes]\n",
 "\nOptional Packages:\n",
 "  with-tests            build with test suite\n",
 "  with-extra-tests      build with extra test suite\n",
@@ -675,14 +671,6 @@ sub myenable {
         if ($val =~ /^yes$/i) {
             $enable_querytrace = "yes";
         }
-    } elsif ($key =~ /^rpz-nsip$/i) {
-        if ($val =~ /^no$/i) {
-            $enable_rpz_nsip = "no";
-        }
-    } elsif ($key =~ /^rpz-nsdname$/i) {
-        if ($val =~ /^no$/i) {
-            $enable_rpz_nsdname = "no";
-        }
     } elsif ($key =~ /^auto-validation$/i) {
 	if ($val =~ /^no$/i) {
 	    $validation_default = "yes";
@@ -937,16 +925,6 @@ if ($verbose) {
         print "querytrace: enabled\n";
     } else {
         print "querytrace: disabled\n";
-    }
-    if ($enable_rpz_nsip eq "yes") {
-        print "rpz-nsip: enabled\n";
-    } else {
-        print "rpz-nsip: disabled\n";
-    }
-    if ($enable_rpz_nsdname eq "yes") {
-        print "rpz-nsdname: enabled\n";
-    } else {
-        print "rpz-nsdname: disabled\n";
     }
     print "cookie algorithm: $cookie_algorithm\n";
     print "openssl-path: $openssl_path\n";
@@ -2953,8 +2931,6 @@ exit 0;
 #  --enable-isc-spnego supported (part of GSSAPI)
 #  --enable-fixed-rrset supported
 #  --enable-querytrace supported
-#  --disable-rpz-nsip supported
-#  --disable-rpz-nsdname supported
 #  --enable-full-report supported by verbose
 #  --enable-dnstap not supported (requires libfstrm support on WIN32)
 #  --enable-afl not supported (not yet available on Visual Studio C++)
