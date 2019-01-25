@@ -705,7 +705,17 @@ case $use_libtool in
 esac
 AC_SUBST(INSTALL_LIBRARY)
 
-AC_CHECK_FUNCS([pthread_rwlock_rdlock])
+#
+# Do we want to use pthread rwlock? (useful for ThreadSanitizer)
+#
+AC_ARG_ENABLE(pthread_rwlock,
+	      AS_HELP_STRING([--enable-pthread-rwlock],
+			     [use pthread rwlock instead of internal rwlock implementation]),
+	      use_pthread_rwlock=$enableval, use_pthread_rwlock=no)
+
+if test "x$use_pthread_rwlock" != "xno"; then
+	AC_CHECK_FUNCS([pthread_rwlock_rdlock])
+fi
 
 CRYPTO=OpenSSL
 
