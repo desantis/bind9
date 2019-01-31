@@ -23,6 +23,9 @@ TOP=${SYSTEMTESTTOP:=.}/../../..
 # Make it absolute so that it continues to work after we cd.
 TOP=`cd $TOP && pwd`
 
+# Load common values shared by both windows and unix/linux.
+. $TOP/bin/tests/system/conf.sh.common
+
 # Visual Studio build configurations are Release and Debug
 VSCONF=Debug
 
@@ -88,47 +91,18 @@ PIPEQUERIES=$TOP/Build/$VSCONF/pipequeries@EXEEXT@
 # we don't want a KRB5_CONFIG setting breaking the tests
 KRB5_CONFIG=NUL
 
-# The "stress" test is not run by default since it creates enough
-# load on the machine to make it unusable to other users.
-# The "dialup", "delzone", and "dupsigs" tests are also not run by
-# default because they take a very long time to complete.
 #
-# List of tests that use ports 5300 and 9953.  For this reason, these must
-# be run sequentially.
-SEQUENTIALDIRS="ecdsa eddsa @PKCS11_TEST@ tkey"
+# Construct the lists of tests to run
+#
+SEQUENTIAL_WINDOWS=""
+SEQUENTIALDIRS="$SEQUENTIAL_COMMON $SEQUENTIAL_WINDOWS"
 
-# List of tests that use unique ports (other than 5300 and 9953). These
-# tests can be run in parallel.
-#
-# Note: some of the longer-running tests such as serve-stale and
-# rpzrecurse are scheduled first, in order to get more benefit from
-# parallelism.
-#
-# XXX: removed logfileconfig as it doesn't currently work on windows.
-PARALLELDIRS="dnssec rpzrecurse serve-stale \
-        acl additional addzone allow-query auth autosign \
-	builtin cacheclean case catz cds chain \
-	checkconf checknames checkzone \
-	@CHECKDS@ @COVERAGE@ @KEYMGR@ \
-	cookie database digdelv dlv dlz dlzexternal \
-	dns64 @DNSTAP@ dscp dsdigest dyndb \
-	ednscompliance emptyzones \
-	fetchlimit filter-aaaa formerr forward \
-	geoip glue idna inline integrity ixfr keepalive \
-	legacy limits masterfile masterformat metadata mirror mkeys \
-	names notify nslookup nsupdate nzd2nzf \
-	padding pending pipelined qmin \
-	reclimit redirect resolver rndc rootkeysentinel rpz \
-	rrchecker rrl rrsetorder rsabigexponent runtime \
-	sfcache smartsign sortlist \
-	spf staticstub statistics statschannel stub synthfromdnssec \
-	tcp tools tsig tsiggss ttl \
-	unknown upforwd verify views wildcard \
-	xfer xferquota zero zonechecks"
+PARALLEL_WINDOWS="@CHECKDS@ @COVERAGE@ @DNSTAP@ @KEYMGR@"
+PARALLELDIRS="$PARALLEL_COMMON $PARALLEL_WINDOWS"
 
 SUBDIRS="$SEQUENTIALDIRS $PARALLELDIRS"
 
-#Things that are different on Windows
+# Things that are different on Windows
 KILL="/bin/kill -f"
 DIFF="diff --strip-trailing-cr"
 DOS2UNIX=dos2unix
@@ -194,6 +168,3 @@ copy_setports() {
 	-e "s/${atsign}ALTERNATIVE_BITS${atsign}/${ALTERNATIVE_BITS}/g" \
 	$1 > $2
 }
-
-# The rest is shared between Windows and Unices
-. $TOP/bin/tests/system/conf.sh.common
