@@ -100,8 +100,8 @@ $RNDCCMD 10.53.0.1 dumpdb > rndc.out.test$n 2>&1 || ret=1
 awk '/; stale/ { x=$0; getline; print x, $0}' ns1/named_dump1.db |
     grep "; stale (will be retained for 35.. more seconds) data\.example.*A text record with a 1 second ttl" > /dev/null 2>&1 || ret=1
 # Also make sure the not expired data does not have a stale comment.
-awk '/; answer/ { x=$0; getline; print x, $0}' ns1/named_dump1.db |
-    grep "; answer longttl\.example.*A text record with a 600 second ttl" > /dev/null 2>&1 || ret=1
+awk '/; authanswer/ { x=$0; getline; print x, $0}' ns1/named_dump1.db |
+    grep "; authanswer longttl\.example.*A text record with a 600 second ttl" > /dev/null 2>&1 || ret=1
 if [ $ret != 0 ]; then echo_i "failed"; fi
 status=`expr $status + $ret`
 
