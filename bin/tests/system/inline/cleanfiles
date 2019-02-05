@@ -1,0 +1,4 @@
+./checkecdsa
+./freeze.test*
+./thaw.test*
+./import.key

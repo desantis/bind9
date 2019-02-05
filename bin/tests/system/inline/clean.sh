@@ -1,3 +1,5 @@
+#!/bin/sh
+#
 # Copyright (C) Internet Systems Consortium, Inc. ("ISC")
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
@@ -7,17 +9,15 @@
 # See the COPYRIGHT file distributed with this work for additional
 # information regarding copyright ownership.
 
-rm -rf ./*/*.jbk \
+rm -rf \
+   ./*/*.jbk \
    ./*/*.nzd ./*/*.nzd-lock ./*/*.nzf \
    ./*/named.conf ./*/named.memstats ./*/named.run* ./*/named.lock \
    ./*/trusted.conf \
-   ./K* ./*/K* \
-   ./checkecdsa \
-   ./freeze.test* thaw.test* \
-   ./import.key \
-   ././ns*/managed-keys.bind* ./ns*/*.mkeys* \
+   ./K*.key ./K*.private ./*/K*.key ./*/K*.private \
+   ./*/managed-keys.bind* ./*/*.mkeys* \
    ./*/dsset-* ./*/nzf-* \
    ./*/*.db ./*/*.db.signed ./*/*.db.jnl ./*/*.db.signed.jnl \
    ./*.out ./*.out* ./*/*.out ./*/*.out* \
    ./*/*.bk ./*/*.bk.jnl ./*/*.bk.signed ./*/*.bk.signed.jnl \
-   ns3/a-file ns3/removedkeys
+   $(cat ./cleanfiles) $(cat ./*/cleanfiles)
