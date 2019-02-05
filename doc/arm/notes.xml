@@ -660,6 +660,15 @@
 	  <command>named</command> to abort when loading zones. [GL #339]
 	</para>
       </listitem>
+      <listitem>
+	<para>
+	  When configured from source, the <command>./configure</command> no
+	  longer overrides <command>--sysconfdir</command> and
+	  <command>--localstatedir</command> and the defaults are now used:
+	  <command>&lt;prefix&gt;/etc</command> for <command>--sysconfdir</command>
+	  and <command>&lt;prefix&gt;/var</command> for <command>--localstatedir</command>.
+	</para>
+      </listitem>
     </itemizedlist>
   </section>
 

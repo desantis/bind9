@@ -93,7 +93,7 @@
           <para>
             Do automatic <command>rndc</command> configuration.
             This creates a file <filename>rndc.key</filename>
-            in <filename>/etc</filename> (or whatever
+            in <filename>/usr/local/etc</filename> (or whatever
             <varname>sysconfdir</varname>
             was specified as when <acronym>BIND</acronym> was
             built)

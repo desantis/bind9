@@ -1110,12 +1110,12 @@ zone "eng.example.com" {
 		  there is no way to provide that secret other than with a
 		  configuration file.  The default location for the
 		  <command>rndc</command> configuration file is
-		  <filename>/etc/rndc.conf</filename>, but an
+		  <filename>/usr/local/etc/rndc.conf</filename>, but an
 		  alternate
 		  location can be specified with the <option>-c</option>
 		  option.  If the configuration file is not found,
 		  <command>rndc</command> will also look in
-		  <filename>/etc/rndc.key</filename> (or whatever
+		  <filename>/usr/local/etc/rndc.key</filename> (or whatever
 		  <varname>sysconfdir</varname> was defined when
 		  the <acronym>BIND</acronym> build was
 		  configured).
@@ -1222,7 +1222,7 @@ options {
 </programlisting>
 
 		<para>
-		  This file, if installed as <filename>/etc/rndc.conf</filename>,
+		  This file, if installed as <filename>/usr/local/etc/rndc.conf</filename>,
 		  would allow the command:
 		</para>
 
@@ -3436,7 +3436,7 @@ $ORIGIN 0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa.
 	  is present but does not have a <command>keys</command> clause,
 	  <command>named</command> will attempt to load the command channel key
 	  from the file <filename>rndc.key</filename> in
-	  <filename>/etc</filename> (or whatever <varname>sysconfdir</varname>
+	  <filename>/usr/local/etc</filename> (or whatever <varname>sysconfdir</varname>
 	  was specified as when <acronym>BIND</acronym> was built).
 	  To create a <filename>rndc.key</filename> file, run
 	  <userinput>rndc-confgen -a</userinput>.
@@ -4854,7 +4854,7 @@ badresp:1,adberr:0,findfail:0,valfail:0]
 		keys provided by <command>named</command>.
 		See the discussion of <command>dnssec-validation</command>
 		for details.  If not specified, the default is
-		<filename>/etc/bind.keys</filename>.
+		<filename>/usr/local/etc/bind.keys</filename>.
 	      </para>
 	    </listitem>
 	  </varlistentry>
