@@ -13,23 +13,21 @@
 # Clean up after system tests.
 #
 
-SYSTEMTESTTOP=.
-. $SYSTEMTESTTOP/conf.sh
-
+# shellcheck source=conf.sh
+SYSTEMTESTTOP="$(cd -P -- "$(dirname -- "$0")" && pwd -P)"
+. "$SYSTEMTESTTOP/conf.sh"
 
 find . -type f \( \
     -name '*~' -o -name 'core' -o -name '*.core' \
     -o -name '*.log' -o -name '*.pid' -o -name '*.keyset' \
     -o -name named.run -o -name ans.run \
-    -o -name '*-valgrind-*.log' \) -print | xargs rm -f
+    -o -name '*-valgrind-*.log' \) -print -delete
 
-status=0
-
-rm -f $SYSTEMTESTTOP/random.data
+rm -f "$SYSTEMTESTTOP/random.data"
 
 for d in $SUBDIRS
 do
-   test ! -f $d/clean.sh || ( cd $d && $SHELL clean.sh )
-   test -f $d/test.output && rm $d/test.output
-   test -d $d && find $d -type d -exec rmdir '{}' \; 2> /dev/null
+    test -f "$d/clean.sh" && ( cd "$d" && $SHELL clean.sh )
+    rm -f "$d/test.output"
+    test -d "$d" && find "$d" -type d -exec rmdir '{}' \; 2> /dev/null
 done

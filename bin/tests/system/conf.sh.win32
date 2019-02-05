@@ -21,7 +21,7 @@ CYGWIN=1
 TOP=${SYSTEMTESTTOP:=.}/../../..
 
 # Make it absolute so that it continues to work after we cd.
-TOP=`cd $TOP && pwd`
+TOP="$(cd -P -- "$TOP" && pwd -P)"
 
 # Visual Studio build configurations are Release and Debug
 VSCONF=Debug
@@ -39,9 +39,9 @@ ALTERNATIVE_BITS=1280
 ARPANAME=$TOP/Build/$VSCONF/arpaname@EXEEXT@
 CDS=$TOP/Build/$VSCONF/dnssec-cds@EXEEXT@
 CHECKCONF=$TOP/Build/$VSCONF/named-checkconf@EXEEXT@
-CHECKDS="$PYTHON `cygpath -w $TOP/bin/python/dnssec-checkds.py`"
+CHECKDS="$PYTHON $(cygpath -w "$TOP/bin/python/dnssec-checkds.py")"
 CHECKZONE=$TOP/Build/$VSCONF/named-checkzone@EXEEXT@
-COVERAGE="$PYTHON `cygpath -w $TOP/bin/python/dnssec-coverage.py`"
+COVERAGE="$PYTHON $(cygpath -w "$TOP/bin/python/dnssec-coverage.py")"
 DDNSCONFGEN=$TOP/Build/$VSCONF/ddns-confgen@EXEEXT@
 DELV=$TOP/Build/$VSCONF/delv@EXEEXT@
 DIG=$TOP/Build/$VSCONF/dig@EXEEXT@
@@ -53,7 +53,7 @@ IMPORTKEY=$TOP/Build/$VSCONF/dnssec-importkey@EXEEXT@
 JOURNALPRINT=$TOP/Build/$VSCONF/named-journalprint@EXEEXT@
 KEYFRLAB=$TOP/Build/$VSCONF/dnssec-keyfromlabel@EXEEXT@
 KEYGEN=$TOP/Build/$VSCONF/dnssec-keygen@EXEEXT@
-KEYMGR="$PYTHON `cygpath -w $TOP/bin/python/dnssec-keymgr.py`"
+KEYMGR="$PYTHON $(cygpath -w "$TOP/bin/python/dnssec-keymgr.py")"
 MDIG=$TOP/Build/$VSCONF/mdig@EXEEXT@
 NAMED=$TOP/Build/$VSCONF/named@EXEEXT@
 NSEC3HASH=$TOP/Build/$VSCONF/nsec3hash@EXEEXT@
@@ -192,8 +192,9 @@ copy_setports() {
 	-e "s/${atsign}ALTERNATIVE_ALGORITHM${atsign}/${ALTERNATIVE_ALGORITHM}/g" \
 	-e "s/${atsign}ALTERNATIVE_ALGORITHM_NUMBER${atsign}/${ALTERNATIVE_ALGORITHM_NUMBER}/g" \
 	-e "s/${atsign}ALTERNATIVE_BITS${atsign}/${ALTERNATIVE_BITS}/g" \
-	$1 > $2
+	"$1" > "$2"
 }
 
 # The rest is shared between Windows and Unices
-. $TOP/bin/tests/system/conf.sh.common
+# shellcheck source=conf.sh.common
+. "$TOP/bin/tests/system/conf.sh.common"

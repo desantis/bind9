@@ -23,19 +23,20 @@ fi
 
 TESTSOCK6="$TESTSOCK6"
 
-. ${TOP}/version
+# shellcheck source=../../../version
+. "${TOP}/version"
 
 #
 # Set up color-coded test output
 #
-if [ ${SYSTEMTEST_FORCE_COLOR:-0} -eq 1 ] || test -t 1 && type tput > /dev/null 2>&1 && tput setaf 7 > /dev/null 2>&1 ; then
-    COLOR_END=`tput setaf 4`    # blue
-    COLOR_FAIL=`tput setaf 1`   # red
-    COLOR_INFO=`tput bold`      # bold
-    COLOR_NONE=`tput sgr0`
-    COLOR_PASS=`tput setaf 2`   # green
-    COLOR_START=`tput setaf 4`  # blue
-    COLOR_WARN=`tput setaf 3`   # yellow
+if [ "${SYSTEMTEST_FORCE_COLOR:-0}" -eq 1 ] || test -t 1 && type tput > /dev/null 2>&1 && tput setaf 7 > /dev/null 2>&1 ; then
+    COLOR_END=$(tput setaf 4)    # blue
+    COLOR_FAIL=$(tput setaf 1)   # red
+    COLOR_INFO=$(tput bold)      # bold
+    COLOR_NONE=$(tput sgr0)
+    COLOR_PASS=$(tput setaf 2)   # green
+    COLOR_START=$(tput setaf 4)  # blue
+    COLOR_WARN=$(tput setaf 3)   # yellow
 else
     # set to empty strings so printf succeeds
     COLOR_END=''
@@ -88,40 +89,40 @@ else
 	}
 fi
 
-SYSTESTDIR="`basename $PWD`"
+SYSTESTDIR=$(basename "$PWD")
 
 echo_i() {
-    echo "$@" | while read __LINE ; do
+    echo "$@" | while read -r __LINE ; do
        echoinfo "I:$SYSTESTDIR:$__LINE"
     done
 }
 
 echo_ic() {
-    echo "$@" | while read __LINE ; do
+    echo "$@" | while read -r __LINE ; do
        echoinfo "I:$SYSTESTDIR:  $__LINE"
     done
 }
 
 cat_i() {
-    while read __LINE ; do
+    while read -r __LINE ; do
        echoinfo "I:$SYSTESTDIR:$__LINE"
     done
 }
 
 echo_d() {
-    echo "$@" | while read __LINE ; do
+    echo "$@" | while read -r __LINE ; do
        echoinfo "D:$SYSTESTDIR:$__LINE"
     done
 }
 
 cat_d() {
-    while read __LINE ; do
+    while read -r __LINE ; do
        echoinfo "D:$SYSTESTDIR:$__LINE"
     done
 }
 
 digcomp() {
-    output=`$PERL $SYSTEMTESTTOP/digcomp.pl "$@"`
+    output=$($PERL "$SYSTEMTESTTOP/digcomp.pl" "$@")
     result=$?
     [ -n "$output" ] &&  { echo "digcomp failed:"; echo "$output"; } | cat_i
     return $result
@@ -140,14 +141,14 @@ keyfile_to_keys_section() {
     shift
     shift
     echo "$section_name {"
-    for keyname in $*; do
+    for keyname in "$@"; do
         awk '!/^; /{
             printf "\t\""$1"\" "
             printf "'"$key_prefix"'"
             printf $4 " " $5 " " $6 " \""
             for (i=7; i<=NF; i++) printf $i
             printf "\";\n"
-        }' $keyname.key
+        }' "$keyname.key"
     done
     echo "};"
 }
@@ -156,14 +157,14 @@ keyfile_to_keys_section() {
 # provided to a "trusted-keys" section suitable for including in a
 # resolver's configuration file
 keyfile_to_trusted_keys() {
-    keyfile_to_keys_section "trusted-keys" "" $*
+    keyfile_to_keys_section "trusted-keys" "" "$@"
 }
 
 # keyfile_to_managed_keys: convert key data contained in the keyfile(s)
 # provided to a "managed-keys" section suitable for including in a
 # resolver's configuration file
 keyfile_to_managed_keys() {
-    keyfile_to_keys_section "managed-keys" "initial-key " $*
+    keyfile_to_keys_section "managed-keys" "initial-key " "$@"
 }
 
 # nextpart*() - functions for reading files incrementally
@@ -214,59 +215,61 @@ keyfile_to_managed_keys() {
 # nextpartreset: reset the marker used by nextpart() and nextpartpeek()
 # so that it points to the start of the given file
 nextpartreset() {
-    echo "0" > $1.prev
+    echo "0" > "$1.prev"
 }
 
 # nextpartread: read everything that's been appended to a file since the
 # last time nextpart() was called and print it to stdout, print the
 # total number of lines read from that file so far to stderr
 nextpartread() {
-    [ -f $1.prev ] || nextpartreset $1
-    prev=`cat $1.prev`
+    [ -f "$1.prev" ] || nextpartreset "$1"
+    prev=$(cat "$1.prev")
     awk "NR > $prev "'{ print }
-         END          { print NR > "/dev/stderr" }' $1
+         END          { print NR > "/dev/stderr" }' "$1"
 }
 
 # nextpart: read everything that's been appended to a file since the
 # last time nextpart() was called
 nextpart() {
-	nextpartread $1 2> $1.prev.tmp
-	mv $1.prev.tmp $1.prev
+	nextpartread "$1" 2> "$1.prev.tmp"
+	mv "$1.prev.tmp" "$1.prev"
 }
 
 # nextpartpeek: read everything that's been appended to a file since the
 # last time nextpart() was called
 nextpartpeek() {
-	nextpartread $1 2> /dev/null
+	nextpartread "$1" 2> /dev/null
+}
+
+rndc_wait_for_reload() {
+    # shellcheck disable=SC2034
+    for tries in $(seq 0 10); do
+	$RNDC -c ../common/rndc.conf -s "$2" -p "${CONTROLPORT}" status | grep "reload/reconfig in progress" > /dev/null || break
+	sleep 1
+    done
 }
 
 rndc_reload() {
-    echo_i "`$RNDC -c ../common/rndc.conf -s $2 -p ${CONTROLPORT} reload $3 2>&1 | sed 's/^/'$1' /'`"
+    echo_i "$($RNDC -c ../common/rndc.conf -s "$2" -p "${CONTROLPORT}" reload "$3" 2>&1 | sed "s/^/$1 /")"
     # reloading single zone is synchronous, if we're reloading whole server
     # we need to wait for reload to finish
     if [ -z "$3" ]; then
-	for __try in 0 1 2 3 4 5 6 7 8 9; do
-	    $RNDC -c ../common/rndc.conf -s $2 -p ${CONTROLPORT} status | grep "reload/reconfig in progress" > /dev/null || break; 
-	    sleep 1
-	done
+	rndc_wait_for_reload "$@"
     fi
 }
 
 rndc_reconfig() {
-    echo_i "`$RNDC -c ../common/rndc.conf -s $2 -p ${CONTROLPORT} reconfig 2>&1 | sed 's/^/'$1' /'`"
-    for __try in 0 1 2 3 4 5 6 7 8 9; do
-        $RNDC -c ../common/rndc.conf -s $2 -p ${CONTROLPORT} status | grep "reload/reconfig in progress" > /dev/null || break; 
-	sleep 1
-    done
+    echo_i "$($RNDC -c ../common/rndc.conf -s "$2" -p "${CONTROLPORT}" reconfig 2>&1 | sed "s/^/$1 /")"
+    rndc_wait_for_reload
 }
 
 # get_dig_xfer_stats: extract transfer statistics from dig output stored
 # in $1, converting them to a format used by some system tests.
 get_dig_xfer_stats() {
 	LOGFILE="$1"
-	echo "messages=`sed -n "s/^;; XFR size: .*messages \([0-9][0-9]*\).*/\1/p" "${LOGFILE}"`"
-	echo "records=`sed -n "s/^;; XFR size: \([0-9][0-9]*\) records.*/\1/p" "${LOGFILE}"`"
-	echo "bytes=`sed -n "s/^;; XFR size: .*bytes \([0-9][0-9]*\).*/\1/p" "${LOGFILE}"`"
+	echo "messages=$(sed -n "s/^;; XFR size: .*messages \([0-9][0-9]*\).*/\1/p" "${LOGFILE}")"
+	echo "records=$(sed -n "s/^;; XFR size: \([0-9][0-9]*\) records.*/\1/p" "${LOGFILE}")"
+	echo "bytes=$(sed -n "s/^;; XFR size: .*bytes \([0-9][0-9]*\).*/\1/p" "${LOGFILE}")"
 }
 
 # get_named_xfer_stats: from named log file $1, extract transfer
@@ -276,9 +279,9 @@ get_named_xfer_stats() {
 	LOGFILE="$1"
 	PEER="$2"
 	ZONE="$3"
-	echo "messages=`grep "${PEER}" "${LOGFILE}" | sed -n "s/.*${ZONE}.* \([0-9][0-9]*\) messages.*/\1/p" | tail -1`"
-	echo "records=`grep "${PEER}" "${LOGFILE}" | sed -n "s/.*${ZONE}.* \([0-9][0-9]*\) records.*/\1/p" | tail -1`"
-	echo "bytes=`grep "${PEER}" "${LOGFILE}" | sed -n "s/.*${ZONE}.* \([0-9][0-9]*\) bytes.*/\1/p" | tail -1`"
+	echo "messages=$(grep "${PEER}" "${LOGFILE}" | sed -n "s/.*${ZONE}.* \([0-9][0-9]*\) messages.*/\1/p" | tail -1)"
+	echo "records=$(grep "${PEER}" "${LOGFILE}" | sed -n "s/.*${ZONE}.* \([0-9][0-9]*\) records.*/\1/p" | tail -1)"
+	echo "bytes=$(grep "${PEER}" "${LOGFILE}" | sed -n "s/.*${ZONE}.* \([0-9][0-9]*\) bytes.*/\1/p" | tail -1)"
 }
 
 #

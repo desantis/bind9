@@ -115,8 +115,8 @@ SUBDIRS="$SEQUENTIALDIRS $PARALLELDIRS"
 
 
 # Things that are different on Windows
-KILL=kill
-DIFF=diff
+KILL="kill"
+DIFF="diff"
 DOS2UNIX=true
 # There's no trailing period on Windows
 TP=.
@@ -174,8 +174,9 @@ copy_setports() {
 	-e "s/@ALTERNATIVE_ALGORITHM@/${ALTERNATIVE_ALGORITHM}/g" \
 	-e "s/@ALTERNATIVE_ALGORITHM_NUMBER@/${ALTERNATIVE_ALGORITHM_NUMBER}/g" \
 	-e "s/@ALTERNATIVE_BITS@/${ALTERNATIVE_BITS}/g" \
-	$1 > $2
+	"$1" > "$2"
 }
 
 # The rest is shared between Windows and Unices
-. $TOP/bin/tests/system/conf.sh.common
+# shellcheck source=conf.sh.common
+. "$TOP/bin/tests/system/conf.sh.common"
