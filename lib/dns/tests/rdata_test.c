@@ -158,10 +158,11 @@ static void
 check_text_ok_single(const text_ok_t *text_ok, dns_rdataclass_t rdclass,
 		     dns_rdatatype_t type, size_t structsize)
 {
+	dns_decompress_t dctx;
 	dns_rdata_t rdata = DNS_RDATA_INIT;
 	unsigned char buf_fromtext[1024];
 	char buf_totext[1024] = { 0 };
-	isc_buffer_t target;
+	isc_buffer_t target, source;
 	isc_result_t result;
 
 	/*
@@ -186,6 +187,7 @@ check_text_ok_single(const text_ok_t *text_ok, dns_rdataclass_t rdclass,
 	if (result != ISC_R_SUCCESS) {
 		return;
 	}
+
 	/*
 	 * Try converting uncompressed wire form RDATA back into text form and
 	 * check whether the resulting text is the same as the original one.
@@ -200,6 +202,22 @@ check_text_ok_single(const text_ok_t *text_ok, dns_rdataclass_t rdclass,
 	 * type-specific struct.
 	 */
 	check_struct_conversions(&rdata, structsize);
+
+	/*
+	 * Check that fromtext output is valid input into towire().
+	 */
+	isc_buffer_init(&source, rdata.data, rdata.length);
+	isc_buffer_add(&source, rdata.length);
+	isc_buffer_setactive(&source, rdata.length);
+
+	isc_buffer_init(&target, buf_totext, sizeof(buf_totext));
+	dns_decompress_init(&dctx, -1, DNS_DECOMPRESS_ANY);
+	result = dns_rdata_fromwire(NULL, rdclass, type, &source, &dctx, 0,
+				    &target);
+	dns_decompress_invalidate(&dctx);
+	assert_int_equal(result, ISC_R_SUCCESS);
+	assert_int_equal(rdata.length, isc_buffer_usedlength(&target));
+	assert_memory_equal(buf_totext, rdata.data, rdata.length);
 }
 
 /*
