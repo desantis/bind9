@@ -108,9 +108,9 @@ parallel.mk:
 # Targets to run the tests.
 
 test: parallel.mk subdirs
-	@$(MAKE) -f parallel.mk check
 	@$(SHELL) ./runsequential.sh -r
-	@$(SHELL) ./testsummary.sh
+	+@$(MAKE) -f parallel.mk check
+	+@$(SHELL) ./testsummary.sh || $(SHELL) ./retry.sh
 
 check: test
 
@@ -123,6 +123,8 @@ check: test
 testclean clean distclean::
 	if test -f ./cleanall.sh; then $(SHELL) ./cleanall.sh; fi
 	rm -f systests.output
+	rm -f summary.prev
+	rm -f failed-tests.tar
 	rm -f random.data
 	rm -f parallel.mk
 

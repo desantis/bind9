@@ -27,33 +27,36 @@
 SYSTEMTESTTOP=.
 . $SYSTEMTESTTOP/conf.sh
 
-keepfile=0
+SYSTESTDIR=""
 
-while getopts "n" flag; do
+keepfile=0 passes=0
+while getopts "np" flag; do
     case $flag in
 	n) keepfile=1 ;;
+        p) passes=1 ;;
     esac
 done
 
-if [ `ls */test.output 2> /dev/null | wc -l` -eq 0 ]; then
-    echowarn "I:No 'test.output' files were found."
-    echowarn "I:Printing summary from pre-existing 'systests.output'."
-else
+if [ `ls */test.output 2> /dev/null | wc -l` -ne 0 ]; then
     cat */test.output > systests.output
     if [ $keepfile -eq 0 ]; then
         rm -f */test.output
     fi
 fi
 
-status=0
-echoinfo "I:System test result summary:"
-echoinfo "`grep 'R:[a-z0-9_-][a-z0-9_-]*:[A-Z][A-Z]*' systests.output | cut -d':' -f3 | sort | uniq -c | sed -e 's/^/I:/'`"
+echo_i "System test result summary:"
+grep 'R:[a-z0-9_-][a-z0-9_-]*:[A-Z][A-Z]*' systests.output | \
+    cut -d':' -f3 | sort | uniq -c | cat_i
 
-FAILED_TESTS=`grep 'R:[a-z0-9_-][a-z0-9_-]*:FAIL' systests.output | cut -d':' -f2 | sort | sed -e 's/^/I:      /'`
-if [ -n "${FAILED_TESTS}" ]; then
-	echoinfo "I:The following system tests failed:"
-	echoinfo "${FAILED_TESTS}"
-	status=1
+if [ "$passes" -eq 1 ]; then
+    echo_i "The following system tests passed:"
+    grep 'R:[a-z0-9_-][a-z0-9_-]*:PASS' systests.output | \
+        cut -d':' -f2 | sort | sed 's/^/	/' | cat_i
 fi
 
-exit $status
+grep 'R:[a-z0-9_-][a-z0-9_-]*:FAIL' systests.output > /dev/null || exit 0
+echo_i "The following system tests failed:"
+grep 'R:[a-z0-9_-][a-z0-9_-]*:FAIL' systests.output | \
+    cut -d':' -f2 | sort | sed 's/^/	/' | cat_i
+
+exit 1

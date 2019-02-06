@@ -91,32 +91,32 @@ fi
 SYSTESTDIR="`basename $PWD`"
 
 echo_i() {
-    echo "$@" | while read __LINE ; do
-       echoinfo "I:$SYSTESTDIR:$__LINE"
+    echo "$@" | while IFS= read -r __LINE ; do
+       echoinfo "I:$SYSTESTDIR${SYSTESTDIR:+:}$__LINE"
     done
 }
 
 echo_ic() {
     echo "$@" | while read __LINE ; do
-       echoinfo "I:$SYSTESTDIR:  $__LINE"
+       echoinfo "I:$SYSTESTDIR${SYSTESTDIR:+:}  $__LINE"
     done
 }
 
 cat_i() {
-    while read __LINE ; do
-       echoinfo "I:$SYSTESTDIR:$__LINE"
+    while IFS= read -r __LINE ; do
+       echoinfo "I:$SYSTESTDIR${SYSTESTDIR:+:}$__LINE"
     done
 }
 
 echo_d() {
     echo "$@" | while read __LINE ; do
-       echoinfo "D:$SYSTESTDIR:$__LINE"
+       echoinfo "D:$SYSTESTDIR${SYSTESTDIR:+:}$__LINE"
     done
 }
 
 cat_d() {
     while read __LINE ; do
-       echoinfo "D:$SYSTESTDIR:$__LINE"
+       echoinfo "D:$SYSTESTDIR${SYSTESTDIR:+:}$__LINE"
     done
 }
 

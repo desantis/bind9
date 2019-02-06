@@ -1,4 +1,5 @@
 dig.out*
+failed-tests.tar
 rndc.out*
 nsupdate.out*
 named.lock

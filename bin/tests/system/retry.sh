@@ -24,18 +24,45 @@
 SYSTEMTESTTOP=.
 . $SYSTEMTESTTOP/conf.sh
 
-numproc=${1:-1}
+SYSTESTDIR=""
+
+display () {
+    while IFS= read -r __LINE ; do
+       echoinfo "$__LINE"
+    done
+}
 
 if [ ! -f systests.output ]; then
     echofail "I:'systests.output' not found."
     exit 0
 fi
 
-status=0
+# first, preserve artifacts from the tests that are failing
+fails=$(grep 'R:[a-z0-9_-][a-z0-9_-]*:[A-Z][A-Z]*' systests.output |
+        awk -F: 'START { print ". ./conf.sh" }
+              $1 == "R" && $3 == "FAIL" { printf "%s ", $2 }
+              END { print "" }')
+
+# if there were no failed tests, we're done
+[ -n "$fails" ] || exit 0
+
+tar cf failed-tests.tar $fails
+sh testsummary.sh > summary.prev
+
+tar uf failed-tests.tar systests.output
+echo_i "Test failures detected"
+echo_i "Artifacts from failed tests stored in 'failed-tests.tar'"
+echo_i "Rerunning failed tests:"
+
 grep 'R:[a-z0-9_-][a-z0-9_-]*:[A-Z][A-Z]*' systests.output | \
     awk -F: 'START { print ". ./conf.sh" }
         $1 == "R" && $3 == "FAIL" { retests = retests " test-"$2; }
-        END { if (retests) { print "make -f parallel.mk -j " retests } }' | \
-    sed -e "s/NUMPROC/$numproc/" | \
-    $SHELL
-$SHELL testsummary.sh
+        END { if (retests) { print "make -f parallel.mk " retests } }' | \
+    $SHELL | display
+
+echo_i "Original test results (after first pass):"
+cat summary.prev | display
+rm -f summary.prev
+
+echo_i "Updated test results (after second pass):"
+sh testsummary.sh
