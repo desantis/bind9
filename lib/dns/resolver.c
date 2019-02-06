@@ -15,23 +15,20 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
+#include <isc/aes.h>
 #include <isc/counter.h>
+#include <isc/hmac.h>
 #include <isc/log.h>
 #include <isc/platform.h>
 #include <isc/print.h>
 #include <isc/string.h>
 #include <isc/random.h>
+#include <isc/siphash.h>
 #include <isc/socket.h>
 #include <isc/stats.h>
 #include <isc/task.h>
 #include <isc/timer.h>
 #include <isc/util.h>
-
-#ifdef AES_CC
-#include <isc/aes.h>
-#else
-#include <isc/hmac.h>
-#endif
 
 #include <dns/acl.h>
 #include <dns/adb.h>
@@ -2266,11 +2263,15 @@ add_triededns512(fetchctx_t *fctx, isc_sockaddr_t *address) {
 
 static void
 compute_cc(resquery_t *query, unsigned char *cookie, size_t len) {
-#ifdef AES_CC
-	unsigned char digest[ISC_AES_BLOCK_LENGTH];
+	unsigned char digest[ISC_MAX_MD_SIZE] ISC_NONSTRING = { 0 };
 	unsigned char input[16];
 	isc_netaddr_t netaddr;
-	unsigned int i;
+	unsigned int length = 0;
+
+	STATIC_ASSERT(ISC_MAX_MD_SIZE >= ISC_SIPHASH24_TAG_LENGTH,
+		"You need to increase the digest buffer.");
+	STATIC_ASSERT(ISC_MAX_MD_SIZE >= ISC_AES_BLOCK_LENGTH,
+		"You need to increase the digest buffer.");
 
 	INSIST(len >= 8U);
 
@@ -2278,50 +2279,47 @@ compute_cc(resquery_t *query, unsigned char *cookie, size_t len) {
 	switch (netaddr.family) {
 	case AF_INET:
 		memmove(input, (unsigned char *)&netaddr.type.in, 4);
-		memset(input + 4, 0, 12);
-		break;
-	case AF_INET6:
-		memmove(input, (unsigned char *)&netaddr.type.in6, 16);
-		break;
-	}
-	isc_aes128_crypt(query->fctx->res->view->secret, input, digest);
-	for (i = 0; i < 8; i++)
-		digest[i] ^= digest[i + 8];
-	memmove(cookie, digest, 8);
-#endif
-#if defined(HMAC_SHA1_CC) || defined(HMAC_SHA256_CC)
-	unsigned char digest[ISC_MAX_MD_SIZE];
-	unsigned char *input = NULL;
-	unsigned int length = 0;
-	isc_netaddr_t netaddr;
-#if defined(HMAC_SHA1_CC)
-	isc_md_type_t type = ISC_MD_SHA1;
-	unsigned int secret_len = ISC_SHA1_DIGESTLENGTH;
-#elif defined(HMAC_SHA256_CC)
-	isc_md_type_t type = ISC_MD_SHA256;
-	unsigned int secret_len = ISC_SHA256_DIGESTLENGTH;
-#endif
-
-	INSIST(len >= 8U);
-
-	isc_netaddr_fromsockaddr(&netaddr, &query->addrinfo->sockaddr);
-	switch (netaddr.family) {
-	case AF_INET:
-		input = (unsigned char *)&netaddr.type.in;
 		length = 4;
 		break;
 	case AF_INET6:
-		input = (unsigned char *)&netaddr.type.in6;
-		length = 16;
+		memmove(input, (unsigned char *)&netaddr.type.in6, 16);
+		length = 8;
 		break;
+	default:
+		INSIST(0);
+		ISC_UNREACHABLE();
 	}
 
-	RUNTIME_CHECK(isc_hmac(type,
-			       query->fctx->res->view->secret, secret_len,
+	/* Clear the rest of the buffer */
+	INSIST(sizeof(input) >= length);
+	memset(input + length, 0, sizeof(input) - length);
+
+	/* Calculate the digest/tag/... */
+#if defined(SIPHASH24_CC)
+	INSIST(sizeof(query->fctx->res->view->secret) >= ISC_SIPHASH24_KEY_LENGTH);
+	isc_siphash24(query->fctx->res->view->secret, input, length, digest);
+#elif defined(AES_CC)
+	isc_aes128_crypt(query->fctx->res->view->secret, input, digest);
+	for (int i = 0; i < 8; i++) {
+		digest[i] ^= digest[i + 8];
+	}
+#elif defined(HMAC_SHA1_CC)
+	RUNTIME_CHECK(isc_hmac(ISC_MD_SHA1,
+			       query->fctx->res->view->secret,
+			       ISC_SHA1_DIGESTLENGTH,
 			       input, length,
 			       digest, NULL) == ISC_R_SUCCESS);
-	memmove(cookie, digest, 8);
+
+#elif defined(HMAC_SHA256_CC)
+	RUNTIME_CHECK(isc_hmac(ISC_MD_SHA256,
+			       query->fctx->res->view->secret,
+			       ISC_SHA256_DIGESTLENGTH,
+			       input, length,
+			       digest, NULL) == ISC_R_SUCCESS);
 #endif
+
+	/* Store the first eight bytes of digest to the client cookie */
+	memmove(cookie, digest, 8);
 }
 
 static isc_result_t

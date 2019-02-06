@@ -1631,7 +1631,7 @@ Optional Packages:
   --with-libtool          use GNU libtool
   --with-openssl=DIR      root of the OpenSSL directory
   --with-cc-alg=ALG       choose the algorithm for Client Cookie
-                          [aes|sha1|sha256] (default is aes)
+                          [siphash24|aes|sha1|sha256] (default is siphash24)
   --with-pkcs11=PATH      Build with PKCS11 support [no|path] (PATH is for the
                           PKCS11 provider)
   --with-gssapi=PATH|/path/krb5-config
@@ -16119,15 +16119,21 @@ LDFLAGS="$save_LDFLAGS"
 
 # Check whether --with-cc-alg was given.
 if test "${with_cc_alg+set}" = set; then :
-  withval=$with_cc_alg; :
+  withval=$with_cc_alg;
 else
-  with_cc_alg="aes"
+  with_cc_alg="siphash24"
 fi
 
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for the algorithm for Client Cookie" >&5
 $as_echo_n "checking for the algorithm for Client Cookie... " >&6; }
 case $with_cc_alg in #(
+  siphash24|SIPHAS24|auto) :
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: siphash24" >&5
+$as_echo "siphash24" >&6; }
+
+$as_echo "#define SIPHASH24_CC 1" >>confdefs.h
+ ;; #(
   sha1|SHA1) :
     { $as_echo "$as_me:${as_lineno-$LINENO}: result: sha1" >&5
 $as_echo "sha1" >&6; }
@@ -16140,7 +16146,7 @@ $as_echo "sha256" >&6; }
 
 $as_echo "#define HMAC_SHA256_CC 1" >>confdefs.h
  ;; #(
-  aes|AES|auto) :
+  aes|AES) :
     { $as_echo "$as_me:${as_lineno-$LINENO}: result: aes" >&5
 $as_echo "aes" >&6; }
 
@@ -19849,6 +19855,7 @@ if test "${with_cmocka+set}" = set; then :
   withval=$with_cmocka;
 else
   with_cmocka=detect
+  with_cmocka=auto
 fi
 
 
@@ -19856,6 +19863,9 @@ case $with_cmocka in #(
   no) :
      ;; #(
   detect) :
+    : ;; #(
+  auto) :
+
 
 pkg_failed=no
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for cmocka >= 1.0.0" >&5
@@ -20022,6 +20032,8 @@ else
 $as_echo "yes" >&6; }
 
 $as_echo "#define HAVE_CMOCKA 1" >>confdefs.h
+
+			       UNITTESTS=tests
 
 fi
 	                          UNITTESTS=tests ;; #(
@@ -24138,7 +24150,7 @@ report() {
 	    echo "    Allow 'dnstap' packet logging (--enable-dnstap)"
     test "no" = "$use_geoip" || echo "    GeoIP access control (--with-geoip)"
     test "no" = "$use_gssapi" || echo "    GSS-API (--with-gssapi)"
-    if test "yes" = "$enable_full_report" -o "aes" != "$with_cc_alg"; then
+    if test "yes" = "$enable_full_report" -o "siphash24" != "$with_cc_alg"; then
 	echo "        Algorithm: $with_cc_alg"
     fi
 

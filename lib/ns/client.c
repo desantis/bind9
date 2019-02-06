@@ -25,6 +25,7 @@
 #include <isc/random.h>
 #include <isc/safe.h>
 #include <isc/serial.h>
+#include <isc/siphash.h>
 #include <isc/stats.h>
 #include <isc/stdio.h>
 #include <isc/string.h>
@@ -1767,91 +1768,109 @@ static void
 compute_cookie(ns_client_t *client, uint32_t when, uint32_t nonce,
 	       const unsigned char *secret, isc_buffer_t *buf)
 {
-	switch (client->sctx->cookiealg) {
-	case ns_cookiealg_aes: {
-		unsigned char digest[ISC_AES_BLOCK_LENGTH];
-		unsigned char input[4 + 4 + 16];
-		isc_netaddr_t netaddr;
-		unsigned char *cp;
-		unsigned int i;
+	unsigned char digest[ISC_MAX_MD_SIZE] ISC_NONSTRING = { 0 };
+	unsigned char input[8 + 4 + 4 + 16] ISC_NONSTRING = { 0 };
+	isc_netaddr_t netaddr;
+	unsigned char *cp = isc_buffer_used(buf);
+	unsigned int length = 0;
 
-		memset(input, 0, sizeof(input));
-		cp = isc_buffer_used(buf);
-		isc_buffer_putmem(buf, client->cookie, 8);
-		isc_buffer_putuint32(buf, nonce);
-		isc_buffer_putuint32(buf, when);
+	STATIC_ASSERT(ISC_MAX_MD_SIZE >= ISC_SIPHASH24_TAG_LENGTH,
+		"You need to increase the digest buffer.");
+	STATIC_ASSERT(ISC_MAX_MD_SIZE >= ISC_AES_BLOCK_LENGTH,
+		"You need to increase the digest buffer.");
+
+	/* Put cookie into the temporary buffer */
+	isc_buffer_putmem(buf, client->cookie, 8);
+	/* Add nonce and timestamp into the buffer just after the cookie */
+	isc_buffer_putuint32(buf, nonce);
+	isc_buffer_putuint32(buf, when);
+
+	/* Initialize the Cookie input */
+	switch (client->sctx->cookiealg) {
+	case ns_cookiealg_siphash24:
+		length = 0;
+		break;
+	case ns_cookiealg_aes:
 		memmove(input, cp, 16);
 		isc_aes128_crypt(secret, input, digest);
-		for (i = 0; i < 8; i++)
+		for (int i = 0; i < 8; i++) {
 			input[i] = digest[i] ^ digest[i + 8];
-		isc_netaddr_fromsockaddr(&netaddr, &client->peeraddr);
+		}
+		length = 8;
+		break;
+	case ns_cookiealg_sha1:
+	case ns_cookiealg_sha256:
+		memmove(input, cp, 16);
+		length = 16;
+	}
+
+	/* Store the client IP address into the input buffer */
+
+	isc_netaddr_fromsockaddr(&netaddr, &client->peeraddr);
+	switch (netaddr.family) {
+	case AF_INET:
+		memmove(input + length,
+			(unsigned char *)&netaddr.type.in, 4);
+		length += 4;
+		break;
+	case AF_INET6:
+		memmove(input + length,
+			(unsigned char *)&netaddr.type.in6, 16);
+		length += 16;
+		break;
+	default:
+		INSIST(0);
+		ISC_UNREACHABLE();
+	}
+
+	/* Clear the rest of the buffer */
+	INSIST(sizeof(input) >= length);
+	memset(input + length, 0, sizeof(input) - length);
+
+	/* Finalize the input and compute the Cookie */
+	switch (client->sctx->cookiealg) {
+	case ns_cookiealg_siphash24: {
+		/* Use only client cookie to compute server cookie,
+		 * discard the nonce and timestamp
+		 */
+		memmove(input + length, cp, 8);
+		length += 8;
+		isc_siphash24(secret, input, length, digest);
+		break;
+	}
+	case ns_cookiealg_aes: {
 		switch (netaddr.family) {
 		case AF_INET:
-			cp = (unsigned char *)&netaddr.type.in;
-			memmove(input + 8, cp, 4);
-			memset(input + 12, 0, 4);
 			isc_aes128_crypt(secret, input, digest);
 			break;
 		case AF_INET6:
-			cp = (unsigned char *)&netaddr.type.in6;
-			memmove(input + 8, cp, 16);
 			isc_aes128_crypt(secret, input, digest);
-			for (i = 0; i < 8; i++)
+			for (int i = 0; i < 8; i++) {
 				input[i + 8] = digest[i] ^ digest[i + 8];
+			}
 			isc_aes128_crypt(client->sctx->secret, input + 8,
 					 digest);
 			break;
 		}
-		for (i = 0; i < 8; i++)
+		for (int i = 0; i < 8; i++) {
 			digest[i] ^= digest[i + 8];
-		isc_buffer_putmem(buf, digest, 8);
+		}
 		break;
 	}
 
 	case ns_cookiealg_sha1:
 	case ns_cookiealg_sha256: {
-		unsigned char digest[ISC_MAX_MD_SIZE];
-		unsigned char input[8 + 4 + 4 + 16];
-		isc_netaddr_t netaddr;
-		unsigned char *cp;
-		unsigned int length = 0;
-		isc_md_type_t md_type =
+		isc_md_type_t md_type = \
 			(client->sctx->cookiealg == ns_cookiealg_sha1)
 			? ISC_MD_SHA1
 			: ISC_MD_SHA256;
+
 		unsigned int secret_len = isc_md_type_get_size(md_type);
 
-		cp = isc_buffer_used(buf);
-		isc_buffer_putmem(buf, client->cookie, 8);
-		isc_buffer_putuint32(buf, nonce);
-		isc_buffer_putuint32(buf, when);
-		memmove(input, cp, 16);
-
-		isc_netaddr_fromsockaddr(&netaddr, &client->peeraddr);
-		switch (netaddr.family) {
-		case AF_INET:
-			memmove(input + 16,
-				(unsigned char *)&netaddr.type.in, 4);
-			length = 16 + 4;
-			break;
-		case AF_INET6:
-			memmove(input + 16,
-				(unsigned char *)&netaddr.type.in6, 16);
-			length = 16 + 16;
-			break;
-		default:
-			INSIST(0);
-			ISC_UNREACHABLE();
-		}
-
-		/*
-		 * XXXOND: Feels wrong to assert on cookie calculation failure
-		 */
 		RUNTIME_CHECK(isc_hmac(md_type, secret, secret_len,
 				       input, length,
 				       digest, NULL) == ISC_R_SUCCESS);
 
-		isc_buffer_putmem(buf, digest, 8);
 		break;
 	}
 
@@ -1859,6 +1878,8 @@ compute_cookie(ns_client_t *client, uint32_t when, uint32_t nonce,
 		INSIST(0);
 		ISC_UNREACHABLE();
 	}
+
+	isc_buffer_putmem(buf, digest, 8);
 }
 
 static void

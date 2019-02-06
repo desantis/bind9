@@ -29,7 +29,8 @@ typedef struct ns_stats			ns_stats_t;
 typedef enum {
 	ns_cookiealg_aes,
 	ns_cookiealg_sha1,
-	ns_cookiealg_sha256
+	ns_cookiealg_sha256,
+	ns_cookiealg_siphash24
 } ns_cookiealg_t;
 
 #endif /* NS_TYPES_H */

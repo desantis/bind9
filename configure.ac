@@ -853,17 +853,19 @@ AC_SUBST([OPENSSL_LDFLAGS])
 AC_ARG_WITH([cc-alg],
 	    [AS_HELP_STRING([--with-cc-alg=ALG],
 			   [choose the algorithm for Client Cookie
-			    [aes|sha1|sha256] (default is aes)])],
-	    [:], [with_cc_alg="aes"])
+			    [siphash24|aes|sha1|sha256] (default is siphash24)])],
+	    [], [with_cc_alg="siphash24"])
 
 AC_MSG_CHECKING([for the algorithm for Client Cookie])
 AS_CASE([$with_cc_alg],
+	[siphash24|SIPHAS24|auto],[AC_MSG_RESULT([siphash24])
+				   AC_DEFINE([SIPHASH24_CC], [1], [Use SipHash 2-4 for Client Cookie generation])],
 	[sha1|SHA1],[AC_MSG_RESULT([sha1])
 		     AC_DEFINE([HMAC_SHA1_CC], [1], [Use HMAC-SHA1 for Client Cookie generation])],
 	[sha256|SHA256],[AC_MSG_RESULT([sha256])
 			 AC_DEFINE([HMAC_SHA256_CC], [1], [Use HMAC-SHA256 for Client Cookie generation])],
-	[aes|AES|auto],[AC_MSG_RESULT([aes])
-		       AC_DEFINE([AES_CC], [1], [Use AES for Client Cookie generation])],
+	[aes|AES],[AC_MSG_RESULT([aes])
+		   AC_DEFINE([AES_CC], [1], [Use AES for Client Cookie generation])],
 	[AC_MSG_ERROR([Invalid $with_cc_alg algorithm for Client Cookie])])
 
 
@@ -3085,7 +3087,7 @@ report() {
 	    echo "    Allow 'dnstap' packet logging (--enable-dnstap)"
     test "no" = "$use_geoip" || echo "    GeoIP access control (--with-geoip)"
     test "no" = "$use_gssapi" || echo "    GSS-API (--with-gssapi)"
-    if test "yes" = "$enable_full_report" -o "aes" != "$with_cc_alg"; then
+    if test "yes" = "$enable_full_report" -o "siphash24" != "$with_cc_alg"; then
 	echo "        Algorithm: $with_cc_alg"
     fi
 
