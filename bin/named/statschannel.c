@@ -76,7 +76,7 @@ stats_dumparg {
 
 static isc_once_t once = ISC_ONCE_INIT;
 
-#if defined(HAVE_LIBXML2) || defined(HAVE_JSON)
+#if defined(HAVE_LIBXML2) || defined(HAVE_JSON_C)
 #define EXTENDED_STATS
 #else
 #undef EXTENDED_STATS
@@ -1072,7 +1072,7 @@ dump_counters(isc_stats_t *stats, isc_statsformat_t type, void *arg,
 	xmlTextWriterPtr writer;
 	int xmlrc;
 #endif
-#ifdef HAVE_JSON
+#ifdef HAVE_JSON_C
 	json_object *job, *cat, *counter;
 #endif
 
@@ -1088,7 +1088,7 @@ dump_counters(isc_stats_t *stats, isc_statsformat_t type, void *arg,
 	memset(values, 0, sizeof(values[0]) * ncounters);
 	isc_stats_dump(stats, generalstat_dump, &dumparg, options);
 
-#ifdef HAVE_JSON
+#ifdef HAVE_JSON_C
 	cat = job = (json_object *) arg;
 	if (ncounters > 0 && type == isc_statsformat_json) {
 		if (category != NULL) {
@@ -1163,7 +1163,7 @@ dump_counters(isc_stats_t *stats, isc_statsformat_t type, void *arg,
 #endif
 			break;
 		case isc_statsformat_json:
-#ifdef HAVE_JSON
+#ifdef HAVE_JSON_C
 			counter = json_object_new_int64(value);
 			if (counter == NULL)
 				return (ISC_R_NOMEMORY);
@@ -1192,7 +1192,7 @@ rdtypestat_dump(dns_rdatastatstype_t type, uint64_t val, void *arg) {
 	xmlTextWriterPtr writer;
 	int xmlrc;
 #endif
-#ifdef HAVE_JSON
+#ifdef HAVE_JSON_C
 	json_object *zoneobj, *obj;
 #endif
 
@@ -1226,7 +1226,7 @@ rdtypestat_dump(dns_rdatastatstype_t type, uint64_t val, void *arg) {
 #endif
 		break;
 	case isc_statsformat_json:
-#ifdef HAVE_JSON
+#ifdef HAVE_JSON_C
 		zoneobj = (json_object *) dumparg->arg;
 		obj = json_object_new_int64(val);
 		if (obj == NULL)
@@ -1258,7 +1258,7 @@ rdatasetstats_dump(dns_rdatastatstype_t type, uint64_t val, void *arg) {
 	xmlTextWriterPtr writer;
 	int xmlrc;
 #endif
-#ifdef HAVE_JSON
+#ifdef HAVE_JSON_C
 	json_object *zoneobj, *obj;
 	char buf[1024];
 #endif
@@ -1310,7 +1310,7 @@ rdatasetstats_dump(dns_rdatastatstype_t type, uint64_t val, void *arg) {
 #endif
 		break;
 	case isc_statsformat_json:
-#ifdef HAVE_JSON
+#ifdef HAVE_JSON_C
 		zoneobj = (json_object *) dumparg->arg;
 		snprintf(buf, sizeof(buf), "%s%s%s",
 			 stale ? "#" : "", nxrrset ? "!" : "", typestr);
@@ -1342,7 +1342,7 @@ opcodestat_dump(dns_opcode_t code, uint64_t val, void *arg) {
 	xmlTextWriterPtr writer;
 	int xmlrc;
 #endif
-#ifdef HAVE_JSON
+#ifdef HAVE_JSON_C
 	json_object *zoneobj, *obj;
 #endif
 
@@ -1368,7 +1368,7 @@ opcodestat_dump(dns_opcode_t code, uint64_t val, void *arg) {
 #endif
 		break;
 	case isc_statsformat_json:
-#ifdef HAVE_JSON
+#ifdef HAVE_JSON_C
 		zoneobj = (json_object *) dumparg->arg;
 		obj = json_object_new_int64(val);
 		if (obj == NULL)
@@ -1399,7 +1399,7 @@ rcodestat_dump(dns_rcode_t code, uint64_t val, void *arg) {
 	xmlTextWriterPtr writer;
 	int xmlrc;
 #endif
-#ifdef HAVE_JSON
+#ifdef HAVE_JSON_C
 	json_object *zoneobj, *obj;
 #endif
 
@@ -1425,7 +1425,7 @@ rcodestat_dump(dns_rcode_t code, uint64_t val, void *arg) {
 #endif
 		break;
 	case isc_statsformat_json:
-#ifdef HAVE_JSON
+#ifdef HAVE_JSON_C
 		zoneobj = (json_object *) dumparg->arg;
 		obj = json_object_new_int64(val);
 		if (obj == NULL)
@@ -2197,7 +2197,7 @@ render_xml_traffic(const char *url, isc_httpdurl_t *urlinfo,
 
 #endif	/* HAVE_LIBXML2 */
 
-#ifdef HAVE_JSON
+#ifdef HAVE_JSON_C
 /*
  * Which statistics to include when rendering to JSON
  */
@@ -3100,7 +3100,7 @@ render_json_traffic(const char *url, isc_httpdurl_t *urlinfo,
 			    freecb, freecb_args));
 }
 
-#endif /* HAVE_JSON */
+#endif /* HAVE_JSON_C */
 
 static isc_result_t
 render_xsl(const char *url, isc_httpdurl_t *urlinfo,
@@ -3316,7 +3316,7 @@ add_listener(named_server_t *server, named_statschannel_t **listenerp,
 	isc_httpdmgr_addurl(listener->httpdmgr, "/xml/v3/traffic",
 			    render_xml_traffic, server);
 #endif
-#ifdef HAVE_JSON
+#ifdef HAVE_JSON_C
 	isc_httpdmgr_addurl(listener->httpdmgr, "/json",
 			    render_json_all, server);
 	isc_httpdmgr_addurl(listener->httpdmgr, "/json/v1",
@@ -3451,12 +3451,12 @@ named_statschannels_configure(named_server_t *server, const cfg_obj_t *config,
 			      "statistics-channels: XML library missing, "
 			      "only JSON stats will be available");
 #endif /* !HAVE_LIBXML2 */
-#ifndef HAVE_JSON
+#ifndef HAVE_JSON_C
 		isc_log_write(named_g_lctx, NAMED_LOGCATEGORY_GENERAL,
 			      NAMED_LOGMODULE_SERVER, ISC_LOG_WARNING,
 			      "statistics-channels: JSON library missing, "
 			      "only XML stats will be available");
-#endif /* !HAVE_JSON */
+#endif /* !HAVE_JSON_C */
 #endif /* EXTENDED_STATS */
 
 		for (element = cfg_list_first(statschannellist);

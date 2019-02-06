@@ -1315,85 +1315,36 @@ fi
 AC_SUBST(XMLSTATS)
 
 #
-# was --with-libjson specified?
+# DEPRECATED
 #
-AC_MSG_CHECKING(for json library)
-AC_ARG_WITH(libjson,
-	    AS_HELP_STRING([--with-libjson[=PATH]],
-			   [build with libjson0 library [yes|no|path]]),
-	    use_libjson="$withval", use_libjson="auto")
+AC_ARG_WITH([libjson],
+	    [AS_HELP_STRING([deprecated, use --with-json-c])],
+	    [AC_MSG_WARN([--with-libjson option is DEPRECATED and it will be removed in future release, use --with-json-c instead])])
 
-have_libjson=""
-have_libjson_c=""
-case "$use_libjson" in
-	no)
-		libjson_libs=""
-		;;
-	auto|yes)
-		for d in /usr /usr/local /opt/local
-		do
-			if test -f "${d}/include/json/json.h"
-			then
-				if test ${d} != /usr
-				then
-					libjson_cflags="-I ${d}/include"
-					LIBS="$LIBS -L${d}/lib"
-				fi
-				have_libjson="yes"
-			elif test -f "${d}/include/json-c/json.h"
-			then
-				if test ${d} != /usr
-				then
-					libjson_cflags="-I ${d}/include"
-					LIBS="$LIBS -L${d}/lib"
-				fi
-				have_libjson="yes"
-				have_libjson_c="yes"
-			fi
-		done
-		;;
-	*)
-		if test -f "${use_libjson}/include/json/json.h"
-		then
-			libjson_cflags="-I${use_libjson}/include"
-			LIBS="$LIBS -L${use_libjson}/lib"
-			have_libjson="yes"
-		elif test -f "${use_libjson}/include/json-c/json.h"
-		then
-			libjson_cflags="-I${use_libjson}/include"
-			LIBS="$LIBS -L${use_libjson}/lib"
-			have_libjson="yes"
-			have_libjson_c="yes"
-		else
-			AC_MSG_ERROR([$use_libjson/include/json{,-c}/json.h not found.])
-		fi
-		;;
-esac
+#
+# was --with-json-c specified?
+#
+AC_ARG_WITH([json-c],
+	    [AS_HELP_STRING([--with-libjson[=PATH]],
+			   [build with libjson-c library [yes|no|detect] (default is detect)])],
+	    [], [AS_IF([test -n "$with_libjson"],
+		       [with_json_c="$with_libjson"],
+		       [with_json_c="detect"])
+		]
+	    )
 
-if test "X${have_libjson}" != "X"
-then
-	AC_MSG_RESULT(yes)
-	AC_SEARCH_LIBS([json_object_new_int64], [json json-c], [],
-		       [AC_MSG_ERROR([found libjson include but not library.])
-			have_libjson=""])
-elif test "X$use_libjson" = Xyes
-then
-	AC_MSG_ERROR([include/json{,-c}/json.h not found.])
-else
-	AC_MSG_RESULT(no)
-fi
+AS_CASE([$with_json_c],
+	[no],[AC_MSG_RESULT([no])],
+	[detect],[PKG_CHECK_MODULES([JSON_C], [json-c >= 0.11],
+				    [AC_DEFINE([HAVE_JSON_C], [1], [Use json-c library])],
+				    [])],
+	[yes],[PKG_CHECK_MODULES([JSON_C], [json-c >= 0.11],
+				 [AC_DEFINE([HAVE_JSON_C], [1], [Use json-c library])])],
+	[AC_MSG_ERROR([Use PKG_CONFIG_PATH to specify path to json-c library])]
+       )
 
-if test "X${have_libjson}" != "X"
-then
-	CFLAGS="$CFLAGS $libjson_cflags"
-	AC_DEFINE(HAVE_JSON, 1, [Define if libjson was found])
-	if test "X${have_libjson_c}" = Xyes
-	then
-		AC_DEFINE(HAVE_JSON_C, 1, [Define if json-c was found])
-	fi
-	JSONSTATS=1
-fi
-AC_SUBST(JSONSTATS)
+AC_SUBST([JSON_C_CFLAGS])
+AC_SUBST([JSON_C_LIBS])
 
 #
 # was --with-zlib specified?
@@ -3100,7 +3051,7 @@ report() {
 	test "no" = "$found_ipv6" || echo "    IPv6 support (--enable-ipv6)"
 	test "X$PYTHON" = "X" || echo "    Python tools (--with-python)"
 	test "X$XMLSTATS" = "X" || echo "    XML statistics (--with-libxml2)"
-	test "X$JSONSTATS" = "X" || echo "    JSON statistics (--with-libjson)"
+	test "X$JSON_C_LIBS" = "X" || echo "    JSON statistics (--with-json-c): $JSON_C_CFLAGS $JSON_C_LIBS"
 	test "X$ZLIB" = "X" || echo "    HTTP zlib compression (--with-zlib)"
 	test "X$NZD_TOOLS" = "X" || echo "    LMDB database to store configuration for 'addzone' zones (--with-lmdb)"
 	test "no" = "$with_libidn2" || echo "    IDN support (--with-libidn2)"
@@ -3178,7 +3129,7 @@ report() {
 
     test "X$PYTHON" = "X" && echo "    Python tools (--with-python)"
     test "X$XMLSTATS" = "X" && echo "    XML statistics (--with-libxml2)"
-    test "X$JSONSTATS" = "X" && echo "    JSON statistics (--with-libjson)"
+    test "X$JSON_C_LIBS" = "X" && echo "    JSON statistics (--with-json-c)"
     test "X$ZLIB" = "X" && echo "    HTTP zlib compression (--with-zlib)"
     test "X$NZD_TOOLS" = "X" && echo "    LMDB database to store configuration for 'addzone' zones (--with-lmdb)"
     test "no" = "$with_libidn2" && echo "    IDN support (--with-libidn2)"

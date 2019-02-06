@@ -12,7 +12,7 @@
 #ifndef ISC_JSON_H
 #define ISC_JSON_H 1
 
-#ifdef HAVE_JSON
+#ifdef HAVE_JSON_C
 /*
  * This file is here mostly to make it easy to add additional libjson header
  * files as needed across all the users of this file.  Rather than place
@@ -20,7 +20,6 @@
  * the ifdef as well as adding the ability to add additional functions
  * which may be useful.
  */
-#ifdef HAVE_JSON_C
 /*
  * We don't include <json-c/json.h> as the subsequent includes do not
  * prefix the header file names with "json-c/" and using
@@ -32,9 +31,6 @@
 #include <json-c/json_tokener.h>
 #include <json-c/json_object_iterator.h>
 #include <json-c/json_c_version.h>
-#else
-#include <json/json.h>
-#endif
 #endif
 
 #define ISC_JSON_RENDERCONFIG		0x00000001 /* render config data */

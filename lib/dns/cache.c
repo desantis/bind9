@@ -1499,7 +1499,7 @@ error:
 }
 #endif
 
-#ifdef HAVE_JSON
+#ifdef HAVE_JSON_C
 #define CHECKMEM(m) do { \
 	if (m == NULL) { \
 		result = ISC_R_NOMEMORY;\
