@@ -2263,60 +2263,28 @@ add_triededns512(fetchctx_t *fctx, isc_sockaddr_t *address) {
 
 static void
 compute_cc(resquery_t *query, unsigned char *cookie, size_t len) {
-	unsigned char digest[ISC_MAX_MD_SIZE] ISC_NONSTRING = { 0 };
-	unsigned char input[16];
+	uint8_t digest[ISC_SIPHASH24_TAG_LENGTH] ISC_NONSTRING = { 0 };
 	isc_netaddr_t netaddr;
-	unsigned int length = 0;
-
-	STATIC_ASSERT(ISC_MAX_MD_SIZE >= ISC_SIPHASH24_TAG_LENGTH,
-		"You need to increase the digest buffer.");
-	STATIC_ASSERT(ISC_MAX_MD_SIZE >= ISC_AES_BLOCK_LENGTH,
-		"You need to increase the digest buffer.");
 
 	INSIST(len >= 8U);
+	INSIST(sizeof(query->fctx->res->view->secret) >= ISC_SIPHASH24_KEY_LENGTH);
 
 	isc_netaddr_fromsockaddr(&netaddr, &query->addrinfo->sockaddr);
 	switch (netaddr.family) {
 	case AF_INET:
-		memmove(input, (unsigned char *)&netaddr.type.in, 4);
-		length = 4;
+		isc_siphash24(query->fctx->res->view->secret,
+			      (uint8_t *)&netaddr.type.in, 4,
+			      digest);
 		break;
 	case AF_INET6:
-		memmove(input, (unsigned char *)&netaddr.type.in6, 16);
-		length = 8;
+		isc_siphash24(query->fctx->res->view->secret,
+			      (uint8_t *)&netaddr.type.in6, 16,
+			      digest);
 		break;
 	default:
 		INSIST(0);
 		ISC_UNREACHABLE();
 	}
-
-	/* Clear the rest of the buffer */
-	INSIST(sizeof(input) >= length);
-	memset(input + length, 0, sizeof(input) - length);
-
-	/* Calculate the digest/tag/... */
-#if defined(SIPHASH24_CC)
-	INSIST(sizeof(query->fctx->res->view->secret) >= ISC_SIPHASH24_KEY_LENGTH);
-	isc_siphash24(query->fctx->res->view->secret, input, length, digest);
-#elif defined(AES_CC)
-	isc_aes128_crypt(query->fctx->res->view->secret, input, digest);
-	for (int i = 0; i < 8; i++) {
-		digest[i] ^= digest[i + 8];
-	}
-#elif defined(HMAC_SHA1_CC)
-	RUNTIME_CHECK(isc_hmac(ISC_MD_SHA1,
-			       query->fctx->res->view->secret,
-			       ISC_SHA1_DIGESTLENGTH,
-			       input, length,
-			       digest, NULL) == ISC_R_SUCCESS);
-
-#elif defined(HMAC_SHA256_CC)
-	RUNTIME_CHECK(isc_hmac(ISC_MD_SHA256,
-			       query->fctx->res->view->secret,
-			       ISC_SHA256_DIGESTLENGTH,
-			       input, length,
-			       digest, NULL) == ISC_R_SUCCESS);
-#endif
 
 	/* Store the first eight bytes of digest to the client cookie */
 	memmove(cookie, digest, 8);
