@@ -39,6 +39,7 @@
 #include <dns/acl.h>
 #include <dns/dnstap.h>
 #include <dns/fixedname.h>
+#include <dns/rbt.h>
 #include <dns/rdataclass.h>
 #include <dns/rdatatype.h>
 #include <dns/rrl.h>
@@ -3435,13 +3436,120 @@ check_one_plugin(const cfg_obj_t *config, const cfg_obj_t *obj,
 #endif
 
 static isc_result_t
+check_conflicts(const cfg_obj_t *mkeys, const cfg_obj_t *tkeys,
+		bool autovalidation, isc_mem_t *mctx, isc_log_t *logctx)
+{
+	isc_result_t result;
+	bool managed = true, trusted = false;
+	const cfg_listelt_t *elt = NULL, *elt2 = NULL;
+	dns_rbt_t *table = NULL;
+	dns_fixedname_t fixed;
+	dns_name_t *name;
+	const cfg_obj_t *obj;
+	isc_buffer_t b;
+	const char *str;
+
+	result = dns_rbt_create(mctx, NULL, NULL, &table);
+	if (result != ISC_R_SUCCESS) {
+		goto cleanup;
+	}
+
+	for (elt = cfg_list_first(mkeys);
+	     elt != NULL;
+	     elt = cfg_list_next(elt))
+	{
+		const cfg_obj_t *keylist = cfg_listelt_value(elt);
+		for (elt2 = cfg_list_first(keylist);
+		     elt2 != NULL;
+		     elt2 = cfg_list_next(elt2))
+		{
+			obj = cfg_listelt_value(elt2);
+			str = cfg_obj_asstring(cfg_tuple_get(obj, "name"));
+			isc_buffer_constinit(&b, str, strlen(str));
+			isc_buffer_add(&b, strlen(str));
+			name = dns_fixedname_initname(&fixed);
+			result = dns_name_fromtext(name, &b, dns_rootname,
+						    0, NULL);
+			if (result != ISC_R_SUCCESS) {
+				goto cleanup;
+			}
+
+			result = dns_rbt_addname(table, name, &managed);
+			if (result != ISC_R_SUCCESS) {
+				goto cleanup;
+			}
+		}
+	}
+
+	for (elt = cfg_list_first(tkeys);
+	     elt != NULL;
+	     elt = cfg_list_next(elt))
+	{
+		const cfg_obj_t *keylist = cfg_listelt_value(elt);
+		for (elt2 = cfg_list_first(keylist);
+		     elt2 != NULL;
+		     elt2 = cfg_list_next(elt2))
+		{
+			void *data = NULL;
+
+			obj = cfg_listelt_value(elt2);
+			str = cfg_obj_asstring(cfg_tuple_get(obj, "name"));
+			isc_buffer_constinit(&b, str, strlen(str));
+			isc_buffer_add(&b, strlen(str));
+			name = dns_fixedname_initname(&fixed);
+			result = dns_name_fromtext(name, &b, dns_rootname,
+						    0, NULL);
+			if (result != ISC_R_SUCCESS) {
+				goto cleanup;
+			}
+
+			if (autovalidation &&
+			    dns_name_equal(name, dns_rootname))
+			{
+				cfg_obj_log(obj, logctx, ISC_LOG_ERROR,
+					    "trusted-keys for root zone "
+					    "cannot be used with "
+					    "'dnssec-validation auto'.");
+				result = ISC_R_FAILURE;
+				goto cleanup;
+			}
+
+			result = dns_rbt_findname(table, name, 0, NULL, &data);
+			if (result == ISC_R_SUCCESS && data == &managed) {
+				cfg_obj_log(obj, logctx, ISC_LOG_ERROR,
+					    "trusted-keys and managed-keys "
+					    "cannot be used for the "
+					    "same name");
+				result = ISC_R_FAILURE;
+				goto cleanup;
+			} else if (result == ISC_R_SUCCESS) {
+				continue;
+			}
+
+			result = dns_rbt_addname(table, name, &trusted);
+			if (result != ISC_R_SUCCESS) {
+				goto cleanup;
+			}
+		}
+	}
+
+	result = ISC_R_SUCCESS;
+
+ cleanup:
+	if (table != NULL) {
+		dns_rbt_destroy(&table);
+	}
+	return (result);
+}
+
+static isc_result_t
 check_viewconf(const cfg_obj_t *config, const cfg_obj_t *voptions,
 	       const char *viewname, dns_rdataclass_t vclass,
 	       isc_symtab_t *files, bool check_plugins, isc_symtab_t *inview,
 	       isc_log_t *logctx, isc_mem_t *mctx)
 {
 	const cfg_obj_t *zones = NULL;
-	const cfg_obj_t *keys = NULL;
+	const cfg_obj_t *keys = NULL, *tkeys = NULL, *mkeys = NULL;
 #ifndef HAVE_DLOPEN
 	const cfg_obj_t *dyndb = NULL;
 #endif
@@ -3454,6 +3562,7 @@ check_viewconf(const cfg_obj_t *config, const cfg_obj_t *voptions,
 	const cfg_obj_t *options = NULL;
 	const cfg_obj_t *opts = NULL;
 	const cfg_obj_t *plugin_list = NULL;
+	bool autovalidation = false;
 	unsigned int tflags, mflags;
 
 	/*
@@ -3607,14 +3716,14 @@ check_viewconf(const cfg_obj_t *config, const cfg_obj_t *voptions,
 	/*
 	 * Check trusted-keys and managed-keys.
 	 */
-	keys = NULL;
+	tkeys = NULL;
 	if (voptions != NULL)
-		(void)cfg_map_get(voptions, "trusted-keys", &keys);
-	if (keys == NULL)
-		(void)cfg_map_get(config, "trusted-keys", &keys);
+		(void)cfg_map_get(voptions, "trusted-keys", &tkeys);
+	if (tkeys == NULL)
+		(void)cfg_map_get(config, "trusted-keys", &tkeys);
 
 	tflags = 0;
-	for (element = cfg_list_first(keys);
+	for (element = cfg_list_first(tkeys);
 	     element != NULL;
 	     element = cfg_list_next(element))
 	{
@@ -3631,33 +3740,34 @@ check_viewconf(const cfg_obj_t *config, const cfg_obj_t *voptions,
 	}
 
 	if ((tflags & ROOT_KSK_2010) != 0 && (tflags & ROOT_KSK_2017) == 0) {
-		cfg_obj_log(keys, logctx, ISC_LOG_WARNING,
+		cfg_obj_log(tkeys, logctx, ISC_LOG_WARNING,
 			    "trusted-key for root from 2010 without updated "
 			    "trusted-key from 2017: THIS WILL FAIL AFTER "
 			    "KEY ROLLOVER");
 	}
 
 	if ((tflags & DLV_KSK_KEY) != 0) {
-		cfg_obj_log(keys, logctx, ISC_LOG_WARNING,
+		cfg_obj_log(tkeys, logctx, ISC_LOG_WARNING,
 			    "trusted-key for dlv.isc.org still present; "
 			    "dlv.isc.org has been shut down");
 	}
 
-	keys = NULL;
+	mkeys = NULL;
 	if (voptions != NULL)
-		(void)cfg_map_get(voptions, "managed-keys", &keys);
-	if (keys == NULL)
-		(void)cfg_map_get(config, "managed-keys", &keys);
+		(void)cfg_map_get(voptions, "managed-keys", &mkeys);
+	if (mkeys == NULL)
+		(void)cfg_map_get(config, "managed-keys", &mkeys);
 
 	mflags = 0;
-	for (element = cfg_list_first(keys);
+	for (element = cfg_list_first(mkeys);
 	     element != NULL;
 	     element = cfg_list_next(element))
 	{
 		const cfg_obj_t *keylist = cfg_listelt_value(element);
 		for (element2 = cfg_list_first(keylist);
 		     element2 != NULL;
-		     element2 = cfg_list_next(element2)) {
+		     element2 = cfg_list_next(element2))
+		{
 			obj = cfg_listelt_value(element2);
 			tresult = check_trusted_key(obj, true, &mflags,
 						    logctx);
@@ -3667,13 +3777,13 @@ check_viewconf(const cfg_obj_t *config, const cfg_obj_t *voptions,
 	}
 
 	if ((mflags & ROOT_KSK_2010) != 0 && (mflags & ROOT_KSK_2017) == 0) {
-		cfg_obj_log(keys, logctx, ISC_LOG_WARNING,
+		cfg_obj_log(mkeys, logctx, ISC_LOG_WARNING,
 			    "managed-key for root from 2010 without updated "
 			    "managed-key from 2017");
 	}
 
 	if ((mflags & DLV_KSK_KEY) != 0) {
-		cfg_obj_log(keys, logctx, ISC_LOG_WARNING,
+		cfg_obj_log(mkeys, logctx, ISC_LOG_WARNING,
 			    "managed-key for dlv.isc.org still present; "
 			    "dlv.isc.org has been shut down");
 	}
@@ -3681,9 +3791,25 @@ check_viewconf(const cfg_obj_t *config, const cfg_obj_t *voptions,
 	if ((tflags & (ROOT_KSK_2010|ROOT_KSK_2017)) != 0 &&
 	    (mflags & (ROOT_KSK_2010|ROOT_KSK_2017)) != 0)
 	{
-		cfg_obj_log(keys, logctx, ISC_LOG_WARNING,
+		cfg_obj_log(mkeys, logctx, ISC_LOG_WARNING,
 			    "both trusted-keys and managed-keys for the ICANN "
 			    "root are present");
+	}
+
+	obj = NULL;
+	if (voptions != NULL) {
+		(void)cfg_map_get(voptions, "dnssec-validation", &obj);
+	}
+	if (obj == NULL && options != NULL) {
+		(void)cfg_map_get(options, "dnssec-validation", &obj);
+	}
+	if (obj != NULL && !cfg_obj_isboolean(obj)) {
+		autovalidation = true;
+	}
+
+	tresult = check_conflicts(mkeys, tkeys, autovalidation, mctx, logctx);
+	if (tresult != ISC_R_SUCCESS) {
+		result = tresult;
 	}
 
 	/*
