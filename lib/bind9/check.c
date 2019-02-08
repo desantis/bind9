@@ -3301,6 +3301,109 @@ check_trusted_key(const cfg_obj_t *key, bool managed,
 	return (result);
 }
 
+/*
+ * Check for conflicts between trusted-keys and managed-keys.
+ */
+static isc_result_t
+check_ta_conflicts(const cfg_obj_t *mkeys, const cfg_obj_t *tkeys,
+		   bool autovalidation, isc_mem_t *mctx, isc_log_t *logctx)
+{
+	isc_result_t result;
+	bool managed = true, trusted = false;
+	const cfg_listelt_t *elt = NULL, *elt2 = NULL;
+	dns_rbt_t *table = NULL;
+	dns_fixedname_t fixed;
+	dns_name_t *name;
+	const cfg_obj_t *obj;
+	const char *str;
+
+	name = dns_fixedname_initname(&fixed);
+
+	result = dns_rbt_create(mctx, NULL, NULL, &table);
+	if (result != ISC_R_SUCCESS) {
+		goto cleanup;
+	}
+
+	for (elt = cfg_list_first(mkeys);
+	     elt != NULL;
+	     elt = cfg_list_next(elt))
+	{
+		const cfg_obj_t *keylist = cfg_listelt_value(elt);
+		for (elt2 = cfg_list_first(keylist);
+		     elt2 != NULL;
+		     elt2 = cfg_list_next(elt2))
+		{
+			obj = cfg_listelt_value(elt2);
+			str = cfg_obj_asstring(cfg_tuple_get(obj, "name"));
+			result = dns_name_fromstring(name, str, 0, NULL);
+			if (result != ISC_R_SUCCESS) {
+				goto cleanup;
+			}
+
+			result = dns_rbt_addname(table, name, &managed);
+			if (result != ISC_R_SUCCESS) {
+				goto cleanup;
+			}
+		}
+	}
+
+	for (elt = cfg_list_first(tkeys);
+	     elt != NULL;
+	     elt = cfg_list_next(elt))
+	{
+		const cfg_obj_t *keylist = cfg_listelt_value(elt);
+		for (elt2 = cfg_list_first(keylist);
+		     elt2 != NULL;
+		     elt2 = cfg_list_next(elt2))
+		{
+			void *data = NULL;
+
+			obj = cfg_listelt_value(elt2);
+			str = cfg_obj_asstring(cfg_tuple_get(obj, "name"));
+			result = dns_name_fromstring(name, str, 0, NULL);
+			if (result != ISC_R_SUCCESS) {
+				goto cleanup;
+			}
+
+			if (autovalidation &&
+			    dns_name_equal(name, dns_rootname))
+			{
+				cfg_obj_log(obj, logctx, ISC_LOG_ERROR,
+					    "trusted-keys for root zone "
+					    "cannot be used with "
+					    "'dnssec-validation auto'.");
+				result = ISC_R_FAILURE;
+				goto cleanup;
+			}
+
+			result = dns_rbt_findname(table, name, 0, NULL, &data);
+			if (result == ISC_R_SUCCESS && data == &managed) {
+				cfg_obj_log(obj, logctx, ISC_LOG_ERROR,
+					    "trusted-keys and managed-keys "
+					    "cannot be used for the "
+					    "same name");
+				result = ISC_R_FAILURE;
+				goto cleanup;
+			} else if (result == ISC_R_SUCCESS) {
+				continue;
+			}
+
+			result = dns_rbt_addname(table, name, &trusted);
+			if (result != ISC_R_SUCCESS) {
+				goto cleanup;
+			}
+		}
+	}
+
+	result = ISC_R_SUCCESS;
+
+ cleanup:
+	if (table != NULL) {
+		dns_rbt_destroy(&table);
+	}
+	return (result);
+}
+
 typedef enum {
 	special_zonetype_rpz,
 	special_zonetype_catz
@@ -3434,109 +3537,6 @@ check_one_plugin(const cfg_obj_t *config, const cfg_obj_t *obj,
 	return (ISC_R_SUCCESS);
 }
 #endif
-
-/*
- * Check for conflicts between trusted-keys and managed-keys.
- */
-static isc_result_t
-check_ta_conflicts(const cfg_obj_t *mkeys, const cfg_obj_t *tkeys,
-		   bool autovalidation, isc_mem_t *mctx, isc_log_t *logctx)
-{
-	isc_result_t result;
-	bool managed = true, trusted = false;
-	const cfg_listelt_t *elt = NULL, *elt2 = NULL;
-	dns_rbt_t *table = NULL;
-	dns_fixedname_t fixed;
-	dns_name_t *name;
-	const cfg_obj_t *obj;
-	const char *str;
-
-	name = dns_fixedname_initname(&fixed);
-
-	result = dns_rbt_create(mctx, NULL, NULL, &table);
-	if (result != ISC_R_SUCCESS) {
-		goto cleanup;
-	}
-
-	for (elt = cfg_list_first(mkeys);
-	     elt != NULL;
-	     elt = cfg_list_next(elt))
-	{
-		const cfg_obj_t *keylist = cfg_listelt_value(elt);
-		for (elt2 = cfg_list_first(keylist);
-		     elt2 != NULL;
-		     elt2 = cfg_list_next(elt2))
-		{
-			obj = cfg_listelt_value(elt2);
-			str = cfg_obj_asstring(cfg_tuple_get(obj, "name"));
-			result = dns_name_fromstring(name, str, 0, NULL);
-			if (result != ISC_R_SUCCESS) {
-				goto cleanup;
-			}
-
-			result = dns_rbt_addname(table, name, &managed);
-			if (result != ISC_R_SUCCESS) {
-				goto cleanup;
-			}
-		}
-	}
-
-	for (elt = cfg_list_first(tkeys);
-	     elt != NULL;
-	     elt = cfg_list_next(elt))
-	{
-		const cfg_obj_t *keylist = cfg_listelt_value(elt);
-		for (elt2 = cfg_list_first(keylist);
-		     elt2 != NULL;
-		     elt2 = cfg_list_next(elt2))
-		{
-			void *data = NULL;
-
-			obj = cfg_listelt_value(elt2);
-			str = cfg_obj_asstring(cfg_tuple_get(obj, "name"));
-			result = dns_name_fromstring(name, str, 0, NULL);
-			if (result != ISC_R_SUCCESS) {
-				goto cleanup;
-			}
-
-			if (autovalidation &&
-			    dns_name_equal(name, dns_rootname))
-			{
-				cfg_obj_log(obj, logctx, ISC_LOG_ERROR,
-					    "trusted-keys for root zone "
-					    "cannot be used with "
-					    "'dnssec-validation auto'.");
-				result = ISC_R_FAILURE;
-				goto cleanup;
-			}
-
-			result = dns_rbt_findname(table, name, 0, NULL, &data);
-			if (result == ISC_R_SUCCESS && data == &managed) {
-				cfg_obj_log(obj, logctx, ISC_LOG_ERROR,
-					    "trusted-keys and managed-keys "
-					    "cannot be used for the "
-					    "same name");
-				result = ISC_R_FAILURE;
-				goto cleanup;
-			} else if (result == ISC_R_SUCCESS) {
-				continue;
-			}
-
-			result = dns_rbt_addname(table, name, &trusted);
-			if (result != ISC_R_SUCCESS) {
-				goto cleanup;
-			}
-		}
-	}
-
-	result = ISC_R_SUCCESS;
-
- cleanup:
-	if (table != NULL) {
-		dns_rbt_destroy(&table);
-	}
-	return (result);
-}
 
 static isc_result_t
 check_viewconf(const cfg_obj_t *config, const cfg_obj_t *voptions,
