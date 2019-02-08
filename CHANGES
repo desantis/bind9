@@ -1,3 +1,8 @@
+5190.	[bug]		If trusted-keys and managed-keys were configured
+			simultaneously for the same name, the key could
+			not be be rolled automatically. This is now
+			a fatal configuration error. [GL #868]
+
 5189.	[placeholder]
 
 5188.	[func]		The "dnssec-enable" option is deprecated and no
