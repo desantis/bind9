@@ -373,8 +373,9 @@ isc_app_ctxrun(isc_appctx_t *ctx0) {
 				UNLOCK(&ctx->readylock);
 				break;
 			}
-			if (!atomic_load(&ctx->want_reload))
+			if (!atomic_load(&ctx->want_reload)) {
 				WAIT(&ctx->ready, &ctx->readylock);
+			}
 			UNLOCK(&ctx->readylock);
 		}
 #else  /* Don't have sigwait(). */
