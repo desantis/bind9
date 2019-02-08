@@ -24,7 +24,6 @@
 #include <isc/portset.h>
 #include <isc/print.h>
 #include <isc/random.h>
-#include <isc/refcount.h>
 #include <isc/socket.h>
 #include <isc/stats.h>
 #include <isc/string.h>
@@ -77,8 +76,8 @@ struct dns_dispatchmgr {
 	isc_mutex_t			buffer_lock;
 	unsigned int			buffersize; /*%< size of each buffer */
 	/* not locked */
-	isc_refcount_t			buffers;    /*%< allocated buffers */
-	isc_refcount_t			maxbuffers; /*%< max buffers */
+	atomic_uint_fast32_t		buffers;    /*%< allocated buffers */
+	atomic_uint_fast32_t		maxbuffers; /*%< max buffers */
 
 	/* Locked internally. */
 	isc_mutex_t			depool_lock;
@@ -901,7 +900,7 @@ free_buffer(dns_dispatch_t *disp, void *buf, unsigned int len) {
 	case isc_sockettype_udp:
 		LOCK(&disp->mgr->buffer_lock);
 		INSIST(len == disp->mgr->buffersize);
-		INSIST(isc_refcount_decrement(&disp->mgr->buffers) > 0);
+		INSIST(atomic_fetch_sub(&disp->mgr->buffers, 1) > 0);
 		bpool = disp->mgr->bpool;
 		UNLOCK(&disp->mgr->buffer_lock);
 		isc_mempool_put(bpool, buf);
@@ -917,7 +916,7 @@ allocate_udp_buffer(dns_dispatch_t *disp) {
 	isc_mempool_t *bpool;
 	void *temp;
 
-	isc_refcount_increment(&disp->mgr->buffers);
+	atomic_fetch_add(&disp->mgr->buffers, 1);
 	LOCK(&disp->mgr->buffer_lock);
 	bpool = disp->mgr->bpool;
 	UNLOCK(&disp->mgr->buffer_lock);
@@ -925,7 +924,7 @@ allocate_udp_buffer(dns_dispatch_t *disp) {
 	temp = isc_mempool_get(bpool);
 
 	if (temp == NULL) {
-		isc_refcount_decrement(&disp->mgr->buffers);
+		atomic_fetch_sub(&disp->mgr->buffers, 1);
 	}
 
 	return (temp);
@@ -1048,7 +1047,7 @@ udp_recv(isc_event_t *ev_in, dns_dispatch_t *disp, dispsocket_t *dispsock) {
 
 	dispatch_log(disp, LVL(90), "got packet: requests %d, "
 		     "buffers %" PRIuFAST32 ", recvs %d",
-		     disp->requests, isc_refcount_current(&disp->mgr->buffers),
+		     disp->requests, atomic_load(&disp->mgr->buffers),
 		     disp->recv_pending);
 
 	if (dispsock == NULL && ev->ev_type == ISC_SOCKEVENT_RECVDONE) {
@@ -1503,8 +1502,9 @@ startrecv(dns_dispatch_t *disp, dispsocket_t *dispsock) {
 		return (ISC_R_SUCCESS);
 	}
 
-	if (isc_refcount_current(&disp->mgr->buffers) >=
-	    isc_refcount_current(&disp->mgr->maxbuffers)) {
+	if (atomic_load(&disp->mgr->buffers) >=
+	    atomic_load(&disp->mgr->maxbuffers))
+	{
 		return (ISC_R_NOMEMORY);
 	}
 
@@ -1812,9 +1812,9 @@ dns_dispatchmgr_create(isc_mem_t *mctx, dns_dispatchmgr_t **mgrp)
 	isc_mempool_associatelock(mgr->dpool, &mgr->dpool_lock);
 	isc_mempool_setfillcount(mgr->dpool, 32);
 
-	isc_refcount_init(&mgr->buffers, 0);
+	atomic_init(&mgr->buffers, 0);
 	mgr->buffersize = 0;
-	isc_refcount_init(&mgr->maxbuffers, 0);
+	atomic_init(&mgr->maxbuffers, 0);
 	mgr->bpool = NULL;
 	mgr->spool = NULL;
 	mgr->qid = NULL;
@@ -2048,7 +2048,7 @@ dns_dispatchmgr_setudp(dns_dispatchmgr_t *mgr,
 		goto cleanup;
 
 	mgr->buffersize = buffersize;
-	isc_refcount_init(&mgr->maxbuffers, maxbuffers);
+	atomic_init(&mgr->maxbuffers, maxbuffers);
 	UNLOCK(&mgr->buffer_lock);
 	return (ISC_R_SUCCESS);
 
