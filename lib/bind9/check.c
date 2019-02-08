@@ -3435,9 +3435,12 @@ check_one_plugin(const cfg_obj_t *config, const cfg_obj_t *obj,
 }
 #endif
 
+/*
+ * Check for conflicts between trusted-keys and managed-keys.
+ */
 static isc_result_t
-check_conflicts(const cfg_obj_t *mkeys, const cfg_obj_t *tkeys,
-		bool autovalidation, isc_mem_t *mctx, isc_log_t *logctx)
+check_ta_conflicts(const cfg_obj_t *mkeys, const cfg_obj_t *tkeys,
+		   bool autovalidation, isc_mem_t *mctx, isc_log_t *logctx)
 {
 	isc_result_t result;
 	bool managed = true, trusted = false;
@@ -3446,8 +3449,9 @@ check_conflicts(const cfg_obj_t *mkeys, const cfg_obj_t *tkeys,
 	dns_fixedname_t fixed;
 	dns_name_t *name;
 	const cfg_obj_t *obj;
-	isc_buffer_t b;
 	const char *str;
+
+	name = dns_fixedname_initname(&fixed);
 
 	result = dns_rbt_create(mctx, NULL, NULL, &table);
 	if (result != ISC_R_SUCCESS) {
@@ -3465,11 +3469,7 @@ check_conflicts(const cfg_obj_t *mkeys, const cfg_obj_t *tkeys,
 		{
 			obj = cfg_listelt_value(elt2);
 			str = cfg_obj_asstring(cfg_tuple_get(obj, "name"));
-			isc_buffer_constinit(&b, str, strlen(str));
-			isc_buffer_add(&b, strlen(str));
-			name = dns_fixedname_initname(&fixed);
-			result = dns_name_fromtext(name, &b, dns_rootname,
-						    0, NULL);
+			result = dns_name_fromstring(name, str, 0, NULL);
 			if (result != ISC_R_SUCCESS) {
 				goto cleanup;
 			}
@@ -3494,11 +3494,7 @@ check_conflicts(const cfg_obj_t *mkeys, const cfg_obj_t *tkeys,
 
 			obj = cfg_listelt_value(elt2);
 			str = cfg_obj_asstring(cfg_tuple_get(obj, "name"));
-			isc_buffer_constinit(&b, str, strlen(str));
-			isc_buffer_add(&b, strlen(str));
-			name = dns_fixedname_initname(&fixed);
-			result = dns_name_fromtext(name, &b, dns_rootname,
-						    0, NULL);
+			result = dns_name_fromstring(name, str, 0, NULL);
 			if (result != ISC_R_SUCCESS) {
 				goto cleanup;
 			}
@@ -3807,7 +3803,8 @@ check_viewconf(const cfg_obj_t *config, const cfg_obj_t *voptions,
 		autovalidation = true;
 	}
 
-	tresult = check_conflicts(mkeys, tkeys, autovalidation, mctx, logctx);
+	tresult = check_ta_conflicts(mkeys, tkeys,
+				     autovalidation, mctx, logctx);
 	if (tresult != ISC_R_SUCCESS) {
 		result = tresult;
 	}
