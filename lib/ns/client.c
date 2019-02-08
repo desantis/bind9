@@ -227,7 +227,7 @@ struct ns_clientmgr {
 #define NS_CLIENT_DROPPORT 1
 #endif
 
-LIBNS_EXTERNAL_DATA atomic_uint_fast32_t ns_client_requests;
+LIBNS_EXTERNAL_DATA atomic_uint_fast32_t ns_client_requests = 0U;
 
 static void read_settimeout(ns_client_t *client, bool newconn);
 static void client_read(ns_client_t *client, bool newconn);
