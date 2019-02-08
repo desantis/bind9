@@ -1612,8 +1612,7 @@ query_fetch_additional(ns_client_t *client, const dns_name_t *name,
 
 static isc_result_t
 query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
-	query_ctx_t *qctx = arg;
-	ns_client_t *client = qctx->client;
+	ns_client_t *client = arg;
 	isc_result_t result, eresult = ISC_R_SUCCESS;
 	dns_dbnode_t *node = NULL;
 	dns_db_t *db = NULL;
@@ -1678,7 +1677,7 @@ query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
 	 * If we want only minimal responses and are here, then it must
 	 * be for glue.
 	 */
-	if (qctx->view->minimalresponses == dns_minimal_yes) {
+	if (client->view->minimalresponses == dns_minimal_yes) {
 		goto try_glue;
 	}
 
@@ -1735,7 +1734,7 @@ query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
 	 */
 
  try_cache:
-	if (!qctx->view->recursion) {
+	if (!client->view->recursion) {
 		goto try_glue;
 	}
 
@@ -2163,7 +2162,7 @@ query_additional_cb(void *arg, const dns_name_t *name, dns_rdatatype_t qtype) {
 		 */
 		eresult = dns_rdataset_additionaldata(trdataset,
 						      query_additional_cb,
-						      qctx);
+						      client);
 	}
 
 	if (trdataset != NULL && trdataset->type == dns_rdatatype_cname) {
@@ -2247,8 +2246,7 @@ query_setorder(query_ctx_t *qctx, dns_name_t *name, dns_rdataset_t *rdataset) {
  * Handle glue and fetch any other needed additional data for 'rdataset'.
  */
 static void
-query_additional(query_ctx_t *qctx, dns_rdataset_t *rdataset) {
-	ns_client_t *client = qctx->client;
+query_additional(ns_client_t *client, dns_rdataset_t *rdataset) {
 	isc_result_t result;
 
 	CTRACE(ISC_LOG_DEBUG(3), "query_additional");
@@ -2260,7 +2258,7 @@ query_additional(query_ctx_t *qctx, dns_rdataset_t *rdataset) {
 	/*
 	 * Try to process glue directly.
 	 */
-	if (qctx->view->use_glue_cache &&
+	if (client->view->use_glue_cache &&
 	    (rdataset->type == dns_rdatatype_ns) &&
 	    (client->query.gluedb != NULL) &&
 	    dns_db_iszone(client->query.gluedb))
@@ -2284,7 +2282,8 @@ query_additional(query_ctx_t *qctx, dns_rdataset_t *rdataset) {
 	 * Add other additional data if needed.
 	 * We don't care if dns_rdataset_additionaldata() fails.
 	 */
-	(void)dns_rdataset_additionaldata(rdataset, query_additional_cb, qctx);
+	(void)dns_rdataset_additionaldata(rdataset, query_additional_cb,
+					  client);
 	CTRACE(ISC_LOG_DEBUG(3), "query_additional: done");
 }
 
@@ -2363,7 +2362,7 @@ query_addrrset(query_ctx_t *qctx, dns_name_t **namep,
 	 */
 	query_addtoname(mname, rdataset);
 	query_setorder(qctx, mname, rdataset);
-	query_additional(qctx, rdataset);
+	query_additional(client, rdataset);
 
 	/*
 	 * Note: we only add SIGs if we've added the type they cover, so
