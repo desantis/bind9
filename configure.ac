@@ -1318,15 +1318,16 @@ AC_SUBST(XMLSTATS)
 # DEPRECATED
 #
 AC_ARG_WITH([libjson],
-	    [AS_HELP_STRING([deprecated, use --with-json-c])],
-	    [AC_MSG_WARN([--with-libjson option is DEPRECATED and it will be removed in future release, use --with-json-c instead])])
+	    [AS_HELP_STRING([--with-libjson[=PATH]],
+			    [deprecated, use --with-json-c])],
+	    [AC_MSG_WARN([--with-libjson is DEPRECATED and will be removed in a future release, use --with-json-c instead])])
 
 #
 # was --with-json-c specified?
 #
 AC_ARG_WITH([json-c],
-	    [AS_HELP_STRING([--with-libjson[=PATH]],
-			   [build with libjson-c library [yes|no|detect] (default is detect)])],
+	    [AS_HELP_STRING([--with-json-c[=PATH]],
+			    [build with json-c library [yes|no|detect] (default is detect)])],
 	    [], [AS_IF([test -n "$with_libjson"],
 		       [with_json_c="$with_libjson"],
 		       [with_json_c="detect"])
