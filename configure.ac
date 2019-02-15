@@ -1339,7 +1339,7 @@ AS_CASE([$with_json_c],
 	      AC_MSG_RESULT([no])],
 	[detect],[PKG_CHECK_MODULES([JSON_C], [json-c >= 0.11],
 				    [AC_DEFINE([HAVE_JSON_C], [1], [Use json-c library])],
-				    [])],
+				    [:])],
 	[yes],[PKG_CHECK_MODULES([JSON_C], [json-c >= 0.11],
 				 [AC_DEFINE([HAVE_JSON_C], [1], [Use json-c library])])],
 	[AC_MSG_ERROR([Use PKG_CONFIG_PATH to specify path to json-c library])]
