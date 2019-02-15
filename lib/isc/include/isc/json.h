@@ -14,9 +14,9 @@
 
 #ifdef HAVE_JSON_C
 /*
- * This file is here mostly to make it easy to add additional libjson header
+ * This file is here mostly to make it easy to add additional json-c header
  * files as needed across all the users of this file.  Rather than place
- * these libjson includes in each file, one include makes it easy to handle
+ * these json-c includes in each file, one include makes it easy to handle
  * the ifdef as well as adding the ability to add additional functions
  * which may be useful.
  */
