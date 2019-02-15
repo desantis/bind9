@@ -1335,7 +1335,8 @@ AC_ARG_WITH([json-c],
 	    )
 
 AS_CASE([$with_json_c],
-	[no],[AC_MSG_RESULT([no])],
+	[no],[AC_MSG_CHECKING([for JSON_C])
+	      AC_MSG_RESULT([no])],
 	[detect],[PKG_CHECK_MODULES([JSON_C], [json-c >= 0.11],
 				    [AC_DEFINE([HAVE_JSON_C], [1], [Use json-c library])],
 				    [])],
