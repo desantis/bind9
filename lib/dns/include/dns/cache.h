@@ -345,7 +345,7 @@ dns_cache_renderjson(dns_cache_t *cache, json_object *cstats);
 /*
  * Render cache statistics and status in JSON
  */
-#endif /* HAVE_JSON */
+#endif /* HAVE_JSON_C */
 
 ISC_LANG_ENDDECLS
 
