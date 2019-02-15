@@ -1318,7 +1318,7 @@ AC_SUBST(XMLSTATS)
 # DEPRECATED
 #
 AC_ARG_WITH([libjson],
-	    [AS_HELP_STRING([--with-libjson[=PATH]],
+	    [AS_HELP_STRING([--with-libjson],
 			    [deprecated, use --with-json-c])],
 	    [AC_MSG_WARN([--with-libjson is DEPRECATED and will be removed in a future release, use --with-json-c instead])],
 	    [with_libjson="detect"])
@@ -1327,7 +1327,7 @@ AC_ARG_WITH([libjson],
 # was --with-json-c specified?
 #
 AC_ARG_WITH([json-c],
-	    [AS_HELP_STRING([--with-json-c[=PATH]],
+	    [AS_HELP_STRING([--with-json-c],
 			    [build with json-c library [yes|no|detect] (default is detect)])],
 	    [], [with_json_c="$with_libjson"])
 
@@ -1339,7 +1339,7 @@ AS_CASE([$with_json_c],
 				    [:])],
 	[yes],[PKG_CHECK_MODULES([JSON_C], [json-c >= 0.11],
 				 [AC_DEFINE([HAVE_JSON_C], [1], [Use json-c library])])],
-	[AC_MSG_ERROR([Use PKG_CONFIG_PATH to specify path to json-c library])]
+	[AC_MSG_ERROR([Specifying json-c installation path is not supported, adjust PKG_CONFIG_PATH instead])]
        )
 
 AC_SUBST([JSON_C_CFLAGS])
