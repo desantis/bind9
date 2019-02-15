@@ -6,7 +6,7 @@ abs_srcdir =	@abs_srcdir@
 @BIND9_MAKE_INCLUDES@
 
 CINCLUDES =	-I. -I.. ${DNS_INCLUDES} ${ISC_INCLUDES} \
-		@OPENSSL_INCLUDES@
+		@OPENSSL_INCLUDES@ @JSON_C_CFLAGS@
 CDEFINES =	-DFUZZDIR=\"$(abs_srcdir)\"
 
 ISCLIBS =	../lib/isc/libisc.@A@ @OPENSSL_LIBS@
