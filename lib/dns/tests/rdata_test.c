@@ -202,6 +202,37 @@ check_text_ok_single(const text_ok_t *text_ok, dns_rdataclass_t rdclass,
 	check_struct_conversions(&rdata, structsize);
 }
 
+static void
+check_text_conversions(dns_rdata_t *rdata) {
+	char buf_totext[1024] = { 0 };
+	unsigned char buf_fromtext[1024];
+	isc_result_t result;
+	isc_buffer_t target;
+	dns_rdata_t rdata2 = DNS_RDATA_INIT;
+	unsigned int attributes;
+
+	attributes = dns_rdatatype_attributes(rdata->type);
+	if ((attributes & DNS_RDATATYPEATTR_META) != 0) {
+		return;
+	}
+
+	/*
+	 * Try converting uncompressed wire form RDATA into text form
+	 * and back again.
+	 */
+	isc_buffer_init(&target, buf_totext, sizeof(buf_totext));
+	result = dns_rdata_totext(rdata, NULL, &target);
+	assert_int_equal(result, ISC_R_SUCCESS);
+	isc_buffer_putuint8(&target, 0);
+
+	result = dns_test_rdatafromstring(&rdata2, rdata->rdclass, rdata->type,
+					  buf_fromtext, sizeof(buf_fromtext),
+					  buf_totext, false);
+	assert_int_equal(result, ISC_R_SUCCESS);
+	assert_int_equal(rdata2.length, rdata->length);
+	assert_true(memcmp(buf_fromtext, rdata->data, rdata->length) == 0);
+}
+
 /*
  * Test whether supplied wire form RDATA is properly handled as being either
  * valid or invalid for an RR of given rdclass and type.
@@ -248,6 +279,7 @@ check_wire_ok_single(const wire_ok_t *wire_ok, dns_rdataclass_t rdclass,
 	 */
 	if (result == ISC_R_SUCCESS) {
 		check_struct_conversions(&rdata, structsize);
+		check_text_conversions(&rdata);
 	}
 }
 
