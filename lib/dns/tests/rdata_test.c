@@ -654,6 +654,26 @@ amtrelay(void **state) {
 		    dns_rdatatype_amtrelay, sizeof(dns_rdata_amtrelay_t));
 }
 
+static void
+cdnskey(void **state) {
+	wire_ok_t wire_ok[] = {
+		WIRE_INVALID(0x00),
+		WIRE_INVALID(0x00, 0x00),
+		WIRE_INVALID(0x00, 0x00, 0x00),
+		WIRE_INVALID(0x00, 0x00, 0x00, 0x00),
+		/* Ignore KEY's NOKEY signal */
+		WIRE_INVALID(0xc0, 0x00, 0x00, 0x00),
+		/* !no key */
+		WIRE_VALID(0x00, 0x00, 0x00, 0x00, 0x00),
+		WIRE_SENTINEL()
+	};
+
+	UNUSED(state);
+
+	check_rdata(NULL, wire_ok, NULL, false, dns_rdataclass_in,
+		    dns_rdatatype_cdnskey, sizeof(dns_rdata_cdnskey_t));
+}
+
 /*
  * CSYNC tests.
  *
@@ -780,6 +800,26 @@ csync(void **state) {
 
 	check_rdata(text_ok, wire_ok, NULL, false, dns_rdataclass_in,
 		    dns_rdatatype_csync, sizeof(dns_rdata_csync_t));
+}
+
+static void
+dnskey(void **state) {
+	wire_ok_t wire_ok[] = {
+		WIRE_INVALID(0x00),
+		WIRE_INVALID(0x00, 0x00),
+		WIRE_INVALID(0x00, 0x00, 0x00),
+		WIRE_INVALID(0x00, 0x00, 0x00, 0x00),
+		/* Ignore KEY's NOKEY signal */
+		WIRE_INVALID(0xc0, 0x00, 0x00, 0x00),
+		/* !no key */
+		WIRE_VALID(0x00, 0x00, 0x00, 0x00, 0x00),
+		WIRE_SENTINEL()
+	};
+
+	UNUSED(state);
+
+	check_rdata(NULL, wire_ok, NULL, false, dns_rdataclass_in,
+		    dns_rdatatype_dnskey, sizeof(dns_rdata_dnskey_t));
 }
 
 /*
@@ -1327,6 +1367,27 @@ isdn(void **state) {
 		    dns_rdatatype_isdn, sizeof(dns_rdata_isdn_t));
 }
 
+static void
+key(void **state) {
+	wire_ok_t wire_ok[] = {
+		WIRE_INVALID(0x00),
+		WIRE_INVALID(0x00, 0x00),
+		WIRE_INVALID(0x00, 0x00, 0x00),
+		WIRE_INVALID(0x00, 0x00, 0x00, 0x00),
+		/* no key in flags */
+		WIRE_VALID(0xc0, 0x00, 0x00, 0x00),
+		WIRE_INVALID(0xc0, 0x00, 0x00, 0x00, 0x00),
+		/* !no key */
+		WIRE_VALID(0x00, 0x00, 0x00, 0x00, 0x00),
+		WIRE_SENTINEL()
+	};
+
+	UNUSED(state);
+
+	check_rdata(NULL, wire_ok, NULL, false, dns_rdataclass_in,
+		    dns_rdatatype_key, sizeof(dns_rdata_key_t));
+}
+
 /*
  * http://ana-3.lcs.mit.edu/~jnc/nimrod/dns.txt
  *
@@ -1505,6 +1566,26 @@ nxt(void **state) {
 
 	check_rdata(NULL, NULL, compare_ok, false, dns_rdataclass_in,
 		    dns_rdatatype_nxt, sizeof(dns_rdata_nxt_t));
+}
+
+static void
+rkey(void **state) {
+	wire_ok_t wire_ok[] = {
+		WIRE_INVALID(0x00),
+		WIRE_INVALID(0x00, 0x00),
+		WIRE_INVALID(0x00, 0x00, 0x00),
+		WIRE_INVALID(0x00, 0x00, 0x00, 0x00),
+		/* Ignore KEY's NOKEY signal */
+		WIRE_INVALID(0xc0, 0x00, 0x00, 0x00),
+		/* !no key */
+		WIRE_VALID(0x00, 0x00, 0x00, 0x00, 0x00),
+		WIRE_SENTINEL()
+	};
+
+	UNUSED(state);
+
+	check_rdata(NULL, wire_ok, NULL, false, dns_rdataclass_in,
+		    dns_rdatatype_rkey, sizeof(dns_rdata_rkey_t));
 }
 
 /*
@@ -1828,17 +1909,21 @@ main(void) {
 		cmocka_unit_test_setup_teardown(amtrelay, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(apl, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(atma, _setup, _teardown),
+		cmocka_unit_test_setup_teardown(cdnskey, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(csync, _setup, _teardown),
+		cmocka_unit_test_setup_teardown(dnskey, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(doa, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(eid, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(edns_client_subnet,
 						_setup, _teardown),
 		cmocka_unit_test_setup_teardown(hip, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(isdn, _setup, _teardown),
+		cmocka_unit_test_setup_teardown(key, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(nimloc, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(nsec, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(nsec3, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(nxt, _setup, _teardown),
+		cmocka_unit_test_setup_teardown(rkey, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(wks, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(zonemd, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(atcname, NULL, NULL),
