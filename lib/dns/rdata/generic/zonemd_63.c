@@ -70,7 +70,7 @@ totext_zonemd(ARGS_TOTEXT) {
 	char buf[sizeof("0123456789")];
 	unsigned long num;
 
-	REQUIRE(rdata->length != 0);
+	REQUIRE(rdata->length > 6);
 
 	UNUSED(tctx);
 
@@ -136,9 +136,10 @@ fromwire_zonemd(ARGS_FROMWIRE) {
 	isc_buffer_activeregion(source, &sr);
 
 	/*
-	 * Check digest lengths if we know them.
+	 * Check that a digest is present if it is unknown and
+	 * check digest lengths are correct if we know them.
 	 */
-	if (sr.length < 6 ||
+	if (sr.length < 7 ||
 	    (sr.base[4] == DNS_ZONEMD_DIGEST_SHA384 &&
 	     sr.length < 6 + ISC_SHA384_DIGESTLENGTH))
 	{

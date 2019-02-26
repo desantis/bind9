@@ -1642,7 +1642,7 @@ zonemd(void **state) {
 		TEXT_INVALID("0 0"),
 		TEXT_INVALID("0 0 0"),
 		TEXT_INVALID("99999999 0 0"),
-		TEXT_INVALID("2019020700 0 0 "),
+		TEXT_INVALID("2019020700 0 0"),
 		TEXT_INVALID("2019020700 1 0 DEADBEEF"),
 		TEXT_VALID("2019020700 2 0 DEADBEEF"),
 		TEXT_VALID("2019020700 255 0 DEADBEEF"),
@@ -1676,12 +1676,16 @@ zonemd(void **state) {
 		 */
 		WIRE_INVALID(0x00, 0x00, 0x00, 0x00, 0x00),
 		/*
-		 * Serial + type + reserved only - digest type
-		 * undefined, so we accept the missing digest.
+		 * Short.
 		 */
-		WIRE_VALID(0x00, 0x00, 0x00, 0x00, 0x00, 0x00),
+		WIRE_INVALID(0x00, 0x00, 0x00, 0x00, 0x00, 0x00),
 		/*
-		 * SHA-384 is defined, so we insist there be a digest.
+		 * Minimal hash type 0.
+		 */
+		WIRE_VALID(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00),
+		/*
+		 * SHA-384 is defined, so we insist there be a digest of
+		 * the expected lenght.
 		 */
 		WIRE_INVALID(0x00, 0x00, 0x00, 0x00, 0x01, 0x00),
 		/*
