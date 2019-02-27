@@ -193,6 +193,9 @@ check_text_ok_single(const text_ok_t *text_ok, dns_rdataclass_t rdclass,
 	isc_buffer_init(&target, buf_totext, sizeof(buf_totext));
 	result = dns_rdata_totext(&rdata, NULL, &target);
 	assert_int_equal(result, ISC_R_SUCCESS);
+	if (strcmp(buf_totext, text_ok->text_out)) {
+		fprintf(stderr, "'%s' != '%s'\n", buf_totext, text_ok->text_out);
+	}
 	assert_string_equal(buf_totext, text_ok->text_out);
 
 	/*
@@ -995,6 +998,95 @@ doa(void **state) {
 
 	check_rdata(text_ok, wire_ok, NULL, false, dns_rdataclass_in,
 		    dns_rdatatype_doa, sizeof(dns_rdata_doa_t));
+}
+
+static void
+ds(void **state) {
+	text_ok_t text_ok[] = {
+		TEXT_INVALID(""),
+		TEXT_INVALID("0"),
+		TEXT_INVALID("0 0"),
+		TEXT_INVALID("0 0 0"),
+		TEXT_VALID("0 0 0 00"),
+		/* SHA1 */
+		TEXT_INVALID("0 0 1 00"),
+		TEXT_INVALID("0 0 1 4FDCE83016EDD29077621FE568F8DADDB5809B"),
+		TEXT_VALID("0 0 1 4FDCE83016EDD29077621FE568F8DADDB5809B6A"),
+		TEXT_INVALID("0 0 1 4FDCE83016EDD29077621FE568F8DADDB5809B"
+			     "6A00"),
+		/* SHA256 */
+		TEXT_INVALID("0 0 2 00"),
+		TEXT_INVALID("0 0 2 D001BD422FFDA9B745425B71DC17D007E69186"
+			     "9BD59C5F237D9BF85434C313"),
+		TEXT_VALID_CHANGED(
+			   "0 0 2 D001BD422FFDA9B745425B71DC17D007E691869B"
+			   "D59C5F237D9BF85434C3133F",
+			   "0 0 2 D001BD422FFDA9B745425B71DC17D007E691869B"
+			   "D59C5F237D9BF854 34C3133F"),
+		TEXT_INVALID("0 0 2 D001BD422FFDA9B745425B71DC17D007E69186"
+			     "9BD59C5F237D9BF85434C3133F00"),
+		/* GOST */
+		TEXT_VALID("0 0 3 00"),
+		/* SHA384 */
+		TEXT_INVALID("0 0 4 00"),
+		TEXT_INVALID("0 0 4 AC748D6C5AA652904A8763D64B7DFFFFA98152"
+			     "BE12128D238BEBB4814B648F5A841E15CAA2DE348891"
+			     "A37A699F65E5"),
+		TEXT_VALID_CHANGED(
+			   "0 0 4 AC748D6C5AA652904A8763D64B7DFFFFA98152BE"
+			   "12128D238BEBB4814B648F5A841E15CAA2DE348891A37A"
+			   "699F65E54D",
+			   "0 0 4 AC748D6C5AA652904A8763D64B7DFFFFA98152BE"
+			   "12128D238BEBB481 4B648F5A841E15CAA2DE348891A37A"
+			   "699F65E54D"),
+		TEXT_INVALID("0 0 4 AC748D6C5AA652904A8763D64B7DFFFFA98152"
+			     "BE12128D238BEBB4814B648F5A841E15CAA2DE348891"
+			     "A37A699F65E54D00"),
+		/* unassigned */
+		TEXT_VALID("0 0 5 00"),
+		TEXT_SENTINEL()
+	};
+	wire_ok_t wire_ok[] = {
+		WIRE_INVALID(0x00),
+		WIRE_INVALID(0x00, 0x00),
+		WIRE_INVALID(0x00, 0x00, 0x00),
+		WIRE_INVALID(0x00, 0x00, 0x00, 0x00),
+		WIRE_VALID(0x00, 0x00, 0x00, 0x00, 0x00),
+		/* SHA1 */
+		WIRE_INVALID(0x00, 0x00, 0x00, 0x01, 0x00),
+		/* SHA256 */
+		WIRE_INVALID(0x00, 0x00, 0x00, 0x02, 0x00),
+		/* SHA384 */
+		WIRE_INVALID(0x00, 0x00, 0x00, 0x04, 0x00),
+		WIRE_INVALID(0x00, 0x00, 0x00, 0x04, 0xAC, 0x74, 0x8D, 0x6C,
+			     0x5A, 0xA6, 0x52, 0x90, 0x4A, 0x87, 0x63, 0xD6,
+			     0x4B, 0x7D, 0xFF, 0xFF, 0xA9, 0x81, 0x52, 0xBE,
+			     0x12, 0x12, 0x8D, 0x23, 0x8B, 0xEB, 0xB4, 0x81,
+			     0x4B, 0x64, 0x8F, 0x5A, 0x84, 0x1E, 0x15, 0xCA,
+			     0xA2, 0xDE, 0x34, 0x88, 0x91, 0xA3, 0x7A, 0x69,
+			     0x9F, 0x65, 0xE5),
+		WIRE_VALID(0x00, 0x00, 0x00, 0x04, 0xAC, 0x74, 0x8D, 0x6C,
+			   0x5A, 0xA6, 0x52, 0x90, 0x4A, 0x87, 0x63, 0xD6,
+			   0x4B, 0x7D, 0xFF, 0xFF, 0xA9, 0x81, 0x52, 0xBE,
+			   0x12, 0x12, 0x8D, 0x23, 0x8B, 0xEB, 0xB4, 0x81,
+			   0x4B, 0x64, 0x8F, 0x5A, 0x84, 0x1E, 0x15, 0xCA,
+			   0xA2, 0xDE, 0x34, 0x88, 0x91, 0xA3, 0x7A, 0x69,
+			   0x9F, 0x65, 0xE5, 0x4D),
+		WIRE_INVALID(0x00, 0x00, 0x00, 0x04, 0xAC, 0x74, 0x8D, 0x6C,
+			     0x5A, 0xA6, 0x52, 0x90, 0x4A, 0x87, 0x63, 0xD6,
+			     0x4B, 0x7D, 0xFF, 0xFF, 0xA9, 0x81, 0x52, 0xBE,
+			     0x12, 0x12, 0x8D, 0x23, 0x8B, 0xEB, 0xB4, 0x81,
+			     0x4B, 0x64, 0x8F, 0x5A, 0x84, 0x1E, 0x15, 0xCA,
+			     0xA2, 0xDE, 0x34, 0x88, 0x91, 0xA3, 0x7A, 0x69,
+			     0x9F, 0x65, 0xE5, 0x4D, 0x00),
+		WIRE_VALID(0x00, 0x00, 0x04, 0x00, 0x00),
+		WIRE_SENTINEL()
+	};
+
+	UNUSED(state);
+
+	check_rdata(text_ok, wire_ok, NULL, false, dns_rdataclass_in,
+		    dns_rdatatype_ds, sizeof(dns_rdata_ds_t));
 }
 
 /*
@@ -1830,6 +1922,7 @@ main(void) {
 		cmocka_unit_test_setup_teardown(atma, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(csync, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(doa, _setup, _teardown),
+		cmocka_unit_test_setup_teardown(ds, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(eid, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(edns_client_subnet,
 						_setup, _teardown),
