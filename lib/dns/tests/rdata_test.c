@@ -34,6 +34,8 @@
 
 #include "dnstest.h"
 
+static bool debug = false;
+
 /*
  * An array of these structures is passed to compare_ok().
  */
@@ -101,7 +103,12 @@ typedef struct wire_ok {
 					ok				      \
 				}
 #define WIRE_VALID(...)		WIRE_TEST(true, __VA_ARGS__)
-#define WIRE_INVALID(...)	WIRE_TEST(false, __VA_ARGS__)
+/*
+ * WIRE_INVALID must always have at least one octet to distingish it from
+ * WIRE_SENTINEL.  Use check_wire_ok(,empty_ok = false,) for empty invalid.
+ */
+#define WIRE_INVALID(FIRST, ...) \
+				WIRE_TEST(false, FIRST, __VA_ARGS__)
 #define WIRE_SENTINEL()		WIRE_TEST(false)
 
 /*
@@ -174,10 +181,13 @@ check_text_ok_single(const text_ok_t *text_ok, dns_rdataclass_t rdclass,
 	 * Check whether result is as expected.
 	 */
 	if (text_ok->text_out != NULL) {
+		if (debug && result != ISC_R_SUCCESS) {
+			fprintf(stdout, "#'%s'\n", text_ok->text_in);
+		}
 		assert_int_equal(result, ISC_R_SUCCESS);
 	} else {
-		if (result == ISC_R_SUCCESS) {
-			fprintf(stderr, "'%s'\n", text_ok->text_in);
+		if (debug && result == ISC_R_SUCCESS) {
+			fprintf(stdout, "#'%s'\n", text_ok->text_in);
 		}
 		assert_int_not_equal(result, ISC_R_SUCCESS);
 	}
@@ -228,6 +238,9 @@ check_text_conversions(dns_rdata_t *rdata) {
 	result = dns_rdata_totext(rdata, NULL, &target);
 	assert_int_equal(result, ISC_R_SUCCESS);
 	isc_buffer_putuint8(&target, 0);
+	if (debug) {
+		fprintf(stdout, "#'%s'\n", buf_totext);
+	}
 
 	result = dns_test_rdatafromstring(&rdata2, rdata->rdclass, rdata->type,
 					  buf_fromtext, sizeof(buf_fromtext),
@@ -247,7 +260,9 @@ check_text_conversions(dns_rdata_t *rdata) {
 				     "\n", &target);
 	assert_int_equal(result, ISC_R_SUCCESS);
 	isc_buffer_putuint8(&target, 0);
-	// fprintf(stdout, "#'%s'\n", buf_totext);
+	if (debug) {
+		fprintf(stdout, "#'%s'\n", buf_totext);
+	}
 
 	result = dns_test_rdatafromstring(&rdata2, rdata->rdclass, rdata->type,
 					  buf_fromtext, sizeof(buf_fromtext),
@@ -1239,7 +1254,6 @@ eid(void **state) {
 		/*
 		 * Too short.
 		 */
-		WIRE_INVALID(),
 		WIRE_VALID(0x00),
 		/*
 		 * Sentinel.
@@ -1407,8 +1421,8 @@ nimloc(void **state) {
 		/*
 		 * Too short.
 		 */
-		WIRE_INVALID(),
 		WIRE_VALID(0x00),
+		WIRE_VALID(0xAA, 0xBB, 0xCC),
 		/*
 		 * Sentinel.
 		 */
@@ -1500,7 +1514,7 @@ nsec(void **state) {
 		WIRE_INVALID(0x00, 0x00),
 		WIRE_INVALID(0x00, 0x00, 0x00),
 		WIRE_VALID(0x00, 0x00, 0x01, 0x02),
-		WIRE_INVALID()
+		WIRE_SENTINEL()
 	};
 
 	UNUSED(state);
@@ -1879,7 +1893,7 @@ iszonecutauth(void **state) {
 }
 
 int
-main(void) {
+main(int argc, char **argv) {
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test_setup_teardown(amtrelay, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(apl, _setup, _teardown),
@@ -1901,6 +1915,12 @@ main(void) {
 		cmocka_unit_test_setup_teardown(atparent, NULL, NULL),
 		cmocka_unit_test_setup_teardown(iszonecutauth, NULL, NULL),
 	};
+
+	UNUSED(argv);
+
+	if (argc > 1) {
+		debug = true;
+	}
 
 	return (cmocka_run_group_tests(tests, NULL, NULL));
 }
