@@ -176,6 +176,9 @@ check_text_ok_single(const text_ok_t *text_ok, dns_rdataclass_t rdclass,
 	if (text_ok->text_out != NULL) {
 		assert_int_equal(result, ISC_R_SUCCESS);
 	} else {
+		if (result == ISC_R_SUCCESS) {
+			fprintf(stderr, "'%s'\n", text_ok->text_in);
+		}
 		assert_int_not_equal(result, ISC_R_SUCCESS);
 	}
 
@@ -210,6 +213,7 @@ check_text_conversions(dns_rdata_t *rdata) {
 	isc_buffer_t target;
 	dns_rdata_t rdata2 = DNS_RDATA_INIT;
 	unsigned int attributes;
+	unsigned int flags;
 
 	attributes = dns_rdatatype_attributes(rdata->type);
 	if ((attributes & DNS_RDATATYPEATTR_META) != 0) {
@@ -224,6 +228,26 @@ check_text_conversions(dns_rdata_t *rdata) {
 	result = dns_rdata_totext(rdata, NULL, &target);
 	assert_int_equal(result, ISC_R_SUCCESS);
 	isc_buffer_putuint8(&target, 0);
+
+	result = dns_test_rdatafromstring(&rdata2, rdata->rdclass, rdata->type,
+					  buf_fromtext, sizeof(buf_fromtext),
+					  buf_totext, false);
+	assert_int_equal(result, ISC_R_SUCCESS);
+	assert_int_equal(rdata2.length, rdata->length);
+	assert_true(memcmp(buf_fromtext, rdata->data, rdata->length) == 0);
+
+	/*
+	 * Try converting uncompressed wire form RDATA into multi-line text
+	 * form and back again.
+	 */
+	dns_rdata_init(&rdata2);
+	isc_buffer_init(&target, buf_totext, sizeof(buf_totext));
+	flags = dns_master_styleflags(&dns_master_style_default);
+	result = dns_rdata_tofmttext(rdata, dns_rootname, flags, 80 - 32, 4,
+				     "\n", &target);
+	assert_int_equal(result, ISC_R_SUCCESS);
+	isc_buffer_putuint8(&target, 0);
+	// fprintf(stdout, "#'%s'\n", buf_totext);
 
 	result = dns_test_rdatafromstring(&rdata2, rdata->rdclass, rdata->type,
 					  buf_fromtext, sizeof(buf_fromtext),
@@ -1497,8 +1521,8 @@ nsec3(void **state) {
 		TEXT_INVALID("."),
 		TEXT_INVALID(". RRSIG"),
 		TEXT_INVALID("1 0 10 76931F"),
-		TEXT_INVALID("1 0 10 76931F IMQ912BREQP1POLAH3RMONG;UED541AS"),
-		TEXT_INVALID("1 0 10 76931F IMQ912BREQP1POLAH3RMONG;UED541AS A RRSIG"),
+		TEXT_INVALID("1 0 10 76931F IMQ912BREQP1POLAH3RMONG&UED541AS"),
+		TEXT_INVALID("1 0 10 76931F IMQ912BREQP1POLAH3RMONG&UED541AS A RRSIG"),
 		TEXT_VALID("1 0 10 76931F AJHVGTICN6K0VDA53GCHFMT219SRRQLM A RRSIG"),
 		TEXT_VALID("1 0 10 76931F AJHVGTICN6K0VDA53GCHFMT219SRRQLM"),
 		TEXT_VALID("1 0 10 - AJHVGTICN6K0VDA53GCHFMT219SRRQLM"),
