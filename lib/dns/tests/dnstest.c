@@ -481,6 +481,7 @@ dns_test_rdatafromstring(dns_rdata_t *rdata, dns_rdataclass_t rdclass,
 	dns_rdatacallbacks_t callbacks;
 	isc_buffer_t source, target;
 	isc_lex_t *lex = NULL;
+	isc_lexspecials_t specials;
 	isc_result_t result;
 	size_t length;
 
@@ -503,6 +504,14 @@ dns_test_rdatafromstring(dns_rdata_t *rdata, dns_rdataclass_t rdclass,
 	if (result != ISC_R_SUCCESS) {
 		return (result);
 	}
+
+	memset(specials, 0, sizeof(specials));
+	specials[0] = 1;
+	specials['('] = 1;
+	specials[')'] = 1;
+	specials['"'] = 1;
+	isc_lex_setspecials(lex, specials);
+	isc_lex_setcomments(lex, ISC_LEXCOMMENT_DNSMASTERFILE);
 
 	/*
 	 * Point lexer at source.
