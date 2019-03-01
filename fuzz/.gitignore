@@ -1,3 +1,4 @@
 /*.dSYM/
 dns_name_fromtext_target
+dns_rdata_tofromtext_target
 /*.out/
