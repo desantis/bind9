@@ -59,7 +59,7 @@ BIGKEY=$TOP/bin/tests/system/rsabigexponent/bigkey
 GENCHECK=$TOP/bin/tests/system/rndc/gencheck
 KEYCREATE=$TOP/bin/tests/system/tkey/keycreate
 KEYDELETE=$TOP/bin/tests/system/tkey/keydelete
-MAKEJOURNAL=$TOP/bin/tests/makejournal
+MAKEJOURNAL=$TOP/bin/tests/system/makejournal
 PIPEQUERIES=$TOP/bin/tests/system/pipelined/pipequeries
 SAMPLEUPDATE=$TOP/lib/samples/sample-update
 
