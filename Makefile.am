@@ -1,6 +1,6 @@
 ACLOCAL_AMFLAGS = -I m4
 
-SUBDIRS = . lib bin # unit doc
+SUBDIRS = . libltdl lib bin # unit doc
 
 BUILT_SOURCES = bind.keys.h
 CLEANFILES = bind.keys.h

@@ -57,7 +57,11 @@ AC_PROG_LN_S
 AX_POSIX_SHELL
 
 # Initialize libtool
-LT_INIT
+LT_INIT([dlopen])
+
+LT_CONFIG_LTDL_DIR([libltdl])
+LTDL_INIT([recursive])
+AC_CONFIG_FILES([libltdl/Makefile])
 
 AC_SUBST(STD_CINCLUDES)
 AC_SUBST(STD_CDEFINES)
@@ -2324,114 +2328,6 @@ DLZ_DRIVER_OBJS=""
 DLZ_SYSTEM_TEST=""
 DLZ_DRIVER_MYSQL_INCLUDES=""
 DLZ_DRIVER_MYSQL_LIBS=""
-
-#
-# Configure support for building a shared library object
-#
-# Even when libtool is available it can't always be relied upon
-# to build an object that can be dlopen()'ed, but this is necessary
-# for building the dlzexternal system test, so we'll try it the
-# old-fashioned way.
-#
-SO="so"
-SO_CFLAGS=""
-SO_LDFLAGS=""
-SO_LD=""
-SO_TARGETS=""
-SO_STRIP="cat"
-
-AC_ARG_WITH([dlopen],
-	    AS_HELP_STRING([--with-dlopen=ARG],
-			   [support dynamically loadable DLZ and DYNDB drivers]),
-	    [], [with_dlopen="auto"])
-
-
-#
-# If PIC is disabled, dlopen must also be
-#
-AS_IF([test "$pic_mode" = "no"],
-      [AS_CASE([$with_dlopen],
-	       [auto],[with_dlopen="no"],
-	       [yes],[AC_MSG_ERROR([--with-dlopen requires PIC])])])
-
-AS_CASE([$with_dlopen],
-	[auto|yes],[
-	  AC_SEARCH_LIBS([dlopen],[dl])
-	  AC_CHECK_FUNCS([dlopen dlclose dlsym],
-			 [with_dlopen="yes"],
-			 [with_dlopen="no"])
-	])
-
-AS_IF([test "$with_dlopen" = "yes"],
-      [AS_CASE([$host],
-	       [*-linux*|*-gnu*],[
-		 LDFLAGS="${LDFLAGS} -Wl,--export-dynamic"
-		 SO_CFLAGS="-fPIC"
-		 SO_LDFLAGS=""
-		 AS_IF([test "$use_libtool" = "yes"],[
-			 SO_LDFLAGS="-Xcompiler -shared"
-			 SO_LD="${CC}"
-		       ],[
-			 SO_LDFLAGS="-shared"
-			 SO_LD="${CC}"
-		       ])
-	       ],
-	       [*-freebsd*|*-openbsd*|*-netbsd*],[
-		 LDFLAGS="${LDFLAGS} -Wl,-E"
-		 SO_CFLAGS="-fpic"
-		 AS_IF([test "$use_libtool" = "yes"],[
-			 SO_LDFLAGS="-Xcompiler -shared"
-			 SO_LD="${CC}"
-		       ],[
-			 SO_LDFLAGS="-shared"
-			 SO_LD="${CC}"
-		       ])
-	       ],
-	       [*-darwin*],[
-		 SO_CFLAGS="-fPIC"
-                 SO_LD="${CC}"
-		 AS_IF([test "$use_libtool" = "yes"],[
-			 SO_LDFLAGS="-Xcompiler -dynamiclib -undefined dynamic_lookup"
-		       ],[
-			 SO_LDFLAGS="-dynamiclib -undefined dynamic_lookup"
-		       ])
-	       ],
-	       [*-solaris*],[
-		 SO_CFLAGS="-KPIC"
-		 SO_LDFLAGS="-G -z text"
-		 SO_LD="ld"
-	       ],
-	       [
-		 SO_CFLAGS="-fPIC"
-	       ])
-       AS_IF([test "$GCC" = "yes"],[
-	       SO_CFLAGS="-fPIC"
-	       AS_IF([test -z "$SO_LD"],
-		     [AS_IF([test "$use_libtool" = "yes"],[
-			      SO_LDFLAGS="-Xcompiler -shared"
-			      SO_LD="${CC}"
-			    ],[
-			      SO_LDFLAGS="-shared"
-			      SO_LD="${CC}"
-			    ])
-		     ])
-	     ])
-       # If we still don't know how to make shared objects, don't make any.
-       AS_IF([test -n "$SO_LD"],
-	     [SO_TARGETS="\${SO_TARGETS}"
-	      AC_DEFINE([ISC_DLZ_DLOPEN], [1],
-			[Define to allow building of objects for dlopen().])
-	     ])
-      ])
-
-CFLAGS="$CFLAGS $SO_CFLAGS"
-
-AC_SUBST(SO)
-AC_SUBST(SO_CFLAGS)
-AC_SUBST(SO_LDFLAGS)
-AC_SUBST(SO_LD)
-AC_SUBST(SO_STRIP)
-AC_SUBST(SO_TARGETS)
 
 #
 # Response policy rewriting using DNS Response Policy Service (DNSRPS)
