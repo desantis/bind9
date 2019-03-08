@@ -3265,6 +3265,7 @@ zone_check_dnskeys(dns_zone_t *zone, dns_db_t *db) {
 		{
 			const char *algorithm = "";
 			isc_region_t r;
+			bool logit = true;
 
 			dns_rdata_toregion(&rdata, &r);
 
@@ -3284,13 +3285,18 @@ zone_check_dnskeys(dns_zone_t *zone, dns_db_t *db) {
 			case DNS_KEYALG_RSASHA512:
 				algorithm = "RSASHA512";
 				break;
+			default:
+				logit = false;
+				break;
 			}
 
-			dnssec_log(zone, ISC_LOG_WARNING,
-				   "weak %s (%u) key found "
-				   "(exponent=3, id=%u)", algorithm,
-				   dnskey.algorithm,
-				   dst_region_computeid(&r));
+			if (logit) {
+				dnssec_log(zone, ISC_LOG_WARNING,
+					   "weak %s (%u) key found "
+					   "(exponent=3, id=%u)", algorithm,
+					   dnskey.algorithm,
+					   dst_region_computeid(&r));
+			}
 		}
 		dns_rdata_reset(&rdata);
 	}
