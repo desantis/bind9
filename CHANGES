@@ -1,3 +1,6 @@
+5179.	[func]		Allow dig to print out AAAA record fully expanded.
+			with +[no]expandaaaa. [GL #765]
+
 5178.	[bug]		Handle EDQUOT (disk quota) and ENOSPC (disk full)
 			errors when writing files. [GL #902]
 
