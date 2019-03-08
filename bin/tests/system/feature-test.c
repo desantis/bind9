@@ -110,11 +110,7 @@ main(int argc, char **argv) {
 	}
 
 	if (strcmp(argv[1], "--have-dlopen") == 0) {
-#if defined(HAVE_DLOPEN) && defined(ISC_DLZ_DLOPEN)
 		return (0);
-#else
-		return (1);
-#endif
 	}
 
 	if (strcmp(argv[1], "--have-geoip") == 0) {

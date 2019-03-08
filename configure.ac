@@ -2592,6 +2592,7 @@ AC_CONFIG_FILES([Makefile
 		 bin/check/Makefile
 		 bin/confgen/Makefile
 		 bin/python/Makefile
+		 bin/plugins/Makefile
 		 lib/Makefile
 		 lib/samples/Makefile
 		 lib/isc/include/isc/platform.h

@@ -41,7 +41,7 @@ libns_la_SOURCES =			\
 
 libns_la_CPPFLAGS = \
 	$(AM_CPPFLAGS)			\
-	-DNAMED_PLUGINDIR=\"${libdir}/named\"	\
+	-DNAMED_PLUGINDIR=\"$(libdir)/named\"	\
 	$(ISC_INCLUDES)			\
 	$(DNS_INCLUDES)			\
 	$(NS_INCLUDES)			\
@@ -54,4 +54,5 @@ libns_la_LDFLAGS = \
 
 libns_la_LIBADD =			\
 	libisc.la			\
-	libdns.la
+	libdns.la			\
+	$(top_builddir)/libltdl/libltdlc.la
