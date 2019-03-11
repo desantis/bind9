@@ -784,9 +784,11 @@ EOF
     $PERL $SYSTEMTESTTOP/stop.pl --use-rndc --port ${CONTROLPORT} rpz ns3
     cp ns3/broken.db.in ns3/bl.db
     restart 3 # do not rebuild rpz zones
+    wait_for_log "rpz: manual-update-rpz: reload done" ns3/named.run
     nocrash a3-1.tld2 -tA
     $PERL $SYSTEMTESTTOP/stop.pl --use-rndc --port ${CONTROLPORT} rpz ns3
     restart 3 "rebuild-bl-rpz"
+    wait_for_log "rpz: manual-update-rpz: reload done" ns3/named.run
 
     # reload a RPZ zone that is now deliberately broken.
     t=`expr $t + 1`
@@ -795,7 +797,7 @@ EOF
     grep "walled\.tld2\..*IN.*A.*10\.0\.0\.1" dig.out.$t.before > /dev/null || setret "failed"
     cp ns3/broken.db.in ns3/manual-update-rpz.db
     rndc_reload ns3 $ns3 manual-update-rpz
-    sleep 1
+    wait_for_log "zone manual-update-rpz/IN: not loaded due to errors" ns3/named.run
     # ensure previous RPZ rules still apply.
     $DIG -p ${PORT} @$ns3 walled.tld2 > dig.out.$t.after
     grep "walled\.tld2\..*IN.*A.*10\.0\.0\.1" dig.out.$t.after > /dev/null || setret "failed"
