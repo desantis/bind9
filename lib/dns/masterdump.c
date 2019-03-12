@@ -96,6 +96,7 @@ typedef struct dns_totext_ctx {
 	uint32_t 		current_ttl;
 	bool 		current_ttl_valid;
 	dns_ttl_t		serve_stale_ttl;
+	unsigned int	rdata_size;
 } dns_totext_ctx_t;
 
 LIBDNS_EXTERNAL_DATA const dns_master_style_t
@@ -493,6 +494,7 @@ rdataset_totext(dns_rdataset_t *rdataset,
 	dns_fixedname_t fixed;
 	dns_name_t *name = NULL;
 	unsigned int i;
+	uint64_t rdata_chunk_size=0;
 
 	REQUIRE(DNS_RDATASET_VALID(rdataset));
 
@@ -681,6 +683,7 @@ rdataset_totext(dns_rdataset_t *rdataset,
 						   ctx->style.split_width,
 						   ctx->linebreak,
 						   target));
+			rdata_chunk_size+=target->used;
 
 			isc_buffer_availableregion(target, &r);
 			if (r.length < 1)
@@ -706,6 +709,7 @@ rdataset_totext(dns_rdataset_t *rdataset,
 	ctx->class_printed = true;
 	ctx->current_ttl= current_ttl;
 	ctx->current_ttl_valid = current_ttl_valid;
+	ctx->rdata_size+=rdata_chunk_size;
 
 	return (ISC_R_SUCCESS);
 }
@@ -867,6 +871,7 @@ dump_rdataset(isc_mem_t *mctx, const dns_name_t *name,
 {
 	isc_region_t r;
 	isc_result_t result;
+	unsigned int reductR;
 
 	REQUIRE(buffer->length > 0);
 
@@ -923,6 +928,14 @@ dump_rdataset(isc_mem_t *mctx, const dns_name_t *name,
 	/*
 	 * Write the buffer contents to the master file.
 	 */
+	if (ctx->rdata_size > 5000) {
+		fprintf(f, "\n The size of this RR reached: %u KB and was truncated at 5.5 KB.\n",
+		(unsigned int) ctx->rdata_size);
+		reductR = ctx->rdata_size - 5500;
+		buffer -= reductR;
+		isc_buffer_usedregion(buffer, &r);
+		result = isc_stdio_write(r.base, 1, (size_t)r.length, f, NULL);
+	}
 	isc_buffer_usedregion(buffer, &r);
 	result = isc_stdio_write(r.base, 1, (size_t)r.length, f, NULL);
 
@@ -1638,6 +1651,7 @@ dumptostreaminc(dns_dumpctx_t *dctx) {
 	dns_fixedname_t fixname;
 	unsigned int nodes;
 	isc_time_t start;
+	dctx->tctx.rdata_size=0;
 
 	bufmem = isc_mem_get(dctx->mctx, initial_buffer_length);
 	if (bufmem == NULL)
@@ -1753,6 +1767,7 @@ dumptostreaminc(dns_dumpctx_t *dctx) {
 	RUNTIME_CHECK(dns_dbiterator_pause(dctx->dbiter) == ISC_R_SUCCESS);
 	isc_mem_put(dctx->mctx, buffer.base, buffer.length);
 	return (result);
+	//dctx->tctx.rdata_size=0;
 }
 
 isc_result_t

@@ -238,6 +238,7 @@ struct dumpcontext {
 	bool			dumpadb;
 	bool			dumpbad;
 	bool			dumpfail;
+	bool			dumptruncated;
 	FILE				*fp;
 	ISC_LIST(struct viewlistentry)	viewlist;
 	struct viewlistentry		*view;
@@ -10735,7 +10736,7 @@ dumpdone(void *arg, isc_result_t result) {
 					   "SERVFAIL cache", dctx->fp);
 		dns_db_detach(&dctx->cache);
 	}
-	if (dctx->dumpzones) {
+	if (dctx->dumptruncated) {
 		style = &dns_master_style_full;
  nextzone:
 		if (dctx->version != NULL)
@@ -10778,6 +10779,49 @@ dumpdone(void *arg, isc_result_t result) {
 				goto cleanup;
 		}
 	}
+	/*if (dctx->dumptruncated) {
+		style = &dns_master_style_full;
+ nextzonet:
+		if (dctx->version != NULL)
+			dns_db_closeversion(dctx->db, &dctx->version,
+					    false);
+		if (dctx->db != NULL)
+			dns_db_detach(&dctx->db);
+		if (dctx->zone == NULL)
+			dctx->zone = ISC_LIST_HEAD(dctx->view->zonelist);
+		else
+			dctx->zone = ISC_LIST_NEXT(dctx->zone, link);
+		if (dctx->zone != NULL) {
+			/* start zone dump */
+			/*dns_zone_name(dctx->zone->zone, buf, sizeof(buf));
+			fprintf(dctx->fp, ";\n; Zone dump of '%s'\n;\n", buf);
+			result = dns_zone_getdb(dctx->zone->zone, &dctx->db);
+			if (result != ISC_R_SUCCESS) {
+				fprintf(dctx->fp, "; %s\n",
+					dns_result_totext(result));
+				goto nextzonet;
+			}
+			dns_db_currentversion(dctx->db, &dctx->version);
+			result = dns_master_dumptostreaminc(dctx->mctx,
+							    dctx->db,
+							    dctx->version,
+							    style, dctx->fp,
+							    dctx->task,
+							    dumpdone, dctx,
+							    &dctx->mdctx);
+			if (result == DNS_R_CONTINUE)
+				return;
+			if (result == ISC_R_NOTIMPLEMENTED) {
+				fprintf(dctx->fp, "; %s\n",
+					dns_result_totext(result));
+				result = ISC_R_SUCCESS;
+				POST(result);
+				goto nextzonet;
+			}
+			if (result != ISC_R_SUCCESS)
+				goto cleanup;
+		}
+	}*/
 	if (dctx->view != NULL)
 		dctx->view = ISC_LIST_NEXT(dctx->view, link);
 	if (dctx->view != NULL)
@@ -10859,7 +10903,16 @@ named_server_dumpdb(named_server_t *server, isc_lex_t *lex,
 		dctx->dumpfail = false;
 		dctx->dumpzones = true;
 		ptr = next_token(lex, NULL);
-	} else if (ptr != NULL && strcmp(ptr, "-adb") == 0) {
+	} else if (ptr != NULL && strcmp(ptr, "-truncated") == 0) {
+		/* dump truncated zones, suppress caches */
+		dctx->dumpadb = false;
+		dctx->dumpbad = false;
+		dctx->dumpcache = false;
+		dctx->dumpfail = false;
+		dctx->dumpzones = true;
+		dctx->dumptruncated = true;
+		ptr = next_token(lex, NULL);
+	}  else if (ptr != NULL && strcmp(ptr, "-adb") == 0) {
 		/* only dump adb, suppress other caches */
 		dctx->dumpbad = false;
 		dctx->dumpcache = false;
