@@ -1,3 +1,8 @@
+5187.	[bug]		Allow out-of-zone additional data to be included
+			in authoritative responses if recursion is allowed
+			and "minimal-responses" is disabled.  This behavior
+			was inadvertently removed in change #4605. [GL #817]
+
 5186.	[cleanup]	More dnssec-keygen manual tidying. [GL !1678]
 
 5185.	[placeholder]
