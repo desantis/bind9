@@ -1,3 +1,6 @@
+5190.	[cleanup]	Refactor the isc_stat structure to take advantage
+			of stdatomic. [MR !1493]
+
 5189.	[placeholder]
 
 5188.	[func]		The "dnssec-enable" option is deprecated and no
