@@ -3341,7 +3341,7 @@ check_ta_conflicts(const cfg_obj_t *mkeys, const cfg_obj_t *tkeys,
 			}
 
 			result = dns_rbt_addname(table, name, &managed);
-			if (result != ISC_R_SUCCESS) {
+			if (result != ISC_R_SUCCESS && result != ISC_R_EXISTS) {
 				goto cleanup;
 			}
 		}
@@ -3389,7 +3389,7 @@ check_ta_conflicts(const cfg_obj_t *mkeys, const cfg_obj_t *tkeys,
 			}
 
 			result = dns_rbt_addname(table, name, &trusted);
-			if (result != ISC_R_SUCCESS) {
+			if (result != ISC_R_SUCCESS && result != ISC_R_EXISTS) {
 				goto cleanup;
 			}
 		}
