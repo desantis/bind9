@@ -3308,18 +3308,21 @@ static isc_result_t
 check_ta_conflicts(const cfg_obj_t *mkeys, const cfg_obj_t *tkeys,
 		   bool autovalidation, isc_mem_t *mctx, isc_log_t *logctx)
 {
-	isc_result_t result;
-	bool managed = true, trusted = false;
+	isc_result_t result = ISC_R_SUCCESS, tresult;
 	const cfg_listelt_t *elt = NULL, *elt2 = NULL;
-	dns_rbt_t *table = NULL;
 	dns_fixedname_t fixed;
 	dns_name_t *name;
 	const cfg_obj_t *obj;
 	const char *str;
+	isc_symtab_t *symtab = NULL;
+	isc_symvalue_t symvalue;
+	char namebuf[DNS_NAME_FORMATSIZE];
+	const char *file;
+	unsigned int line;
 
 	name = dns_fixedname_initname(&fixed);
 
-	result = dns_rbt_create(mctx, NULL, NULL, &table);
+	result = isc_symtab_create(mctx, 100, NULL, NULL, false, &symtab);
 	if (result != ISC_R_SUCCESS) {
 		goto cleanup;
 	}
@@ -3335,14 +3338,22 @@ check_ta_conflicts(const cfg_obj_t *mkeys, const cfg_obj_t *tkeys,
 		{
 			obj = cfg_listelt_value(elt2);
 			str = cfg_obj_asstring(cfg_tuple_get(obj, "name"));
-			result = dns_name_fromstring(name, str, 0, NULL);
-			if (result != ISC_R_SUCCESS) {
-				goto cleanup;
+			tresult = dns_name_fromstring(name, str, 0, NULL);
+			if (tresult != ISC_R_SUCCESS) {
+				/* already reported */
+				continue;
 			}
 
-			result = dns_rbt_addname(table, name, &managed);
-			if (result != ISC_R_SUCCESS && result != ISC_R_EXISTS) {
-				goto cleanup;
+			dns_name_format(name, namebuf, sizeof(namebuf));
+			symvalue.as_cpointer = obj;
+			tresult = isc_symtab_define(symtab, namebuf, 1,
+						   symvalue,
+						   isc_symexists_reject);
+			if (tresult != ISC_R_SUCCESS &&
+			    tresult != ISC_R_EXISTS)
+			{
+				result = tresult;
+				continue;
 			}
 		}
 	}
@@ -3356,13 +3367,12 @@ check_ta_conflicts(const cfg_obj_t *mkeys, const cfg_obj_t *tkeys,
 		     elt2 != NULL;
 		     elt2 = cfg_list_next(elt2))
 		{
-			void *data = NULL;
-
 			obj = cfg_listelt_value(elt2);
 			str = cfg_obj_asstring(cfg_tuple_get(obj, "name"));
 			result = dns_name_fromstring(name, str, 0, NULL);
 			if (result != ISC_R_SUCCESS) {
-				goto cleanup;
+				/* already reported */
+				continue;
 			}
 
 			if (autovalidation &&
@@ -3373,33 +3383,32 @@ check_ta_conflicts(const cfg_obj_t *mkeys, const cfg_obj_t *tkeys,
 					    "cannot be used with "
 					    "'dnssec-validation auto'.");
 				result = ISC_R_FAILURE;
-				goto cleanup;
-			}
-
-			result = dns_rbt_findname(table, name, 0, NULL, &data);
-			if (result == ISC_R_SUCCESS && data == &managed) {
-				cfg_obj_log(obj, logctx, ISC_LOG_ERROR,
-					    "trusted-keys and managed-keys "
-					    "cannot be used for the "
-					    "same name");
-				result = ISC_R_FAILURE;
-				goto cleanup;
-			} else if (result == ISC_R_SUCCESS) {
 				continue;
 			}
 
-			result = dns_rbt_addname(table, name, &trusted);
-			if (result != ISC_R_SUCCESS && result != ISC_R_EXISTS) {
-				goto cleanup;
+			dns_name_format(name, namebuf, sizeof(namebuf));
+			tresult = isc_symtab_lookup(symtab, namebuf, 1,
+						   &symvalue);
+			if (tresult == ISC_R_SUCCESS) {
+				file = cfg_obj_file(symvalue.as_cpointer);
+				line = cfg_obj_line(symvalue.as_cpointer);
+				if (file == NULL) {
+					file = "<unknown file>";
+				}
+				cfg_obj_log(obj, logctx, ISC_LOG_ERROR,
+					    "trusted-keys and managed-keys "
+					    "cannot be used for the "
+					    "same name.  managed-key defined "
+					    "(%s:%u)", file, line);
+
+				result = ISC_R_FAILURE;
 			}
 		}
 	}
 
-	result = ISC_R_SUCCESS;
-
  cleanup:
-	if (table != NULL) {
-		dns_rbt_destroy(&table);
+	if (symtab != NULL) {
+		isc_symtab_destroy(&symtab);
 	}
 	return (result);
 }
