@@ -2149,27 +2149,15 @@ AS_CASE([$with_cmocka],
 	[no],[],
 	[detect],[PKG_CHECK_MODULES([CMOCKA], [cmocka >= 1.0.0],
 				    [AC_DEFINE([HAVE_CMOCKA], [1], [Use CMocka])
-				     UNITTESTS=tests],[with_cmocka=no])],
+				     with_cmocka=yes],[with_cmocka=no])],
 	[yes],[PKG_CHECK_MODULES([CMOCKA], [cmocka >= 1.0.0],
-				 [AC_DEFINE([HAVE_CMOCKA], [1], [Use CMocka])])
-	                          UNITTESTS=tests],
+				 [AC_DEFINE([HAVE_CMOCKA], [1], [Use CMocka])])],
 	[AC_MSG_ERROR([Use PKG_CONFIG_PATH to specify path to CMocka library])]
        )
 AC_SUBST([CMOCKA_CFLAGS])
 AC_SUBST([CMOCKA_LIBS])
-AC_SUBST(UNITTESTS)
 
-#
-# Check for kyua execution engine if CMocka was requested
-# and bail out if execution engine was not found
-#
-AC_ARG_VAR([KYUA], [path to kyua execution engine])
-AS_IF([test "$with_cmocka" != "no"],
-      [AC_PATH_PROGS([KYUA], [kyua], [])
-       AS_IF([test -z "$KYUA"],
-            [AC_MSG_WARN([kyua test execution engine not found])])])
-
-AC_SUBST([KYUA])
+AM_CONDITIONAL([HAVE_CMOCKA], [test "$with_cmocka" = "yes"])
 
 #
 # Check for -Wl,--wrap= support
@@ -2399,20 +2387,21 @@ AS_IF([test "$enable_dnsrps" != "no"],[
 	AC_DEFINE([USE_DNSRPS], [1], [Enable DNS Response Policy Service API])
       ])
 
-sinclude(contrib/dlz/config.dlz.in)
-AC_MSG_CHECKING(contributed DLZ drivers)
+#sinclude(contrib/dlz/config.dlz.in)
+#AC_MSG_CHECKING(contributed DLZ drivers)
 
-if test -n "$CONTRIB_DLZ"
-then
-	AC_MSG_RESULT(yes)
-	DLZ_DRIVER_RULES=contrib/dlz/drivers/rules
-	AC_CONFIG_FILES([$DLZ_DRIVER_RULES
-		contrib/dlz/modules/mysql/Makefile
-		contrib/dlz/modules/mysqldyn/Makefile])
-else
-	AC_MSG_RESULT(no)
-	DLZ_DRIVER_RULES=/dev/null
-fi
+# FIXME
+#if test -n "$CONTRIB_DLZ"
+#then
+#	AC_MSG_RESULT(yes)
+#	DLZ_DRIVER_RULES=contrib/dlz/drivers/rules
+#	AC_CONFIG_FILES([$DLZ_DRIVER_RULES
+#		contrib/dlz/modules/mysql/Makefile
+#		contrib/dlz/modules/mysqldyn/Makefile])
+#else
+#	AC_MSG_RESULT(no)
+#	DLZ_DRIVER_RULES=/dev/null
+#fi
 
 AC_SUBST(CONTRIB_DLZ)
 AC_SUBST(DLZ_DRIVER_INCLUDES)
@@ -2598,6 +2587,14 @@ AC_CONFIG_FILES([Makefile
 		 lib/isc/include/isc/platform.h
 		 bin/tests/Makefile
 		 bin/tests/system/Makefile
+		])
+
+AC_CONFIG_FILES([lib/isc/tests/Makefile
+		 lib/dns/tests/Makefile
+		 lib/ns/tests/Makefile
+		 lib/irs/tests/Makefile
+		 lib/isccc/tests/Makefile
+		 lib/isccfg/tests/Makefile
 		])
 
 #

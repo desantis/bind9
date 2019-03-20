@@ -1,5 +1,9 @@
 # Hey Emacs, this is -*- makefile-automake -*- file!
 
+if HAVE_CMOCKA
+SUBDIRS += %reldir%/tests
+endif
+
 ISCCC_INCLUDES = \
 	-I$(top_srcdir)/lib/isccc/include/
 

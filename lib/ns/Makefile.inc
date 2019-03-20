@@ -1,5 +1,9 @@
 # Hey Emacs, this is -*- makefile-automake -*- file!
 
+if HAVE_CMOCKA
+SUBDIRS += %reldir%/tests
+endif
+
 NS_INCLUDES = \
 	-I$(top_srcdir)/lib/ns/include
 

@@ -134,17 +134,12 @@ stages:
   <<: *default_triggering_rules
   stage: test
   before_script:
-    - export KYUA_RESULT="$CI_PROJECT_DIR/kyua.results"
     - bash -x util/prepare-softhsm2.sh
   script:
-    - make unit
-  after_script:
-    - kyua report-html --force --results-file kyua.results --results-filter "" --output kyua_html
+    - cd lib && make check
   artifacts:
     paths:
-      - kyua.log
-      - kyua.results
-      - kyua_html/
+      - lib/*/tests/*.log
     expire_in: "1 week"
     when: on_failure
 

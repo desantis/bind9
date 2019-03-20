@@ -1,5 +1,9 @@
 # Hey Emacs, this is -*- makefile-automake -*- file!
 
+if HAVE_CMOCKA
+SUBDIRS += %reldir%/tests
+endif
+
 ISC_INCLUDES = \
 	-I%canon_reldir%/unix/include		\
 	-I%canon_reldir%/pthreads/include	\

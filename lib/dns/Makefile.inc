@@ -1,5 +1,9 @@
 # Hey Emacs, this is -*- makefile-automake -*- file!
 
+if HAVE_CMOCKA
+SUBDIRS += %canon_reldir%/tests
+endif
+
 DNS_INCLUDES = \
 	-I$(top_srcdir)/lib/dns/include
 

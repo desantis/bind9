@@ -4,11 +4,13 @@
 *.gcno
 *.la
 *.lo
+*.log
 *.o
 *.orig
 *.plist/ # ccc-analyzer store its results in .plist directories
 *.rej
 *.so
+*.trs
 *_test
 *~
 .ccache/
