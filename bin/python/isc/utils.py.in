@@ -66,6 +66,6 @@ def shellquote(s):
 
 version = 'PACKAGE_VERSION'
 if os.name != 'nt':
-    sysconfdir = '@expanded_sysconfdir@'
+    sysconfdir = '@sysconfdir@'
 else:
     sysconfdir = prefix('etc')
