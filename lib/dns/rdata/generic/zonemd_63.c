@@ -136,8 +136,11 @@ fromwire_zonemd(ARGS_FROMWIRE) {
 	isc_buffer_activeregion(source, &sr);
 
 	/*
-	 * Check that a digest is present if it is unknown and
-	 * check digest lengths are correct if we know them.
+	 * If we do not recognize the digest type, only ensure that the digest
+	 * is present at all.
+	 *
+	 * If we do recognize the digest type, ensure that the digest is of the
+	 * correct length.
 	 */
 	if (sr.length < 7 ||
 	    (sr.base[4] == DNS_ZONEMD_DIGEST_SHA384 &&
@@ -147,9 +150,10 @@ fromwire_zonemd(ARGS_FROMWIRE) {
 	}
 
 	/*
-	 * Only copy digest lengths if we know them.
-	 * If there is extra data dns_rdata_fromwire() will
-	 * detect that.
+	 * Only specify the number of octets to consume if we recognize the
+	 * digest type.
+	 *
+	 * If there is extra data, dns_rdata_fromwire() will detect that.
 	 */
 	if (sr.base[4] == DNS_ZONEMD_DIGEST_SHA384) {
 		sr.length = 6 + ISC_SHA384_DIGESTLENGTH;
