@@ -1,3 +1,6 @@
+5196.	[bug]		Enforce whether key rdata exists or not in KEY,
+			DNSKEY, CDNSKEY and RKEY. [GL #899]
+
 5195.	[bug]		"allow-update" and "allow-update-forwarding" were
 			treated as configuration errors if used at the
 			options or view level. [GL #913]
