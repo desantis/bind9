@@ -92,6 +92,7 @@
 #include <dns/tkey.h>
 #include <dns/tsig.h>
 #include <dns/ttl.h>
+#include <dns/types.h>
 #include <dns/view.h>
 #include <dns/zone.h>
 #include <dns/zt.h>
@@ -10608,6 +10609,7 @@ add_zone_tolist(dns_zone_t *zone, void *uap) {
 
 static isc_result_t
 add_view_tolist(struct dumpcontext *dctx, dns_view_t *view) {
+	struct isTrunc *itrc;
 	struct viewlistentry *vle;
 	isc_result_t result = ISC_R_SUCCESS;
 
@@ -10631,6 +10633,11 @@ add_view_tolist(struct dumpcontext *dctx, dns_view_t *view) {
 	if (dctx->dumpzones)
 		result = dns_zt_apply(view->zonetable, true, NULL,
 				      add_zone_tolist, dctx);
+	if (dctx->dumptruncated){
+		itrc->dumptrunc = true;
+		result = dns_zt_apply(view->zonetable, true, NULL,
+				      add_zone_tolist, dctx);
+	}
 	return (result);
 }
 
@@ -10670,6 +10677,7 @@ dumpcontext_destroy(struct dumpcontext *dctx) {
 
 static void
 dumpdone(void *arg, isc_result_t result) {
+	struct isTrunc *itrc;
 	struct dumpcontext *dctx = arg;
 	char buf[1024+32];
 	const dns_master_style_t *style;
@@ -10736,7 +10744,7 @@ dumpdone(void *arg, isc_result_t result) {
 					   "SERVFAIL cache", dctx->fp);
 		dns_db_detach(&dctx->cache);
 	}
-	if (dctx->dumptruncated) {
+	if (dctx->dumpzones) {
 		style = &dns_master_style_full;
  nextzone:
 		if (dctx->version != NULL)
@@ -10779,7 +10787,15 @@ dumpdone(void *arg, isc_result_t result) {
 				goto cleanup;
 		}
 	}
-	/*if (dctx->dumptruncated) {
+	if (dctx->dumptruncated) {
+		itrc->dumptrunc = true;
+
+		if (itrc->dumptrunc) {
+			fprintf(dctx->fp, "\n size t70 is here\n");
+		}
+		fprintf(dctx->fp, "\n size t80 is here\n");
+
+
 		style = &dns_master_style_full;
  nextzonet:
 		if (dctx->version != NULL)
@@ -10793,7 +10809,7 @@ dumpdone(void *arg, isc_result_t result) {
 			dctx->zone = ISC_LIST_NEXT(dctx->zone, link);
 		if (dctx->zone != NULL) {
 			/* start zone dump */
-			/*dns_zone_name(dctx->zone->zone, buf, sizeof(buf));
+			dns_zone_name(dctx->zone->zone, buf, sizeof(buf));
 			fprintf(dctx->fp, ";\n; Zone dump of '%s'\n;\n", buf);
 			result = dns_zone_getdb(dctx->zone->zone, &dctx->db);
 			if (result != ISC_R_SUCCESS) {
@@ -10821,7 +10837,8 @@ dumpdone(void *arg, isc_result_t result) {
 			if (result != ISC_R_SUCCESS)
 				goto cleanup;
 		}
-	}*/
+		dctx->dumptruncated = false;
+	}
 	if (dctx->view != NULL)
 		dctx->view = ISC_LIST_NEXT(dctx->view, link);
 	if (dctx->view != NULL)
@@ -10867,6 +10884,7 @@ named_server_dumpdb(named_server_t *server, isc_lex_t *lex,
 	dctx->dumpbad = true;
 	dctx->dumpfail = true;
 	dctx->dumpzones = false;
+	dctx->dumptruncated = false;
 	dctx->fp = NULL;
 	ISC_LIST_INIT(dctx->viewlist);
 	dctx->view = NULL;
@@ -10909,7 +10927,6 @@ named_server_dumpdb(named_server_t *server, isc_lex_t *lex,
 		dctx->dumpbad = false;
 		dctx->dumpcache = false;
 		dctx->dumpfail = false;
-		dctx->dumpzones = true;
 		dctx->dumptruncated = true;
 		ptr = next_token(lex, NULL);
 	}  else if (ptr != NULL && strcmp(ptr, "-adb") == 0) {

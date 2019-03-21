@@ -45,6 +45,7 @@
 #include <dns/result.h>
 #include <dns/time.h>
 #include <dns/ttl.h>
+#include <dns/types.h>
 
 #define DNS_DCTX_MAGIC		ISC_MAGIC('D', 'c', 't', 'x')
 #define DNS_DCTX_VALID(d)	ISC_MAGIC_VALID(d, DNS_DCTX_MAGIC)
@@ -872,6 +873,8 @@ dump_rdataset(isc_mem_t *mctx, const dns_name_t *name,
 	isc_region_t r;
 	isc_result_t result;
 	unsigned int reductR;
+	struct dns_dumpctx *dctx;
+	struct isTrunc *itrc;
 
 	REQUIRE(buffer->length > 0);
 
@@ -928,7 +931,8 @@ dump_rdataset(isc_mem_t *mctx, const dns_name_t *name,
 	/*
 	 * Write the buffer contents to the master file.
 	 */
-	if (ctx->rdata_size > 5000) {
+
+	if ((itrc->dumptrunc) && (ctx->rdata_size > 5000)) {
 		fprintf(f, "\n The size of this RR reached: %u KB and was truncated at 5.5 KB.\n",
 		(unsigned int) ctx->rdata_size);
 		reductR = ctx->rdata_size - 5500;
@@ -1652,6 +1656,7 @@ dumptostreaminc(dns_dumpctx_t *dctx) {
 	unsigned int nodes;
 	isc_time_t start;
 	dctx->tctx.rdata_size=0;
+	struct isTrunc			*itrc;
 
 	bufmem = isc_mem_get(dctx->mctx, initial_buffer_length);
 	if (bufmem == NULL)
@@ -1705,10 +1710,16 @@ dumptostreaminc(dns_dumpctx_t *dctx) {
 		}
 		result = dns_db_allrdatasets(dctx->db, node, dctx->version,
 					     dctx->now, &rdsiter);
+
 		if (result != ISC_R_SUCCESS) {
 			dns_db_detachnode(dctx->db, &node);
 			goto cleanup;
 		}
+		if (itrc->dumptrunc) {
+			fprintf(dctx->f, "\n size t50 is: %u\n", (unsigned int) dctx->tctx.rdata_size);
+		}
+		fprintf(dctx->f, "\n size t60 is: %u\n", (unsigned int) dctx->tctx.rdata_size);
+
 		result = (dctx->dumpsets)(dctx->mctx, name, rdsiter,
 					  &dctx->tctx, &buffer, dctx->f);
 		dns_rdatasetiter_destroy(&rdsiter);

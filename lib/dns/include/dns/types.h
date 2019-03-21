@@ -151,6 +151,12 @@ typedef struct dns_zonemgr			dns_zonemgr_t;
 typedef struct dns_zt				dns_zt_t;
 typedef struct dns_ipkeylist 			dns_ipkeylist_t;
 
+/* The following cannot be listed alphabetically due to forward reference */
+typedef struct isTrunc {
+	bool		dumptrunc;
+
+} isTrunc_t;
+
 /*
  * If we are not using GSSAPI, define the types we use as opaque types here.
  */
