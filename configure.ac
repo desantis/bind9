@@ -2564,6 +2564,7 @@ AC_CONFIG_FILES([Makefile
 		 lib/isc/include/isc/platform.h
 		 bin/tests/Makefile
 		 bin/tests/system/Makefile
+		 bin/tests/system/dyndb/driver/Makefile
 		])
 
 AC_CONFIG_FILES([lib/isc/tests/Makefile

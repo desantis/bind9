@@ -2,6 +2,8 @@
 
 #	@CHECKDS@ @COVERAGE@ @KEYMGR@ @DNSTAP@
 
+SUBDIRS = dyndb/driver
+
 AM_CPPFLAGS = \
 	-include $(top_builddir)/config.h		\
 	-I$(top_srcdir)/lib/isc/unix/include		\
