@@ -309,8 +309,8 @@ dnskey_test(void **state) {
  * DNSKEY with no key material test:
  * dns_master_loadfile() understands DNSKEY with no key material
  *
- * RFC 4034 removed the ability to signal NOKEY was allowed so empty
- * key material should be rejected.
+ * RFC 4034 removed the ability to signal NOKEY, so empty key material should
+ * be rejected.
  */
 static void
 dnsnokey_test(void **state) {
