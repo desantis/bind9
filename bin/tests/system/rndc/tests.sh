@@ -20,6 +20,34 @@ status=0
 n=0
 
 n=`expr $n + 1`
+echo_i "checking 'rndc dumpdb -truncated' ($n)"
+ret=0
+$RNDCCMD 10.53.0.2 dumpdb -truncated > rndc.out.1.test$n 2>&1 || ret=1
+for i in 1 2 3 4 5 6 7 8 9
+do
+	tmp=0
+	grep "Dump complete" ns2/named_dump.db > /dev/null || tmp=1
+	[ $tmp -eq 0 ] && break
+	sleep 1
+done
+[ $tmp -eq 1 ] && ret=1
+mv ns2/named_dump.db named_dump.test$n
+for rrtype in NSEC TXT; do
+	line_length=`grep "^200\.large-records.*IN $rrtype" named_dump.test$n | tr -d '\n' | wc -c`
+	if [ $line_length -lt 128 ] || [ $line_length -gt 256 ]; then
+		echo_i "line length for 200.large-records/$rrtype is $line_length, expected 128 <= length <= 256"
+		ret=1
+	fi
+done
+if [ $ret != 0 ]; then echo_i "failed"; fi
+status=`expr $status + $ret`
+
+# TODO:
+# echo_i "checking 'rndc dumpdb -zones -truncated' ($n)"
+
+exit $status # FIXME
+
+n=`expr $n + 1`
 echo_i "preparing ($n)"
 ret=0
 $NSUPDATE -p ${PORT} -k ns2/session.key > /dev/null 2>&1 <<END || ret=1

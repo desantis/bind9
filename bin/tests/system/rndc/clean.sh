@@ -9,7 +9,7 @@
 # See the COPYRIGHT file distributed with this work for additional
 # information regarding copyright ownership.
 
-rm -f dig.out.*.test*
+rm -f dig.out.*.test* named_dump.test*
 rm -f ns*/named.lock
 rm -f ns*/named.memstats
 rm -f ns*/named.run ns*/named.run.prev

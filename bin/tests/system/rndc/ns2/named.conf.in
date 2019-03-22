@@ -60,3 +60,8 @@ zone "incl" {
 	type master;
 	file "incl.db";
 };
+
+zone "large-records" {
+	type master;
+	file "large-records.db";
+};

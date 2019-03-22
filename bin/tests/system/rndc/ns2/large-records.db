@@ -1,0 +1,8 @@
+$TTL 3600
+
+@	SOA	ns2 hostmaster 1 30 10 3600000 300
+@	NS	ns2
+ns2	A	10.53.0.2
+
+$GENERATE 101-200 $ NSEC "\# 35 0000207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+$GENERATE 101-200 $ TXT "\"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\""
