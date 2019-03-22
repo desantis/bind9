@@ -118,16 +118,16 @@ echoinfo  "I:$systest:PORTRANGE:${LOWPORT} - ${HIGHPORT}"
 if [ x${PERL:+set} = x ]
 then
     echowarn "I:$systest:Perl not available.  Skipping test."
-    echowarn "R:$systest:UNTESTED"
+    echowarn "R:$systest:FAIL"
     echoend  "E:$systest:`date $dateargs`"
-    exit 0;
+    exit 1;
 fi
 
 $PERL testsock.pl -p $PORT  || {
     echowarn "I:$systest:Network interface aliases not set up.  Skipping test."
-    echowarn "R:$systest:UNTESTED"
+    echowarn "R:$systest:FAIL"
     echoend  "E:$systest:`date $dateargs`"
-    exit 0;
+    exit 1;
 }
 
 # Check for test-specific prerequisites.
