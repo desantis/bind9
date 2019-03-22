@@ -320,7 +320,7 @@ dnsnokey_test(void **state) {
 
 	result = test_master("testdata/master/master7.data",
 			     dns_masterformat_text, nullmsg, nullmsg);
-	assert_int_not_equal(result, ISC_R_SUCCESS);
+	assert_int_equal(result, ISC_R_UNEXPECTEDEND);
 }
 
 /*
