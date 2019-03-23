@@ -269,6 +269,7 @@
 ./bin/python/isc/keymgr.py.in			PYTHON	2016,2018,2019
 ./bin/python/isc/keyseries.py.in		PYTHON	2016,2018,2019
 ./bin/python/isc/keyzone.py.in			PYTHON	2013,2014,2015,2016,2018,2019
+./bin/python/isc/lex.py				X	2019
 ./bin/python/isc/policy.py.in			PYTHON	2016,2017,2018,2019
 ./bin/python/isc/rndc.py.in			PYTHON	2016,2018,2019
 ./bin/python/isc/tests/dnskey_test.py.in	PYTHON	2016,2018,2019
@@ -281,6 +282,7 @@
 ./bin/python/isc/tests/testdata/Kexample.com.+007+35529.key	X	2016,2018,2019
 ./bin/python/isc/tests/testdata/Kexample.com.+007+35529.private	X	2016,2018,2019
 ./bin/python/isc/utils.py.in			PYTHON	2016,2018,2019
+./bin/python/isc/yacc.py			X	2019
 ./bin/python/setup.py				PYTHON	2016,2018,2019
 ./bin/rndc/include/rndc/os.h			C	2001,2004,2005,2007,2009,2016,2018,2019
 ./bin/rndc/rndc.8				MAN	DOCBOOK

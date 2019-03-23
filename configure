@@ -12549,37 +12549,31 @@ $as_echo "no" >&6; }
 		continue
 fi
 
-	 { $as_echo "$as_me:${as_lineno-$LINENO}: checking Python module 'ply'" >&5
-$as_echo_n "checking Python module 'ply'... " >&6; }
-	 if "$PYTHON" -c "$testply" 2>/dev/null; then :
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
-$as_echo "yes" >&6; }
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-		unset PYTHON
-		continue
-fi
-
 	 # Stop looking any further once we find a Python interpreter
 	 # satisfying all requirements.
 	 break
        done
 
-       if test "X$PYTHON" = "X"; then :
+       if test -z "$PYTHON" && test -z "$DEFAULT_PYTHON"; then :
   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for Python support" >&5
 $as_echo_n "checking for Python support... " >&6; }
 	      { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
-	      as_fn_error $? "Python required for dnssec-keymgr" "$LINENO" 5
+	      as_fn_error $? "Python >= 2.7 or Python >= 3.2 required for dnssec-keymgr" "$LINENO" 5
 fi
+
+       { $as_echo "$as_me:${as_lineno-$LINENO}: checking for Python support" >&5
+$as_echo_n "checking for Python support... " >&6; }
+       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $PYTHON" >&5
+$as_echo "$PYTHON" >&6; }
+
 fi
 
 PYTHON_TOOLS=''
 CHECKDS=''
 COVERAGE=''
 KEYMGR=''
-if test "X$PYTHON" != "X"; then :
+if test "$PYTHON" != ""; then :
   PYTHON_TOOLS=python
        CHECKDS=checkds
        COVERAGE=coverage

@@ -237,28 +237,25 @@ AS_IF([test "$with_python" = "no"],
 		unset PYTHON
 		continue])
 
-	 AC_MSG_CHECKING([Python module 'ply'])
-	 AS_IF(["$PYTHON" -c "$testply" 2>/dev/null],
-	       [AC_MSG_RESULT([yes])],
-	       [AC_MSG_RESULT([no])
-		unset PYTHON
-		continue])
-
 	 # Stop looking any further once we find a Python interpreter
 	 # satisfying all requirements.
 	 break
        done
 
-       AS_IF([test "X$PYTHON" = "X"],
+       AS_IF([test -z "$PYTHON" && test -z "$DEFAULT_PYTHON"],
 	     [AC_MSG_CHECKING([for Python support])
 	      AC_MSG_RESULT([no])
-	      AC_MSG_ERROR([Python required for dnssec-keymgr])])])
+	      AC_MSG_ERROR([Python >= 2.7 or Python >= 3.2 required for dnssec-keymgr])])
+
+       AC_MSG_CHECKING([for Python support])
+       AC_MSG_RESULT([$PYTHON])
+      ])
 
 PYTHON_TOOLS=''
 CHECKDS=''
 COVERAGE=''
 KEYMGR=''
-AS_IF([test "X$PYTHON" != "X"],
+AS_IF([test "$PYTHON" != ""],
       [PYTHON_TOOLS=python
        CHECKDS=checkds
        COVERAGE=coverage

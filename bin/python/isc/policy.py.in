@@ -10,8 +10,8 @@
 ############################################################################
 
 import re
-import ply.lex as lex
-import ply.yacc as yacc
+import lex
+import yacc
 from string import *
 from copy import copy
 

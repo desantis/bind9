@@ -17,5 +17,5 @@ setup(name='isc',
       author='Internet Systems Consortium, Inc',
       author_email='info@isc.org',
       license='MPL',
-      requires=['ply'],
+      requires=[],
       packages=['isc'])
