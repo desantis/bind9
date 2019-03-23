@@ -195,9 +195,6 @@ testminvers='import sys
 if (sys.version_info < (2,7)) or (sys.version_info < (3,2) and sys.version_info >= (3,0)):
    exit(1)'
 
-testargparse='try: import argparse
-except: exit(1)'
-
 testply='try: import ply
 except: exit(1)'
 
@@ -235,13 +232,6 @@ AS_IF([test "$with_python" = "no"],
 
 	 AC_MSG_CHECKING([if $PYTHON is python2 version >= 2.7 or python3 version >= 3.2])
 	 AS_IF(["$PYTHON" -c "$testminvers" 2>/dev/null],
-	       [AC_MSG_RESULT([yes])],
-	       [AC_MSG_RESULT([no])
-		unset PYTHON
-		continue])
-
-	 AC_MSG_CHECKING([Python module 'argparse'])
-	 AS_IF(["$PYTHON" -c "$testargparse" 2>/dev/null],
 	       [AC_MSG_RESULT([yes])],
 	       [AC_MSG_RESULT([no])
 		unset PYTHON
