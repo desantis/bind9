@@ -396,6 +396,43 @@ check_rdata(const text_ok_t *text_ok, const wire_ok_t *wire_ok,
 	}
 }
 
+/*
+ * Common tests for RR types based on KEY that requre key data:
+ *
+ *   - CDNSKEY (RFC 7344)
+ *   - DNSKEY (RFC 4034)
+ *   - RKEY (draft-reid-dnsext-rkey-00)
+ */
+static void
+key_required(void **state, dns_rdatatype_t type, size_t size) {
+	wire_ok_t wire_ok[] = {
+		/*
+		 * RDATA must be at least 5 octets in size:
+		 *
+		 *   - 2 octets for Flags,
+		 *   - 1 octet for Protocol,
+		 *   - 1 octet for Algorithm,
+		 *   - Public Key must not be empty.
+		 *
+		 * RFC 2535 section 3.1.2 allows the Public Key to be empty if
+		 * bits 0-1 of Flags are both set, but that only applies to KEY
+		 * records: for the RR types tested here, the Public Key must
+		 * not be empty.
+		 */
+		WIRE_INVALID(0x00),
+		WIRE_INVALID(0x00, 0x00),
+		WIRE_INVALID(0x00, 0x00, 0x00),
+		WIRE_INVALID(0xc0, 0x00, 0x00, 0x00),
+		WIRE_INVALID(0x00, 0x00, 0x00, 0x00),
+		WIRE_VALID(0x00, 0x00, 0x00, 0x00, 0x00),
+		WIRE_SENTINEL()
+	};
+
+	UNUSED(state);
+
+	check_rdata(NULL, wire_ok, NULL, false, dns_rdataclass_in, type, size);
+}
+
 /* APL RDATA manipulations */
 static void
 apl(void **state) {
@@ -654,6 +691,11 @@ amtrelay(void **state) {
 		    dns_rdatatype_amtrelay, sizeof(dns_rdata_amtrelay_t));
 }
 
+static void
+cdnskey(void **state) {
+	key_required(state, dns_rdatatype_cdnskey, sizeof(dns_rdata_cdnskey_t));
+}
+
 /*
  * CSYNC tests.
  *
@@ -780,6 +822,11 @@ csync(void **state) {
 
 	check_rdata(text_ok, wire_ok, NULL, false, dns_rdataclass_in,
 		    dns_rdatatype_csync, sizeof(dns_rdata_csync_t));
+}
+
+static void
+dnskey(void **state) {
+	key_required(state, dns_rdatatype_dnskey, sizeof(dns_rdata_dnskey_t));
 }
 
 /*
@@ -1363,48 +1410,6 @@ key(void **state) {
 }
 
 /*
- * Common tests for RR types based on KEY:
- *
- *   - CDNSKEY (RFC 7344)
- *   - DNSKEY (RFC 4034)
- *   - RKEY (draft-reid-dnsext-rkey-00)
- */
-static void
-key_common(void **state) {
-	wire_ok_t wire_ok[] = {
-		/*
-		 * RDATA must be at least 5 octets in size:
-		 *
-		 *   - 2 octets for Flags,
-		 *   - 1 octet for Protocol,
-		 *   - 1 octet for Algorithm,
-		 *   - Public Key must not be empty.
-		 *
-		 * RFC 2535 section 3.1.2 allows the Public Key to be empty if
-		 * bits 0-1 of Flags are both set, but that only applies to KEY
-		 * records: for the RR types tested here, the Public Key must
-		 * not be empty.
-		 */
-		WIRE_INVALID(0x00),
-		WIRE_INVALID(0x00, 0x00),
-		WIRE_INVALID(0x00, 0x00, 0x00),
-		WIRE_INVALID(0xc0, 0x00, 0x00, 0x00),
-		WIRE_INVALID(0x00, 0x00, 0x00, 0x00),
-		WIRE_VALID(0x00, 0x00, 0x00, 0x00, 0x00),
-		WIRE_SENTINEL()
-	};
-
-	UNUSED(state);
-
-	check_rdata(NULL, wire_ok, NULL, false, dns_rdataclass_in,
-		    dns_rdatatype_cdnskey, sizeof(dns_rdata_cdnskey_t));
-	check_rdata(NULL, wire_ok, NULL, false, dns_rdataclass_in,
-		    dns_rdatatype_dnskey, sizeof(dns_rdata_dnskey_t));
-	check_rdata(NULL, wire_ok, NULL, false, dns_rdataclass_in,
-		    dns_rdatatype_rkey, sizeof(dns_rdata_rkey_t));
-}
-
-/*
  * http://ana-3.lcs.mit.edu/~jnc/nimrod/dns.txt
  *
  * The RDATA portion of both the NIMLOC and EID records contains
@@ -1582,6 +1587,27 @@ nxt(void **state) {
 
 	check_rdata(NULL, NULL, compare_ok, false, dns_rdataclass_in,
 		    dns_rdatatype_nxt, sizeof(dns_rdata_nxt_t));
+}
+
+static void
+rkey(void **state) {
+	text_ok_t text_ok[] = {
+		TEXT_VALID("0 0 0 aaaa"),
+		TEXT_INVALID("1 0 0 aaaa"),
+		TEXT_INVALID("65535 0 0 aaaa"),
+		/*
+		 * Sentinel.
+		 */
+		TEXT_SENTINEL()
+	};
+	wire_ok_t wire_ok[] = {
+		WIRE_INVALID(0x00, 0x01, 0x00, 0x00, 0x00),
+		WIRE_INVALID(0xff, 0xff, 0x00, 0x00, 0x00),
+		WIRE_SENTINEL()
+	};
+	key_required(state, dns_rdatatype_rkey, sizeof(dns_rdata_rkey_t));
+	check_rdata(text_ok, wire_ok, NULL, false, dns_rdataclass_in,
+		    dns_rdatatype_rkey, sizeof(dns_rdata_rkey_t));
 }
 
 /*
@@ -1905,20 +1931,22 @@ main(void) {
 		cmocka_unit_test_setup_teardown(amtrelay, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(apl, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(atma, _setup, _teardown),
+		cmocka_unit_test_setup_teardown(cdnskey, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(csync, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(doa, _setup, _teardown),
+		cmocka_unit_test_setup_teardown(dnskey, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(eid, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(edns_client_subnet,
 						_setup, _teardown),
 		cmocka_unit_test_setup_teardown(hip, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(isdn, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(key, _setup, _teardown),
-		cmocka_unit_test_setup_teardown(key_common, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(nimloc, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(nsec, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(nsec3, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(nxt, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(wks, _setup, _teardown),
+		cmocka_unit_test_setup_teardown(rkey, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(zonemd, _setup, _teardown),
 		cmocka_unit_test_setup_teardown(atcname, NULL, NULL),
 		cmocka_unit_test_setup_teardown(atparent, NULL, NULL),
