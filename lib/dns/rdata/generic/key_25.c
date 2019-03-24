@@ -20,7 +20,10 @@
 	( DNS_RDATATYPEATTR_ATCNAME | DNS_RDATATYPEATTR_ZONECUTAUTH )
 
 /*
- * KEY - RFC 2535
+ * RFC 2535 section 3.1.2 says that if bits 0-1 of the Flags field are
+ * both set, it means there is no key information and the RR stops after
+ * the algorithm octet.  However, this only applies to KEY records, as
+ * indicated by the specifications of the RR types based on KEY:"
  * DNSKEY - RFC 4034
  * CDNSKEY - RFC 7344
  * RKEY -
