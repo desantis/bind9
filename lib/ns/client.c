@@ -25,6 +25,7 @@
 #include <isc/random.h>
 #include <isc/safe.h>
 #include <isc/serial.h>
+#include <isc/siphash.h>
 #include <isc/stats.h>
 #include <isc/stdio.h>
 #include <isc/string.h>
@@ -1767,9 +1768,31 @@ static void
 compute_cookie(ns_client_t *client, uint32_t when, uint32_t nonce,
 	       const unsigned char *secret, isc_buffer_t *buf)
 {
+	unsigned char digest[ISC_MAX_MD_SIZE];
+	STATIC_ASSERT(ISC_MAX_MD_SIZE >= ISC_SIPHASH24_TAG_LENGTH,
+		      "You need to increase the digest buffer.");
+	STATIC_ASSERT(ISC_MAX_MD_SIZE >= ISC_AES_BLOCK_LENGTH,
+		      "You need to increase the digest buffer.");
+
 	switch (client->sctx->cookiealg) {
+	case ns_cookiealg_siphash24: {
+		unsigned char input[4 + 4 + 16];
+		unsigned char *cp;
+
+		memset(input, 0, sizeof(input));
+		cp = isc_buffer_used(buf);
+		isc_buffer_putmem(buf, client->cookie, 8);
+		isc_buffer_putuint8(buf, NS_COOKIE_VERSION_1);
+		isc_buffer_putuint8(buf, NS_COOKIE_ALG_SIPHASH24);
+		isc_buffer_putuint16(buf, 0); /* Reserved */
+		isc_buffer_putuint32(buf, when);
+
+		memmove(input, cp, 16);
+		isc_siphash24(secret, input, 16, digest);
+		isc_buffer_putmem(buf, digest, 8);
+		break;
+	}
 	case ns_cookiealg_aes: {
-		unsigned char digest[ISC_AES_BLOCK_LENGTH];
 		unsigned char input[4 + 4 + 16];
 		isc_netaddr_t netaddr;
 		unsigned char *cp;
