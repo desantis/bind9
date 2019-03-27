@@ -3582,6 +3582,30 @@ dns_message_pseudosectiontoyaml(dns_message_t *msg,
 					ADD_STRING(target, "\n");
 					continue;
 				}
+			} else if (optcode == DNS_OPT_CLIENT_TAG) {
+				uint16_t id;
+				INDENT(style);
+				ADD_STRING(target, "CLIENT-TAG");
+				if (optlen == 2U) {
+					id = isc_buffer_getuint16(&optbuf);
+					snprintf(buf, sizeof(buf), ": %u\n",
+						 id);
+					ADD_STRING(target, buf);
+					optlen -= 2;
+					continue;
+				}
+			} else if (optcode == DNS_OPT_SERVER_TAG) {
+				uint16_t id;
+				INDENT(style);
+				ADD_STRING(target, "SERVER-TAG");
+				if (optlen == 2U) {
+					id = isc_buffer_getuint16(&optbuf);
+					snprintf(buf, sizeof(buf), ": %u\n",
+						 id);
+					ADD_STRING(target, buf);
+					optlen -= 2;
+					continue;
+				}
 			} else {
 				INDENT(style);
 				ADD_STRING(target, "OPT: ");
