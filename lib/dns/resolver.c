@@ -8692,12 +8692,14 @@ rctx_answer_none(respctx_t *rctx) {
 		rctx->negative = true;
 	}
 
-	/*
-	 * Process DNSSEC records in the authority section.
-	 */
-	result = rctx_authority_dnssec(rctx);
-	if (result == ISC_R_COMPLETE) {
-		return (rctx->result);
+	if (!rctx->ns_in_answer && !rctx->glue_in_answer) {
+		/*
+		 * Process DNSSEC records in the authority section.
+		 */
+		result = rctx_authority_dnssec(rctx);
+		if (result == ISC_R_COMPLETE) {
+			return (rctx->result);
+		}
 	}
 
 	/*
@@ -8954,12 +8956,11 @@ rctx_authority_dnssec(respctx_t *rctx) {
 	dns_rdataset_t *rdataset = NULL;
 	bool finished = false;
 
-	if (rctx->ns_in_answer) {
-		INSIST(fctx->type == dns_rdatatype_ns);
-		section = DNS_SECTION_ANSWER;
-	} else {
-		section = DNS_SECTION_AUTHORITY;
+	if (rctx->ns_in_answer || rctx->glue_in_answer) {
+		return (ISC_R_SUCCESS);
 	}
+
+	section = DNS_SECTION_AUTHORITY;
 
 	result = dns_message_firstname(fctx->rmessage, section);
 	if (result != ISC_R_SUCCESS) {
@@ -9046,14 +9047,7 @@ rctx_authority_dnssec(respctx_t *rctx) {
 
 				name->attributes |= DNS_NAMEATTR_CACHE;
 				rdataset->attributes |= DNS_RDATASETATTR_CACHE;
-				if (rctx->aa) {
-					rdataset->trust =
-					    dns_trust_authauthority;
-				} else if (ISFORWARDER(fctx->addrinfo)) {
-					rdataset->trust = dns_trust_answer;
-				} else {
-					rdataset->trust = dns_trust_additional;
-				}
+				rdataset->trust = dns_trust_pending_answer;
 				break;
 			default:
 				continue;
