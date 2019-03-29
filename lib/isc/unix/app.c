@@ -262,6 +262,9 @@ isc__app_ctxstart(isc_appctx_t *ctx0) {
 	ctx->want_reload = false;
 	ctx->blocked = false;
 
+	if (!isc_bind9)
+		return (ISC_R_SUCCESS);
+
 #ifndef HAVE_SIGWAIT
 	/*
 	 * Install do-nothing handlers for SIGINT and SIGTERM.
