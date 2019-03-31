@@ -1,44 +1,15 @@
-ISC
-Internet Systems Consortium, Inc.
-rndc
-8
-BIND9
-rndc
-name server control utility
-2000
-2001
-2004
-2005
-2007
-2013
-2014
-2015
-2016
-2017
-2018
-2019
-Internet Systems Consortium, Inc. ("ISC")
-rndc
--b
-source-address
--c
-config-file
--k
-key-file
--s
-server
--p
-port
--q
--r
--V
--y
-key_id
--4
--6
-command
-DESCRIPTION
-===========
+.. highlight: console
+
+rndc - name server control utility
+==================================
+
+Synopsis
+--------
+
+:program:`rndc` [**-b** source-address] [**-c** config-file] [**-k** key-file] [**-s** server] [**-p** port] [**-q**] [**-r**] [**-V**] [**-y** key_id] [[**-4**] | [**-6**]] {command}
+
+Description
+-----------
 
 ``rndc`` controls the operation of a name server. It supersedes the
 ``ndc`` utility that was provided in old BIND releases. If ``rndc`` is
@@ -59,54 +30,54 @@ the server.
 ``rndc`` reads a configuration file to determine how to contact the name
 server and decide what algorithm and key it should use.
 
-OPTIONS
-=======
+Options
+-------
 
--4
+**-4**
    Use IPv4 only.
 
--6
+**-6**
    Use IPv6 only.
 
--b source-address
+**-b** source-address
    Use source-address as the source address for the connection to the
    server. Multiple instances are permitted to allow setting of both the
    IPv4 and IPv6 source addresses.
 
--c config-file
+**-c** config-file
    Use config-file as the configuration file instead of the default,
    ``/etc/rndc.conf``.
 
--k key-file
+**-k** key-file
    Use key-file as the key file instead of the default,
    ``/etc/rndc.key``. The key in ``/etc/rndc.key`` will be used to
    authenticate commands sent to the server if the config-file does not
    exist.
 
--s server
+**-s** server
    server is the name or address of the server which matches a server
    statement in the configuration file for ``rndc``. If no server is
    supplied on the command line, the host named by the default-server
    clause in the options statement of the ``rndc`` configuration file
    will be used.
 
--p port
+**-p** port
    Send commands to TCP port port instead of BIND 9's default control
    channel port, 953.
 
--q
+**-q**
    Quiet mode: Message text returned by the server will not be printed
    except when there is an error.
 
--r
+**-r**
    Instructs ``rndc`` to print the result code returned by ``named``
    after executing the requested command (e.g., ISC_R_SUCCESS,
    ISC_R_FAILURE, etc).
 
--V
+**-V**
    Enable verbose logging.
 
--y key_id
+**-y** key_id
    Use the key key_id from the configuration file. key_id must be known
    by ``named`` with the same algorithm and secret string in order for
    control message validation to succeed. If no key_id is specified,
@@ -117,26 +88,26 @@ OPTIONS
    authenticated control commands to name servers. It should therefore
    not have general read or write access.
 
-COMMANDS
-========
+Commands
+--------
 
 A list of commands supported by ``rndc`` can be seen by running ``rndc``
 without arguments.
 
 Currently supported commands are:
 
-``addzone zone class view configuration``
+``addzone`` *zone* [*class* [*view*]] *configuration*
    Add a zone while the server is running. This command requires the
    ``allow-new-zones`` option to be set to ``yes``. The configuration
    string specified on the command line is the zone configuration text
-   that would ordinarily be placed in ``named.conf``.
+   that would ordinarily be placed in :manpage:`named.conf(5)`.
 
    The configuration is saved in a file called ``viewname.nzf`` (or, if
-   ``named`` is compiled with liblmdb, an LMDB database file called
+   :manpage:`named(8)` is compiled with liblmdb, an LMDB database file called
    ``viewname.nzd``). viewname is the name of the view, unless the view
    name contains characters that are incompatible with use as a file
    name, in which case a cryptographic hash of the view name is used
-   instead. When ``named`` is restarted, the file will be loaded into
+   instead. When :manpage:`named(8)` is restarted, the file will be loaded into
    the view configuration, so that zones that were added can persist
    after a restart.
 
@@ -150,7 +121,7 @@ Currently supported commands are:
 
    See also ``rndc delzone`` and ``rndc modzone``.
 
-``delzone -clean zone class view``
+``delzone`` [**-clean**] *zone* [*class* [*view*]]
    Delete a zone while the server is running.
 
    If the ``-clean`` argument is specified, the zone's master file (and
@@ -168,16 +139,16 @@ Currently supported commands are:
 
    See also ``rndc addzone`` and ``rndc modzone``.
 
-``dnstap ( -reopen | -roll number )``
+``dnstap`` ( **-reopen** | **-roll** [*number*] )
    Close and re-open DNSTAP output files. ``rndc dnstap -reopen`` allows
-   the output file to be renamed externally, so that ``named`` can
+   the output file to be renamed externally, so that :manpage:`named(8)` can
    truncate and re-open it. ``rndc dnstap -roll`` causes the output file
    to be rolled automatically, similar to log files; the most recent
    output file has ".0" appended to its name; the previous most recent
    output file is moved to ".1", and so on. If number is specified, then
    the number of backup log files is limited to that number.
 
-``dumpdb -all|-cache|-zones|-adb|-bad|-fail view ...``
+``dumpdb`` [**-all** | **-cache** | **-zones** | **-adb** | **-bad** | **-fail**] [*view ...*]
    Dump the server's caches (default) and/or zones to the dump file for
    the specified views. If no view is specified, all views are dumped.
    (See the ``dump-file`` option in the BIND 9 Administrator Reference
@@ -186,16 +157,16 @@ Currently supported commands are:
 ``flush``
    Flushes the server's cache.
 
-``flushname`` name [view]
+``flushname`` *name* [*view*]
    Flushes the given name from the view's DNS cache and, if applicable,
    from the view's nameserver address database, bad server cache and
    SERVFAIL cache.
 
-``flushtree`` name [view]
+``flushtree`` *name* [*view*]
    Flushes the given name, and all of its subdomains, from the view's
    DNS cache, address database, bad server cache, and SERVFAIL cache.
 
-``freeze zone class view``
+``freeze`` [*zone* [*class* [*view*]]]
    Suspend updates to a dynamic zone. If no zone is specified, then all
    zones are suspended. This allows manual edits to be made to a zone
    normally updated by dynamic update. It also causes changes in the
@@ -204,29 +175,29 @@ Currently supported commands are:
 
    See also ``rndc thaw``.
 
-``halt -p``
+``halt`` [**-p**]
    Stop the server immediately. Recent changes made through dynamic
    update or IXFR are not saved to the master files, but will be rolled
    forward from the journal files when the server is restarted. If
-   ``-p`` is specified ``named``'s process id is returned. This allows
-   an external process to determine when ``named`` had completed
+   ``-p`` is specified :manpage:`named(8)`'s process id is returned. This allows
+   an external process to determine when :manpage:`named(8)` had completed
    halting.
 
    See also ``rndc stop``.
 
-``loadkeys zone class view``
+``loadkeys`` [*zone* [*class* [*view*]]]
    Fetch all DNSSEC keys for the given zone from the key directory. If
-   they are within their publication period, merge them into the zone's
-   DNSKEY RRset. Unlike ``rndc
-           sign``, however, the zone is not immediately re-signed by the
-   new keys, but is allowed to incrementally re-sign over time.
+   they are within their publication period, merge them into the
+   zone's DNSKEY RRset. Unlike ``rndc sign``, however, the zone is not
+   immediately re-signed by the new keys, but is allowed to
+   incrementally re-sign over time.
 
    This command requires that the ``auto-dnssec`` zone option be set to
    ``maintain``, and also requires the zone to be configured to allow
    dynamic DNS. (See "Dynamic Update Policies" in the Administrator
    Reference Manual for more details.)
 
-``managed-keys (status | refresh | sync | destroy) class view``
+``managed-keys`` (*status* | *refresh* | *sync* | *destroy*) [*class* [*view*]]
    Inspect and control the "managed-keys" database which handles RFC
    5011 DNSSEC trust anchor maintenance. If a view is specified, these
    commands are applied to that view; otherwise they are applied to all
@@ -252,11 +223,11 @@ Currently supported commands are:
 
       Existing keys that are already trusted are not deleted from
       memory; DNSSEC validation can continue after this command is used.
-      However, key maintenance operations will cease until ``named`` is
+      However, key maintenance operations will cease until :manpage:`named(8)` is
       restarted or reconfigured, and all existing key maintenance state
       will be deleted.
 
-      Running ``rndc reconfig`` or restarting ``named`` immediately
+      Running ``rndc reconfig`` or restarting :manpage:`named(8)` immediately
       after this command will cause key maintenance to be reinitialized
       from scratch, just as if the server were being started for the
       first time. This is primarily intended for testing, but it may
@@ -264,7 +235,7 @@ Currently supported commands are:
       keys in the event of a trust anchor rollover, or as a brute-force
       repair for key maintenance problems.
 
-``modzone zone class view configuration``
+``modzone`` *zone* [*class* [*view*]] *configuration*
    Modify the configuration of a zone while the server is running. This
    command requires the ``allow-new-zones`` option to be set to ``yes``.
    As with ``addzone``, the configuration string specified on the
@@ -282,7 +253,7 @@ Currently supported commands are:
 
    See also ``rndc addzone`` and ``rndc delzone``.
 
-``notify zone class view``
+``notify`` *zone* [*class* [*view*]]
    Resend NOTIFY messages for the zone.
 
 ``notrace``
@@ -290,10 +261,7 @@ Currently supported commands are:
 
    See also ``rndc trace``.
 
-``nta
-        ( -class class | -dump | -force | -remove | -lifetime duration)
-    domain
-    view``
+``nta`` [( **-class** *class* | **-dump** | **-force** | **-remove** | **-lifetime** *duration*)] *domain* [*view*]
    Sets a DNSSEC negative trust anchor (NTA) for ``domain``, with a
    lifetime of ``duration``. The default lifetime is configured in
    ``named.conf`` via the ``nta-lifetime`` option, and defaults to one
@@ -302,12 +270,12 @@ Currently supported commands are:
    A negative trust anchor selectively disables DNSSEC validation for
    zones that are known to be failing because of misconfiguration rather
    than an attack. When data to be validated is at or below an active
-   NTA (and above any other configured trust anchors), ``named`` will
+   NTA (and above any other configured trust anchors), :manpage:`named(8)` will
    abort the DNSSEC validation process and treat the data as insecure
    rather than bogus. This continues until the NTA's lifetime is
    elapsed.
 
-   NTAs persist across restarts of the ``named`` server. The NTAs for a
+   NTAs persist across restarts of the :manpage:`named(8)` server. The NTAs for a
    view are saved in a file called ``name.nta``, where name is the name
    of the view, or if it contains characters that are incompatible with
    use as a file name, a cryptographic hash generated from the name of
@@ -325,7 +293,7 @@ Currently supported commands are:
    of existing NTAs is printed (note that this may include NTAs that are
    expired but have not yet been cleaned up).
 
-   Normally, ``named`` will periodically test to see whether data below
+   Normally, :manpage:`named(8)` will periodically test to see whether data below
    an NTA can now be validated (see the ``nta-recheck`` option in the
    Administrator Reference Manual for details). If data can be
    validated, then the NTA is regarded as no longer necessary, and will
@@ -344,7 +312,7 @@ Currently supported commands are:
    view name that begins with a hyphen, use a double-hyphen on the
    command line to indicate the end of options.
 
-``querylog`` [on \| off]
+``querylog`` [(*on* | *off*)]
    Enable or disable query logging. (For backward compatibility, this
    command can also be used without an argument to toggle query logging
    on and off.)
@@ -361,22 +329,22 @@ Currently supported commands are:
    avoids the need to examine the modification times of the zones files.
 
 ``recursing``
-   Dump the list of queries ``named`` is currently recursing on, and the
+   Dump the list of queries :manpage:`named(8)` is currently recursing on, and the
    list of domains to which iterative queries are currently being sent.
    (The second list includes the number of fetches currently active for
    the given domain, and how many have been passed or dropped because of
    the ``fetches-per-zone`` option.)
 
-``refresh zone class view``
+``refresh`` *zone* [*class* [*view*]]
    Schedule zone maintenance for the given zone.
 
 ``reload``
    Reload configuration file and zones.
 
-``reload zone class view``
+``reload`` *zone* [*class* [*view*]]
    Reload the given zone.
 
-``retransfer zone class view``
+``retransfer`` *zone* [*class* [*view*]]
    Retransfer the given slave zone from the master server.
 
    If the zone is configured to use ``inline-signing``, the signed
@@ -389,7 +357,7 @@ Currently supported commands are:
    performing a full ``reconfig`` or waiting for the
    ``interface-interval`` timer.
 
-``secroots - view ...``
+``secroots`` [**-**] [*view* ...]
    Dump the security roots (i.e., trust anchors configured via
    ``trusted-keys``, ``managed-keys``, or ``dnssec-validation auto``)
    and negative trust anchors for the specified views. If no view is
@@ -406,12 +374,12 @@ Currently supported commands are:
 
    See also ``rndc managed-keys``.
 
-``serve-stale ( on | off | reset | status ) class view``
+``serve-stale (**on** | **off** | **reset** | **status**) [*class* [*view*]]
    Enable, disable, reset, or report the current status of the serving
    of stale answers as configured in ``named.conf``.
 
    If serving of stale answers is disabled by ``rndc-serve-stale off``,
-   then it will remain disabled even if ``named`` is reloaded or
+   then it will remain disabled even if :manpage:`named(8)` is reloaded or
    reconfigured. ``rndc serve-stale reset`` restores the setting as
    configured in ``named.conf``.
 
@@ -420,12 +388,12 @@ Currently supported commands are:
    disabled by ``rndc``. It will also report the values of
    ``stale-answer-ttl`` and ``max-stale-ttl``.
 
-``showzone zone class view``
+``showzone`` *zone* [*class* [*view*]]
    Print the configuration of a running zone.
 
    See also ``rndc zonestatus``.
 
-``sign zone class view``
+``sign`` *zone* [*class* [*view*]]
    Fetch all DNSSEC keys for the given zone from the key directory (see
    the ``key-directory`` option in the BIND 9 Administrator Reference
    Manual). If they are within their publication period, merge them into
@@ -439,7 +407,7 @@ Currently supported commands are:
 
    See also ``rndc loadkeys``.
 
-``signing ( -list | -clear keyid/algorithm | -clear all | -nsec3param ( parameters | none ) | -serial value )  zone class view``
+``signing`` [(**-list** | **-clear** *keyid/algorithm* | **-clear** *all* | **-nsec3param** ( *parameters* | none ) | **-serial** *value* ) *zone* [*class* [*view*]]
    List, edit, or remove the DNSSEC signing state records for the
    specified zone. The status of ongoing DNSSEC operations (such as
    signing or generating NSEC3 chains) is stored in the zone in the form
@@ -467,7 +435,7 @@ Currently supported commands are:
    chain. ``iterations`` defines the number of additional times to apply
    the algorithm when generating an NSEC3 hash. The ``salt`` is a string
    of data expressed in hexadecimal, a hyphen (`-') if no salt is to be
-   used, or the keyword ``auto``, which causes ``named`` to generate a
+   used, or the keyword ``auto``, which causes :manpage:`named(8)` to generate a
    random 64-bit salt.
 
    So, for example, to create an NSEC3 chain using the SHA-1 hash
@@ -494,21 +462,21 @@ Currently supported commands are:
    the internal ``bind/CH`` zone and the default ``./IN`` hint zone if
    there is not an explicit root zone configured.
 
-``stop -p``
+``stop`` **-p**
    Stop the server, making sure any recent changes made through dynamic
    update or IXFR are first saved to the master files of the updated
-   zones. If ``-p`` is specified ``named``'s process id is returned.
-   This allows an external process to determine when ``named`` had
+   zones. If ``-p`` is specified :manpage:`named(8)`'s process id is returned.
+   This allows an external process to determine when :manpage:`named(8)` had
    completed stopping.
 
    See also ``rndc halt``.
 
-``sync -clean zone class view``
+``sync`` **-clean** [*zone* [*class* [*view*]]]
    Sync changes in the journal file for a dynamic zone to the master
    file. If the "-clean" option is specified, the journal file is also
    removed. If no zone is specified, then all zones are synced.
 
-``tcp-timeouts initial idle keepalive advertised``
+``tcp-timeouts`` [*initial* *idle* *keepalive* *advertised*]
    When called without arguments, display the current values of the
    ``tcp-initial-timeout``, ``tcp-idle-timeout``,
    ``tcp-keepalive-timeout`` and ``tcp-advertised-timeout`` options.
@@ -517,7 +485,7 @@ Currently supported commands are:
    service attack. See the descriptions of these options in the BIND 9
    Administrator Reference Manual for details of their use.
 
-``thaw zone class view``
+``thaw`` [*zone* [*class* [*view*]]]
    Enable updates to a frozen dynamic zone. If no zone is specified,
    then all frozen zones are enabled. This causes the server to reload
    the zone from disk, and re-enables dynamic updates after the load has
@@ -532,25 +500,25 @@ Currently supported commands are:
 ``trace``
    Increment the servers debugging level by one.
 
-``trace level``
+``trace`` *level*
    Sets the server's debugging level to an explicit value.
 
    See also ``rndc notrace``.
 
-``tsig-delete`` keyname [view]
+``tsig-delete`` *keyname* [*view*]
    Delete a given TKEY-negotiated key from the server. (This does not
    apply to statically configured TSIG keys.)
 
 ``tsig-list``
    List the names of all TSIG keys currently configured for use by
-   ``named`` in each view. The list both statically configured keys and
+   :manpage:`named(8)` in each view. The list both statically configured keys and
    dynamic TKEY-negotiated keys.
 
-``validation ( on | off | status ) view ...``
+``validation (**on** | **off** | **status**) [*view* ...]
    Enable, disable, or check the current status of DNSSEC validation. By
    default, validation is enabled.
 
-``zonestatus zone class view``
+``zonestatus`` *zone* [*class* [*view*]]
    Displays the current status of the given zone, including the master
    file name and any include files from which it was loaded, when it was
    most recently loaded, the current serial number, the number of nodes,
@@ -568,16 +536,17 @@ zone. To specify a redirect zone, use the special zone name
 ``-redirect``, without a trailing period. (With a trailing period, this
 would specify a zone called "-redirect".)
 
-LIMITATIONS
-===========
+Limitations
+-----------
 
 There is currently no way to provide the shared secret for a ``key_id``
 without using the configuration file.
 
 Several error messages could be clearer.
 
-SEE ALSO
-========
+See Also
+--------
 
-rndc.conf5, rndc-confgen8, named8, named.conf5, ndc8, BIND 9
-Administrator Reference Manual.
+:manpage:`rndc.conf(5)`, :manpage:`rndc-confgen(8),
+:manpage:`named(8)`, :manpage:`named.conf(5)`, :manpage:`ndc(8), BIND 9 Administrator
+Reference Manual.

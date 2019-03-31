@@ -92,5 +92,5 @@ man_pages = [
 	('man_pkcs11-tokens', 'pkcs11-tokens', '', 'Internet Systems Consortium', 1),
 	('man_rndc-confgen', 'rndc-confgen', '', 'Internet Systems Consortium', 1),
 	('man_rndc.conf', 'rndc.conf', '', 'Internet Systems Consortium', 1),
-	('man_rndc', 'rndc', '', 'Internet Systems Consortium', 1)
+	('man_rndc', 'rndc', 'name server control utility', 'Internet Systems Consortium', 8)
 ]
