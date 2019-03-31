@@ -3073,9 +3073,9 @@ check_trusted_key(const cfg_obj_t *key, bool managed,
 	uint32_t flags, proto, alg;
 	unsigned char keydata[4096];
 
-	flags = cfg_obj_asuint32(cfg_tuple_get(key, "flags"));
-	proto = cfg_obj_asuint32(cfg_tuple_get(key, "protocol"));
-	alg = cfg_obj_asuint32(cfg_tuple_get(key, "algorithm"));
+	flags = cfg_obj_asuint32(cfg_tuple_get(key, "n1"));
+	proto = cfg_obj_asuint32(cfg_tuple_get(key, "n2"));
+	alg = cfg_obj_asuint32(cfg_tuple_get(key, "n3"));
 
 	keyname = dns_fixedname_initname(&fkeyname);
 	keynamestr = cfg_obj_asstring(cfg_tuple_get(key, "name"));
@@ -3107,7 +3107,7 @@ check_trusted_key(const cfg_obj_t *key, bool managed,
 
 	if (managed) {
 		const char *initmethod;
-		initmethod = cfg_obj_asstring(cfg_tuple_get(key, "init"));
+		initmethod = cfg_obj_asstring(cfg_tuple_get(key, "anchortype"));
 
 		if (strcasecmp(initmethod, "initial-key") != 0) {
 			cfg_obj_log(key, logctx, ISC_LOG_ERROR,
@@ -3120,7 +3120,7 @@ check_trusted_key(const cfg_obj_t *key, bool managed,
 
 	isc_buffer_init(&b, keydata, sizeof(keydata));
 
-	keystr = cfg_obj_asstring(cfg_tuple_get(key, "key"));
+	keystr = cfg_obj_asstring(cfg_tuple_get(key, "data"));
 	tresult = isc_base64_decodestring(keystr, &b);
 
 	if (tresult != ISC_R_SUCCESS) {

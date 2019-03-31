@@ -567,7 +567,7 @@ convert_name(dns_fixedname_t *fn, dns_name_t **name, const char *text) {
 static isc_result_t
 key_fromconfig(const cfg_obj_t *key, dns_client_t *client) {
 	dns_rdata_dnskey_t keystruct;
-	uint32_t flags, proto, alg;
+	uint32_t n1, n2, n3;
 	const char *keystr, *keynamestr;
 	unsigned char keydata[4096];
 	isc_buffer_t keydatabuf;
@@ -582,29 +582,42 @@ key_fromconfig(const cfg_obj_t *key, dns_client_t *client) {
 	keynamestr = cfg_obj_asstring(cfg_tuple_get(key, "name"));
 	CHECK(convert_name(&fkeyname, &keyname, keynamestr));
 
-	if (!root_validation && !dlv_validation)
+	if (!root_validation && !dlv_validation) {
 		return (ISC_R_SUCCESS);
+	}
 
-	if (anchor_name)
+	if (anchor_name) {
 		match_root = dns_name_equal(keyname, anchor_name);
-	if (dlv_name)
+	}
+	if (dlv_name) {
 		match_dlv = dns_name_equal(keyname, dlv_name);
+	}
 
-	if (!match_root && !match_dlv)
+	if (!match_root && !match_dlv) {
 		return (ISC_R_SUCCESS);
+	}
 	if ((!root_validation && match_root) || (!dlv_validation && match_dlv))
+	{
 		return (ISC_R_SUCCESS);
+	}
 
-	if (match_root)
+	if (match_root) {
 		delv_log(ISC_LOG_DEBUG(3), "adding trust anchor %s",
 			  trust_anchor);
-	if (match_dlv)
+	}
+	if (match_dlv) {
 		delv_log(ISC_LOG_DEBUG(3), "adding DLV trust anchor %s",
 			  dlv_anchor);
+	}
 
-	flags = cfg_obj_asuint32(cfg_tuple_get(key, "flags"));
-	proto = cfg_obj_asuint32(cfg_tuple_get(key, "protocol"));
-	alg = cfg_obj_asuint32(cfg_tuple_get(key, "algorithm"));
+	/* if DNSKEY, flags; if DS, key tag */
+	n1 = cfg_obj_asuint32(cfg_tuple_get(key, "n1"));
+
+	/* if DNSKEY, protocol; if DS, algorithm */
+	n2 = cfg_obj_asuint32(cfg_tuple_get(key, "n2"));
+
+	/* if DNSKEY, algorithm; if DS, digest type */
+	n3 = cfg_obj_asuint32(cfg_tuple_get(key, "n3"));
 
 	keystruct.common.rdclass = dns_rdataclass_in;
 	keystruct.common.rdtype = dns_rdatatype_dnskey;
@@ -615,28 +628,30 @@ key_fromconfig(const cfg_obj_t *key, dns_client_t *client) {
 
 	ISC_LINK_INIT(&keystruct.common, link);
 
-	if (flags > 0xffff)
+	if (n1 > 0xffff) {
 		CHECK(ISC_R_RANGE);
-	if (proto > 0xff)
+	}
+	if (n2 > 0xff) {
 		CHECK(ISC_R_RANGE);
-	if (alg > 0xff)
+	}
+	if (n3 > 0xff) {
 		CHECK(ISC_R_RANGE);
+	}
 
-	keystruct.flags = (uint16_t)flags;
-	keystruct.protocol = (uint8_t)proto;
-	keystruct.algorithm = (uint8_t)alg;
+	keystruct.flags = (uint16_t)n1;
+	keystruct.protocol = (uint8_t)n2;
+	keystruct.algorithm = (uint8_t)n3;
 
 	isc_buffer_init(&keydatabuf, keydata, sizeof(keydata));
 	isc_buffer_init(&rrdatabuf, rrdata, sizeof(rrdata));
 
-	keystr = cfg_obj_asstring(cfg_tuple_get(key, "key"));
+	keystr = cfg_obj_asstring(cfg_tuple_get(key, "data"));
 	CHECK(isc_base64_decodestring(keystr, &keydatabuf));
 	isc_buffer_usedregion(&keydatabuf, &r);
 	keystruct.datalen = r.length;
 	keystruct.data = r.base;
 
-	CHECK(dns_rdata_fromstruct(NULL,
-				   keystruct.common.rdclass,
+	CHECK(dns_rdata_fromstruct(NULL, keystruct.common.rdclass,
 				   keystruct.common.rdtype,
 				   &keystruct, &rrdatabuf));
 

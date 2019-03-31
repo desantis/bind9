@@ -434,10 +434,11 @@ static cfg_type_t cfg_type_category = {
  */
 static cfg_tuplefielddef_t dnsseckey_fields[] = {
 	{ "name", &cfg_type_astring, 0 },
-	{ "flags", &cfg_type_uint32, 0 },
-	{ "protocol", &cfg_type_uint32, 0 },
-	{ "algorithm", &cfg_type_uint32, 0 },
-	{ "key", &cfg_type_qstring, 0 },
+	{ "anchortype", &cfg_type_void, 0 },
+	{ "n1", &cfg_type_uint32, 0 },
+	{ "n2", &cfg_type_uint32, 0 },
+	{ "n3", &cfg_type_uint32, 0 },
+	{ "data", &cfg_type_qstring, 0 },
 	{ NULL, NULL, 0 }
 };
 static cfg_type_t cfg_type_dnsseckey = {
@@ -449,13 +450,20 @@ static cfg_type_t cfg_type_dnsseckey = {
  * A managed key initialization specifier, as used in the
  * "managed-keys" statement.
  */
+static const char *anchortype_enums[] = {
+	"initial-key", "initial-ds", NULL
+};
+static cfg_type_t cfg_type_anchortype = {
+	"plugintype", cfg_parse_enum, cfg_print_ustring, cfg_doc_enum,
+	&cfg_rep_string, anchortype_enums
+};
 static cfg_tuplefielddef_t managedkey_fields[] = {
 	{ "name", &cfg_type_astring, 0 },
-	{ "init", &cfg_type_ustring, 0 },   /* must be literal "initial-key" */
-	{ "flags", &cfg_type_uint32, 0 },
-	{ "protocol", &cfg_type_uint32, 0 },
-	{ "algorithm", &cfg_type_uint32, 0 },
-	{ "key", &cfg_type_qstring, 0 },
+	{ "anchortype", &cfg_type_anchortype, 0 },
+	{ "n1", &cfg_type_uint32, 0 },
+	{ "n2", &cfg_type_uint32, 0 },
+	{ "n3", &cfg_type_uint32, 0 },
+	{ "data", &cfg_type_qstring, 0 },
 	{ NULL, NULL, 0 }
 };
 static cfg_type_t cfg_type_managedkey = {
@@ -625,11 +633,11 @@ static cfg_type_t cfg_type_dnsseckeys = {
 };
 
 /*%
- * A list of managed key entries, as in "trusted-keys".  Currently
- * (9.7.0) this has a format similar to dnssec keys, except the keyname
- * is followed by the keyword "initial-key".  In future releases, this
- * keyword may take other values indicating different methods for the
- * key to be initialized.
+ * A list of managed trust anchors.  Each entry contains a name, a keyword
+ * (either "initial-key" or "initial-ds"), and the fields associated with
+ * either a DNSKEY or a DS record. (In the case of "initial-key", the
+ * keyword is the only difference between this and the syntax of
+ * "trusted-keys".)
  */
 
 static cfg_type_t cfg_type_managedkeys = {
