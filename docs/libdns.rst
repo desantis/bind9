@@ -1,8 +1,3 @@
-.. libdns:
-
-BIND 9 DNS Library Support
-==========================
-
 .. _bind9.library:
 
 BIND 9 DNS Library Support

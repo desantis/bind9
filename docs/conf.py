@@ -47,9 +47,50 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+html_theme = 'sphinx_rtd_theme'
+html_theme_path = ["_themes", ]
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+man_pages = [
+	('man_arpaname', 'arpaname', '', 'Internet Systems Consortium', 1),
+	('man_ddns-confgen', 'ddns-confgen', '', 'Internet Systems Consortium', 1),
+	('man_delv', 'delv', '', 'Internet Systems Consortium', 1),
+	('man_dig', 'dig', '', 'Internet Systems Consortium', 1),
+	('man_dnssec-cds', 'dnssec-cds', '', 'Internet Systems Consortium', 1),
+	('man_dnssec-checkds', 'dnssec-checkds', '', 'Internet Systems Consortium', 1),
+	('man_dnssec-coverage', 'dnssec-coverage', '', 'Internet Systems Consortium', 1),
+	('man_dnssec-dsfromkey', 'dnssec-dsfromkey', '', 'Internet Systems Consortium', 1),
+	('man_dnssec-importkey', 'dnssec-importkey', '', 'Internet Systems Consortium', 1),
+	('man_dnssec-keyfromlabel', 'dnssec-keyfromlabel', '', 'Internet Systems Consortium', 1),
+	('man_dnssec-keygen', 'dnssec-keygen', '', 'Internet Systems Consortium', 1),
+	('man_dnssec-keymgr', 'dnssec-keymgr', '', 'Internet Systems Consortium', 1),
+	('man_dnssec-revoke', 'dnssec-revoke', '', 'Internet Systems Consortium', 1),
+	('man_dnssec-settime', 'dnssec-settime', '', 'Internet Systems Consortium', 1),
+	('man_dnssec-signzone', 'dnssec-signzone', '', 'Internet Systems Consortium', 1),
+	('man_dnssec-verify', 'dnssec-verify', '', 'Internet Systems Consortium', 1),
+	('man_dnstap-read', 'dnstap-read', '', 'Internet Systems Consortium', 1),
+	('man_filter-aaaa', 'filter-aaaa', '', 'Internet Systems Consortium', 1),
+	('man_host', 'host', '', 'Internet Systems Consortium', 1),
+	('man_mdig', 'mdig', '', 'Internet Systems Consortium', 1),
+	('man_named-checkconf', 'named-checkconf', '', 'Internet Systems Consortium', 1),
+	('man_named-checkzone', 'named-checkzone', '', 'Internet Systems Consortium', 1),
+	('man_named-journalprint', 'named-journalprint', '', 'Internet Systems Consortium', 1),
+	('man_named-nzd2nzf', 'named-nzd2nzf', '', 'Internet Systems Consortium', 1),
+	('man_named-rrchecker', 'named-rrchecker', '', 'Internet Systems Consortium', 1),
+	('man_named.conf', 'named.conf', '', 'Internet Systems Consortium', 1),
+	('man_named', 'named', '', 'Internet Systems Consortium', 1),
+	('man_nsec3hash', 'nsec3hash', '', 'Internet Systems Consortium', 1),
+	('man_nslookup', 'nslookup', '', 'Internet Systems Consortium', 1),
+	('man_nsupdate', 'nsupdate', '', 'Internet Systems Consortium', 1),
+	('man_pkcs11-destroy', 'pkcs11-destroy', '', 'Internet Systems Consortium', 1),
+	('man_pkcs11-keygen', 'pkcs11-keygen', '', 'Internet Systems Consortium', 1),
+	('man_pkcs11-list', 'pkcs11-list', '', 'Internet Systems Consortium', 1),
+	('man_pkcs11-tokens', 'pkcs11-tokens', '', 'Internet Systems Consortium', 1),
+	('man_rndc-confgen', 'rndc-confgen', '', 'Internet Systems Consortium', 1),
+	('man_rndc.conf', 'rndc.conf', '', 'Internet Systems Consortium', 1),
+	('man_rndc', 'rndc', '', 'Internet Systems Consortium', 1)
+]
