@@ -615,6 +615,7 @@ if [ -x "$DELV" ] ; then
   ret=0
   delv_with_opts @10.53.0.3 +split=4 -t sshfp foo.example > delv.out.test$n || ret=1
   grep " 9ABC DEF6 7890 " < delv.out.test$n > /dev/null || ret=1
+  awk '$4 == "SSHFP" { if ($2 <= 300) { ok=1 } } END { exit(ok?0:1) }' < delv.out.test$n || ret=1
   if [ $ret -ne 0 ]; then echo_i "failed"; fi
   status=$((status+ret))
 
@@ -623,6 +624,7 @@ if [ -x "$DELV" ] ; then
   ret=0
   delv_with_opts @10.53.0.3 +unknownformat a a.example > delv.out.test$n || ret=1
   grep "CLASS1[ 	][ 	]*TYPE1[ 	][ 	]*\\\\# 4 0A000001" < delv.out.test$n > /dev/null || ret=1
+  awk '$4 == "TYPE1" { if ($2 <= 300) { ok=1 } } END { exit(ok?0:1) }' < delv.out.test$n || ret=1
   if [ $ret -ne 0 ]; then echo_i "failed"; fi
   status=$((status+ret))
 
@@ -676,6 +678,7 @@ if [ -x "$DELV" ] ; then
   delv_with_opts @10.53.0.3 -x 127.0.0.1 > delv.out.test$n 2>&1 || ret=1
   # doesn't matter if has answer
   grep -i "127\\.in-addr\\.arpa\\." < delv.out.test$n > /dev/null || ret=1
+  awk '$4 == "IN" { if ($3 <= 10800) { ok=1 } } END { exit(ok?0:1) }' < delv.out.test$n || ret=1
   if [ $ret -ne 0 ]; then echo_i "failed"; fi
   status=$((status+ret))
 
@@ -684,6 +687,7 @@ if [ -x "$DELV" ] ; then
   ret=0
   delv_with_opts +tcp @10.53.0.3 a a.example > delv.out.test$n || ret=1
   grep "10\\.0\\.0\\.1$" < delv.out.test$n > /dev/null || ret=1
+  awk '$4 == "A" { if ($2 <= 300) { ok=1 } } END { exit(ok?0:1) }' < delv.out.test$n || ret=1
   if [ $ret -ne 0 ]; then echo_i "failed"; fi
   status=$((status+ret))
 
@@ -692,6 +696,7 @@ if [ -x "$DELV" ] ; then
   ret=0
   delv_with_opts +tcp @10.53.0.3 +multi +norrcomments DNSKEY dnskey.example > delv.out.test$n || ret=1
   grep "; ZSK; alg = $DEFAULT_ALGORITHM ; key id = $KEYID" < delv.out.test$n > /dev/null && ret=1
+  awk '$4 == "DNSKEY" { if ($2 <= 300) { ok=1 } } END { exit(ok?0:1) }' < delv.out.test$n || ret=1
   if [ $ret -ne 0 ]; then echo_i "failed"; fi
   status=$((status+ret))
 
@@ -700,6 +705,7 @@ if [ -x "$DELV" ] ; then
   ret=0
   delv_with_opts +tcp @10.53.0.3 +multi +norrcomments SOA example > delv.out.test$n || ret=1
   grep "; ZSK; alg = $DEFAULT_ALGORITHM ; key id = $KEYID" < delv.out.test$n > /dev/null && ret=1
+  awk '$4 == "SOA" { if ($2 <= 300) { ok=1 } } END { exit(ok?0:1) }' < delv.out.test$n || ret=1
   if [ $ret -ne 0 ]; then echo_i "failed"; fi
   status=$((status+ret))
 
@@ -708,6 +714,7 @@ if [ -x "$DELV" ] ; then
   ret=0
   delv_with_opts +tcp @10.53.0.3 +rrcomments DNSKEY dnskey.example > delv.out.test$n || ret=1
   grep "; ZSK; alg = $DEFAULT_ALGORITHM ; key id = $KEYID" < delv.out.test$n > /dev/null || ret=1
+  awk '$4 == "DNSKEY" { if ($2 <= 300) { ok=1 } } END { exit(ok?0:1) }' < delv.out.test$n || ret=1
   if [ $ret -ne 0 ]; then echo_i "failed"; fi
   status=$((status+ret))
 
